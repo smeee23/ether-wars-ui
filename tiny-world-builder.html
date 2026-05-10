@@ -501,6 +501,80 @@
     to { transform: translate3d(4%, 2%, 0); }
   }
 
+  /* -------- auth / profile / saves -------- */
+  .auth-btn {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    padding: 6px 14px;
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 0 1px 0 rgba(60, 40, 10, 0.04);
+    transition: background 0.12s, transform 0.08s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .auth-btn:hover { background: #faf5ea; }
+  .auth-btn:active { transform: translateY(1px); }
+  .auth-avatar {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--line);
+  }
+  .saves-list { list-style: none; padding: 0; margin: 10px 0 0; max-height: 300px; overflow-y: auto; }
+  .saves-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: var(--panel);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .saves-list li:hover { background: #faf5ea; }
+  .saves-list .save-name { font-weight: 500; font-size: 13px; }
+  .saves-list .save-date { font-size: 11px; color: var(--muted); }
+  .saves-list .save-actions { display: flex; gap: 6px; }
+  .saves-list .save-actions button {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; padding: 2px 6px; border-radius: 4px;
+    color: var(--muted); transition: color 0.12s, background 0.12s;
+  }
+  .saves-list .save-actions button:hover { color: var(--ink); background: var(--line); }
+  .profile-section { margin-bottom: 16px; }
+  .profile-section label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; }
+  .profile-section input[type="text"],
+  .profile-section textarea {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--line); border-radius: 8px;
+    font-family: inherit; font-size: 13px;
+    background: var(--panel); color: var(--ink);
+  }
+  .profile-section textarea { resize: vertical; min-height: 60px; }
+  .profile-avatar-preview {
+    width: 48px; height: 48px; border-radius: 50%;
+    object-fit: cover; border: 2px solid var(--line);
+    margin-bottom: 8px;
+  }
+  .tab-bar { display: flex; gap: 4px; margin-bottom: 14px; }
+  .tab-bar button {
+    flex: 1; padding: 8px;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); font-family: inherit;
+    font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+  .tab-bar button.active { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .save-empty { text-align: center; padding: 30px 10px; color: var(--muted); font-size: 13px; }
   @media (max-width: 600px) {
     .brand .title { font-size: 22px; }
     .help { display: none; }
@@ -530,6 +604,53 @@
     <button class="btn" id="generate" title="Generate world from a prompt" hidden>✨ Generate</button>
     <button class="btn" id="render-settings" title="Render settings">Render</button>
     <button class="btn" id="clear">Clear</button>
+    <button class="auth-btn" id="auth-btn">Sign in</button>
+  </div>
+
+  <div id="account-modal" class="modal" hidden>
+    <form class="modal-card" role="dialog" aria-labelledby="account-title" onsubmit="return false">
+      <div class="modal-head">
+        <strong id="account-title">My Account</strong>
+        <button class="modal-close" id="account-close" title="Close">×</button>
+      </div>
+      <div class="tab-bar">
+        <button type="button" id="tab-profile" class="active">Profile</button>
+        <button type="button" id="tab-saves">My Builds</button>
+      </div>
+      <div id="panel-profile">
+        <div class="profile-section">
+          <img class="profile-avatar-preview" id="profile-avatar-img" src="" alt="" hidden />
+          <label>Username
+            <input type="text" id="profile-username" placeholder="Your display name" />
+          </label>
+        </div>
+        <div class="profile-section">
+          <label>About
+            <textarea id="profile-about" placeholder="A short bio"></textarea>
+          </label>
+        </div>
+        <div class="profile-section">
+          <label>Avatar URL
+            <input type="text" id="profile-image" placeholder="https://..." />
+          </label>
+        </div>
+        <div class="modal-foot">
+          <span id="profile-status"></span>
+          <button class="btn" id="profile-save" type="button">Save Profile</button>
+          <button class="btn" id="auth-logout" type="button">Sign out</button>
+        </div>
+      </div>
+      <div id="panel-saves" hidden>
+        <div class="modal-foot" style="margin-bottom: 10px;">
+          <label style="flex:1;">
+            <input type="text" id="save-name" placeholder="Name this build..." style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;" />
+          </label>
+          <button class="btn" id="save-current" type="button">Save Current</button>
+        </div>
+        <ul class="saves-list" id="saves-list"></ul>
+        <div class="save-empty" id="saves-empty" hidden>No saved builds yet. Build a world and save it above.</div>
+      </div>
+    </form>
   </div>
 
   <div id="welcome-modal" class="modal">
@@ -697,6 +818,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
   <script>
   /* =====================================================================
      Tiny World Builder — single-file Three.js scene + tile editor
@@ -5539,6 +5661,220 @@
       if (e.key === 'Escape' && !modal.hidden) close();
     });
   }
+
+  // -------- Auth0 + profile + saves --------
+  (function initAuth() {
+    const AUTH0_DOMAIN = window.__AUTH0_DOMAIN || '';
+    const AUTH0_CLIENT_ID = window.__AUTH0_CLIENT_ID || '';
+    const AUTH0_AUDIENCE = window.__AUTH0_AUDIENCE || '';
+    if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID) return;
+
+    let auth0Client = null;
+    let accessToken = null;
+    let userProfile = null;
+    let userBuilds = [];
+
+    const authBtn = document.getElementById('auth-btn');
+    const modal = document.getElementById('account-modal');
+    const closeBtn = document.getElementById('account-close');
+    const logoutBtn = document.getElementById('auth-logout');
+    const tabProfile = document.getElementById('tab-profile');
+    const tabSaves = document.getElementById('tab-saves');
+    const panelProfile = document.getElementById('panel-profile');
+    const panelSaves = document.getElementById('panel-saves');
+    const profileUsername = document.getElementById('profile-username');
+    const profileAbout = document.getElementById('profile-about');
+    const profileImage = document.getElementById('profile-image');
+    const profileAvatarImg = document.getElementById('profile-avatar-img');
+    const profileSaveBtn = document.getElementById('profile-save');
+    const profileStatus = document.getElementById('profile-status');
+    const saveCurrent = document.getElementById('save-current');
+    const saveName = document.getElementById('save-name');
+    const savesList = document.getElementById('saves-list');
+    const savesEmpty = document.getElementById('saves-empty');
+
+    function showTab(tab) {
+      const isProfile = tab === 'profile';
+      tabProfile.classList.toggle('active', isProfile);
+      tabSaves.classList.toggle('active', !isProfile);
+      panelProfile.hidden = !isProfile;
+      panelSaves.hidden = isProfile;
+      if (!isProfile) loadBuilds();
+    }
+    tabProfile.addEventListener('click', () => showTab('profile'));
+    tabSaves.addEventListener('click', () => showTab('saves'));
+
+    function openModal() { modal.hidden = false; }
+    function closeModal() { modal.hidden = true; }
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+    async function apiCall(path, method, body) {
+      const opts = {
+        method,
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      };
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(path, opts);
+      return r.json();
+    }
+
+    function updateAuthBtn() {
+      if (userProfile) {
+        authBtn.innerHTML = '';
+        if (userProfile.image) {
+          const img = document.createElement('img');
+          img.src = userProfile.image;
+          img.className = 'auth-avatar';
+          img.alt = '';
+          authBtn.appendChild(img);
+        }
+        authBtn.appendChild(document.createTextNode(userProfile.username));
+      } else {
+        authBtn.textContent = 'My Account';
+      }
+    }
+
+    async function loadProfile() {
+      const p = await apiCall('/api/profile', 'GET');
+      if (p && p.id) {
+        userProfile = p;
+        profileUsername.value = p.username || '';
+        profileAbout.value = p.about || '';
+        profileImage.value = p.image || '';
+        if (p.image) {
+          profileAvatarImg.src = p.image;
+          profileAvatarImg.hidden = false;
+        }
+        updateAuthBtn();
+      }
+    }
+
+    profileImage.addEventListener('input', () => {
+      const url = profileImage.value.trim();
+      if (url) { profileAvatarImg.src = url; profileAvatarImg.hidden = false; }
+      else { profileAvatarImg.hidden = true; }
+    });
+
+    profileSaveBtn.addEventListener('click', async () => {
+      const username = profileUsername.value.trim();
+      if (!username) { profileStatus.textContent = 'Username required'; return; }
+      profileStatus.textContent = 'Saving...';
+      const result = await apiCall('/api/profile', 'PUT', {
+        username,
+        about: profileAbout.value.trim(),
+        image: profileImage.value.trim(),
+      });
+      if (result && (result.id || result.username)) {
+        userProfile = result;
+        updateAuthBtn();
+        profileStatus.textContent = 'Saved!';
+        setTimeout(() => profileStatus.textContent = '', 2000);
+      } else {
+        profileStatus.textContent = result.error || 'Save failed';
+      }
+    });
+
+    async function loadBuilds() {
+      const list = await apiCall('/api/builds', 'GET');
+      userBuilds = Array.isArray(list) ? list : [];
+      renderBuilds();
+    }
+
+    function renderBuilds() {
+      savesList.innerHTML = '';
+      savesEmpty.hidden = userBuilds.length > 0;
+      userBuilds.forEach(b => {
+        const li = document.createElement('li');
+        const info = document.createElement('div');
+        const nameSpan = document.createElement('div');
+        nameSpan.className = 'save-name';
+        nameSpan.textContent = b.name;
+        const dateSpan = document.createElement('div');
+        dateSpan.className = 'save-date';
+        dateSpan.textContent = new Date(b.updatedAt || b.created_at).toLocaleDateString();
+        info.appendChild(nameSpan);
+        info.appendChild(dateSpan);
+        const actions = document.createElement('div');
+        actions.className = 'save-actions';
+        const loadBtn = document.createElement('button');
+        loadBtn.textContent = 'Load';
+        loadBtn.title = 'Load this build';
+        loadBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const full = await apiCall('/api/builds?id=' + b.id, 'GET');
+          if (full && full.data) {
+            applyState(full.data);
+            closeModal();
+          }
+        });
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm('Delete "' + b.name + '"?')) return;
+          await apiCall('/api/builds?id=' + b.id, 'DELETE');
+          loadBuilds();
+        });
+        actions.appendChild(loadBtn);
+        actions.appendChild(delBtn);
+        li.appendChild(info);
+        li.appendChild(actions);
+        savesList.appendChild(li);
+      });
+    }
+
+    saveCurrent.addEventListener('click', async () => {
+      if (!userProfile) { alert('Please save your profile first.'); showTab('profile'); return; }
+      const name = saveName.value.trim() || ('Build ' + new Date().toLocaleDateString());
+      const cells = snapshotCells();
+      const data = { v: STORAGE_VERSION, cells, cameraMode, toolId: selectedTool && selectedTool.id };
+      await apiCall('/api/builds', 'POST', { name, data });
+      saveName.value = '';
+      loadBuilds();
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+      closeModal();
+      await auth0Client.logout({ logoutParams: { returnTo: window.location.origin } });
+    });
+
+    async function initAuth0() {
+      auth0Client = await window.auth0.createAuth0Client({
+        domain: AUTH0_DOMAIN,
+        clientId: AUTH0_CLIENT_ID,
+        authorizationParams: {
+          redirect_uri: window.location.origin,
+          audience: AUTH0_AUDIENCE,
+        },
+        cacheLocation: 'localstorage',
+      });
+
+      if (window.location.search.includes('code=') && window.location.search.includes('state=')) {
+        await auth0Client.handleRedirectCallback();
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
+      const isAuthenticated = await auth0Client.isAuthenticated();
+      if (isAuthenticated) {
+        accessToken = await auth0Client.getTokenSilently();
+        authBtn.textContent = 'My Account';
+        authBtn.addEventListener('click', () => {
+          openModal();
+          loadProfile();
+        });
+        loadProfile();
+      } else {
+        authBtn.textContent = 'Sign in';
+        authBtn.addEventListener('click', () => {
+          auth0Client.loginWithRedirect();
+        });
+      }
+    }
+
+    initAuth0().catch(err => console.error('Auth0 init error:', err));
+  })();
 
   // -------- boot --------
   initWelcomeDialog();
