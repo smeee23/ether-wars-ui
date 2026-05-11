@@ -1361,17 +1361,17 @@
         <input id="render-tilt-focus" type="range" min="15" max="80" step="1" />
         <output id="render-tilt-focus-value"></output>
       </div>
-      <div class="range-row">
+      <div class="range-row" hidden>
         <span>Ghost opacity</span>
         <input id="render-ghost-opacity" type="range" min="5" max="100" step="1" />
         <output id="render-ghost-opacity-value"></output>
       </div>
-      <div class="range-row">
+      <div class="range-row" hidden>
         <span>Ghost floors</span>
         <input id="render-floor-opacity" type="range" min="10" max="100" step="1" />
         <output id="render-floor-opacity-value"></output>
       </div>
-      <div class="range-row">
+      <div class="range-row" hidden>
         <span>Ghost objects</span>
         <input id="render-object-opacity" type="range" min="0" max="100" step="1" />
         <output id="render-object-opacity-value"></output>
@@ -1486,12 +1486,12 @@
     visibleSize: '16',
     clouds: '0.61',
     cloudSpeed: '0.35',
-    cloudHeight: '7',
+    cloudHeight: '6',
     tiltBlur: '3.5',
     tiltFocus: '18',
-    ghostOpacity: '0.22',
-    floorOpacity: '0.38',
-    objectOpacity: '0.6',
+    ghostOpacity: '1',
+    floorOpacity: '1',
+    objectOpacity: '1',
   };
   if (localStorage.getItem(RENDER_LS.version) !== RENDER_SETTINGS_VERSION) {
     for (const key of Object.values(RENDER_LS)) localStorage.removeItem(key);
@@ -1525,15 +1525,17 @@
   let renderVisibleSize = Math.round(storedNumber(RENDER_LS.visibleSize, 16, 8, 20));
   let renderCloudAmount = storedNumber(RENDER_LS.clouds, 0.61, 0, 1);
   let renderCloudSpeed = storedNumber(RENDER_LS.cloudSpeed, 0.35, 0, 1);
-  let renderCloudHeight = storedNumber(RENDER_LS.cloudHeight, 7, 2, 14);
+  let renderCloudHeight = storedNumber(RENDER_LS.cloudHeight, 6, 2, 14);
   let renderTiltBlur = storedNumber(RENDER_LS.tiltBlur, 3.5, 0, 8);
   let renderTiltFocus = storedNumber(RENDER_LS.tiltFocus, 18, 15, 80);
-  let renderGhostOpacity = storedNumber(RENDER_LS.ghostOpacity, 0.22, 0.05, 1);
-  let renderFloorOpacity = storedNumber(RENDER_LS.floorOpacity, 0.38, 0.1, 1);
-  let renderObjectOpacity = storedNumber(RENDER_LS.objectOpacity, 0.6, 0, 1);
+  let renderGhostOpacity = storedNumber(RENDER_LS.ghostOpacity, 1, 0.05, 1);
+  let renderFloorOpacity = storedNumber(RENDER_LS.floorOpacity, 1, 0.1, 1);
+  let renderObjectOpacity = storedNumber(RENDER_LS.objectOpacity, 1, 0, 1);
   const renderer = new THREE.WebGLRenderer({
     canvas: canvasEl,
-    antialias: false,
+    // Hardware MSAA for the post-disabled path. The post-enabled path
+    // uses a multisample render target instead (samples bumped to 8 below).
+    antialias: true,
     alpha: true,
     powerPreference: 'high-performance',
   });
@@ -1563,7 +1565,15 @@
     depthBuffer: true,
     stencilBuffer: false,
   });
-  if ('samples' in postTarget) postTarget.samples = 4;
+  if ('samples' in postTarget) {
+    // 8x MSAA on capable hardware, falls back automatically. The 8x8 grid
+    // is cheap enough that the bump is invisible in the perf profile but
+    // very visible on tile edges.
+    const maxSamples = (renderer.capabilities && typeof renderer.capabilities.maxSamples === 'number')
+      ? renderer.capabilities.maxSamples
+      : 4;
+    postTarget.samples = Math.min(8, Math.max(4, maxSamples));
+  }
   postTarget.texture.generateMipmaps = false;
   const postScene = new THREE.Scene();
   const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -1599,11 +1609,29 @@
       'varying vec2 vUv;',
       'void main() {',
       '  vec2 texel = 1.0 / max(resolution, vec2(1.0));',
-      '  vec4 c = texture2D(tDiffuse, vUv) * 0.72;',
+      // Lightweight FXAA-style edge smoothing on the post-on path.
+      // Sample the four corners and the centre, weight by luminance
+      // difference so flat areas stay sharp and only edges get the blur.
+      '  vec4 cc = texture2D(tDiffuse, vUv);',
+      '  vec4 ne = texture2D(tDiffuse, vUv + texel);',
+      '  vec4 nw = texture2D(tDiffuse, vUv + vec2(-texel.x,  texel.y));',
+      '  vec4 se = texture2D(tDiffuse, vUv + vec2( texel.x, -texel.y));',
+      '  vec4 sw = texture2D(tDiffuse, vUv - texel);',
+      '  float lc = dot(cc.rgb, vec3(0.299, 0.587, 0.114));',
+      '  float lne = dot(ne.rgb, vec3(0.299, 0.587, 0.114));',
+      '  float lnw = dot(nw.rgb, vec3(0.299, 0.587, 0.114));',
+      '  float lse = dot(se.rgb, vec3(0.299, 0.587, 0.114));',
+      '  float lsw = dot(sw.rgb, vec3(0.299, 0.587, 0.114));',
+      '  float lmin = min(lc, min(min(lne, lnw), min(lse, lsw)));',
+      '  float lmax = max(lc, max(max(lne, lnw), max(lse, lsw)));',
+      '  float edge = clamp((lmax - lmin) * 3.0, 0.0, 1.0);',
+      '  vec4 c = cc * 0.72;',
       '  c += texture2D(tDiffuse, vUv + vec2(texel.x, 0.0)) * 0.07;',
       '  c += texture2D(tDiffuse, vUv - vec2(texel.x, 0.0)) * 0.07;',
       '  c += texture2D(tDiffuse, vUv + vec2(0.0, texel.y)) * 0.07;',
       '  c += texture2D(tDiffuse, vUv - vec2(0.0, texel.y)) * 0.07;',
+      '  vec4 aaSoft = (cc + ne + nw + se + sw) * 0.2;',
+      '  c = mix(c, aaSoft, edge * 0.55);',
       '  vec3 col = c.rgb;',
       '  float luma = dot(col, vec3(0.299, 0.587, 0.114));',
       '  col = mix(vec3(luma), col, saturation);',
@@ -1797,6 +1825,7 @@
     camera.position.y = target.y + r * Math.cos(polar);
     camera.position.z = target.z + r * Math.sin(polar) * Math.sin(azimuth);
     camera.lookAt(target);
+    if (typeof updateSunFollow === 'function') updateSunFollow();
   }
   function panCameraByPixels(dx, dy) {
     const scale = (viewSize * 2) / Math.max(1, window.innerHeight);
@@ -1820,28 +1849,62 @@
   updateCamera();
 
   // -------- lighting --------
-  // Neutral hemisphere — warm sky was dyeing everything cream-yellow.
+  // Three sources stack to give every cell the same look regardless of
+  // how far the camera has panned:
+  //   1. AmbientLight   — flat minimum fill so shadowed sides never read black.
+  //   2. HemisphereLight — soft sky-vs-ground gradient on top of ambient.
+  //   3. DirectionalLight (sun) — the only shadow caster. The light's
+  //      offset is fixed in world space (so its angle is constant), but
+  //      its position and shadow camera follow `target` every frame so
+  //      shadows render correctly anywhere on the world, not just near
+  //      the home board origin.
+  const ambient = new THREE.AmbientLight(0xffffff, 0.18);
+  scene.add(ambient);
+
   const hemi = new THREE.HemisphereLight(0xffffff, 0xb39879, 0.30);
   scene.add(hemi);
 
+  // Fixed sun direction relative to the camera target — same angle of
+  // attack everywhere on the map.
+  const SUN_OFFSET = new THREE.Vector3(7, 12, 5);
   const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-  sun.position.set(7, 12, 5);
+  sun.position.copy(target).add(SUN_OFFSET);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -10;
-  sun.shadow.camera.right = 10;
-  sun.shadow.camera.top = 10;
-  sun.shadow.camera.bottom = -10;
+  // Shadow frustum sized to comfortably cover the visible window plus a
+  // ring of ghost cells in every direction.
+  const SHADOW_HALF = 20;
+  sun.shadow.camera.left   = -SHADOW_HALF;
+  sun.shadow.camera.right  =  SHADOW_HALF;
+  sun.shadow.camera.top    =  SHADOW_HALF;
+  sun.shadow.camera.bottom = -SHADOW_HALF;
   sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 35;
+  sun.shadow.camera.far = 60;
   sun.shadow.bias = -0.0006;
   sun.shadow.radius = 2;
   scene.add(sun);
-  // No ambient — hemi handles fill, ambient just compresses contrast & saturation.
+  scene.add(sun.target);
+  sun.target.position.copy(target);
+  sun.target.updateMatrixWorld();
+
+  // Keep the sun glued to the camera target so shadows are always
+  // rendered around what the user is looking at. Declared as a `var`
+  // assignment (hoisted to `undefined`) so updateCamera() — which may
+  // be called before the lighting block has run — sees a falsy value
+  // for `typeof` and skips the call safely.
+  var updateSunFollow = function () {
+    sun.position.set(target.x + SUN_OFFSET.x, target.y + SUN_OFFSET.y, target.z + SUN_OFFSET.z);
+    sun.target.position.set(target.x, target.y, target.z);
+    sun.target.updateMatrixWorld();
+    sun.shadow.camera.updateProjectionMatrix();
+  };
 
   function applyLightingSettings() {
     hemi.intensity = 0.12 + renderLighting * 0.18;
     sun.intensity = 0.55 + renderLighting * 0.45;
+    // Ambient is a flat floor — scale it gently with the lighting slider
+    // so very low settings still leave shadowed sides legible.
+    ambient.intensity = 0.10 + renderLighting * 0.12;
   }
 
   function setShadowQuality(value) {
@@ -4112,6 +4175,55 @@
     return p;
   }
 
+  // -------- ghost world generator --------
+  // Deterministic — every (boardX, boardZ) produces identical content
+  // every time, so panning away and back regenerates the same world.
+  //
+  // Connection rubric — paths and rivers route along whole rows/columns
+  // of boards so they line up across edges:
+  //   - A horizontal path's Z is determined by hash(boardZ) alone, so
+  //     every board on that row of the world either has the path at the
+  //     same Z or doesn't have one at all.
+  //   - Vertical paths and rivers work the same way against boardX.
+  //   - Where horizontal and vertical paths cross within a board you
+  //     get a crossroads.
+  //   - Where a river meets a horizontal path you get a bridge tile.
+  //
+  // Per-cell decoration (houses, trees, crops, rocks) uses cellRand on
+  // GLOBAL coords (boardX * GRID + x, boardZ * GRID + z) so a given
+  // world cell always renders the same content even if it's reached
+  // from different boards or after a session restart.
+  function ghostHash(a, b, salt) {
+    // Mulberry-ish 32-bit mix of (a, b, salt). Always positive integer.
+    let h = (a | 0) * 374761393 + (b | 0) * 668265263 + (salt | 0) * 2147483647;
+    h = (h ^ (h >>> 13)) >>> 0;
+    h = Math.imul(h, 1274126177) >>> 0;
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+  // Row-shared horizontal path: returns Z within a board, or -1 for none.
+  function pathZForRow(boardZ) {
+    const h = ghostHash(boardZ, 0, 0xa11ce);
+    if ((h % 100) < 30) return -1;          // ~30 % of rows have no road
+    return h % GRID;
+  }
+  // Col-shared vertical path: returns X within a board, or -1 for none.
+  function pathXForCol(boardX) {
+    const h = ghostHash(boardX, 0, 0xb0b);
+    if ((h % 100) < 35) return -1;
+    return h % GRID;
+  }
+  // Col-shared river: returns X within a board, or -1 for none. Rivers
+  // are rarer than paths and prefer columns that don't already host a
+  // vertical road so we don't bulldoze the road with water.
+  function riverXForCol(boardX) {
+    const h = ghostHash(boardX, 0, 0xfe11a);
+    if ((h % 100) < 88) return -1;          // ~12 % of cols have a river
+    let x = h % GRID;
+    const px = pathXForCol(boardX);
+    if (x === px) x = (x + 1) % GRID;
+    return x;
+  }
+
   function makeGhostWorld(boardX, boardZ) {
     const key = ghostBoardKey(boardX, boardZ);
     if (ghostBoardCells.has(key)) return ghostBoardCells.get(key);
@@ -4122,79 +4234,142 @@
     }
     const cells = makeBlankBoardWorld();
 
-    const seed = Math.abs(boardX * 37 + boardZ * 61);
-    const pathZ = (seed + 2) % GRID;
-    const pathX = (seed + 5) % GRID;
-    for (let x = 0; x < GRID; x++) cells[x][pathZ].terrain = 'path';
-    if ((seed % 3) !== 0) {
+    // 1) Paths — row & column shared so they connect across board edges.
+    const pathZ = pathZForRow(boardZ);
+    const pathX = pathXForCol(boardX);
+    if (pathZ >= 0) {
+      for (let x = 0; x < GRID; x++) cells[x][pathZ].terrain = 'path';
+    }
+    if (pathX >= 0) {
       for (let z = 0; z < GRID; z++) cells[pathX][z].terrain = 'path';
     }
-    if ((seed % 4) === 0) {
-      const riverX = (seed + 3) % GRID;
+
+    // 2) Rivers — column shared so they flow vertically through every
+    // board in the column. Where the river crosses a horizontal path,
+    // drop a bridge so the road still works.
+    const riverX = riverXForCol(boardX);
+    if (riverX >= 0) {
       for (let z = 0; z < GRID; z++) {
-        cells[riverX][z] = { terrain: 'water', kind: null, floors: 1, buildingType: null, fenceSide: null };
+        cells[riverX][z] = { terrain: 'water', kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
       }
-      cells[riverX][pathZ] = { terrain: 'water', kind: 'bridge', floors: 1, buildingType: null, fenceSide: null };
+      if (pathZ >= 0) {
+        cells[riverX][pathZ] = { terrain: 'water', kind: 'bridge', floors: 1, buildingType: null, fenceSide: null, extras: [] };
+      }
     }
 
+    // 3) Decoration — keyed off GLOBAL world coords so every cell is
+    // stable regardless of how it was reached.
+    const boardSeed = ghostHash(boardX, boardZ, 0xdec0);
     const houseSpots = [
-      [(seed + 1) % 6 + 1, Math.max(1, pathZ - 1)],
-      [(seed + 4) % 6 + 1, Math.min(GRID - 2, pathZ + 1)],
+      [1 + (ghostHash(boardX, boardZ, 1) % 6), Math.max(1, (pathZ >= 0 ? pathZ : 3) - 1)],
+      [1 + (ghostHash(boardX, boardZ, 2) % 6), Math.min(GRID - 2, (pathZ >= 0 ? pathZ : 3) + 1)],
     ];
     houseSpots.forEach(([x, z], i) => {
-      if (cells[x][z].terrain !== 'water') {
-        cells[x][z] = {
-          terrain: cells[x][z].terrain,
-          kind: 'house',
-          floors: 1 + ((seed + i) % 3),
-          buildingType: i % 2 ? 'cottage' : null,
-        };
-      }
+      if (x < 0 || x >= GRID || z < 0 || z >= GRID) return;
+      if (cells[x][z].terrain === 'water') return;
+      if (cells[x][z].terrain === 'path') return;
+      cells[x][z] = {
+        terrain: cells[x][z].terrain,
+        kind: 'house',
+        floors: 1 + (ghostHash(boardX, boardZ, 3 + i) % 3),
+        buildingType: i % 2 ? 'cottage' : null,
+        fenceSide: null,
+        extras: [],
+      };
     });
 
-    const cropBaseX = (seed + 2) % 5;
-    const cropBaseZ = (seed + 4) % 5;
-    for (let x = cropBaseX; x < cropBaseX + 3; x++) {
-      for (let z = cropBaseZ; z < cropBaseZ + 2; z++) {
-        if (cells[x][z].kind || cells[x][z].terrain === 'water') continue;
+    const cropBaseX = ghostHash(boardX, boardZ, 0xc01) % Math.max(1, GRID - 3);
+    const cropBaseZ = ghostHash(boardX, boardZ, 0xc11) % Math.max(1, GRID - 2);
+    for (let x = cropBaseX; x < cropBaseX + 3 && x < GRID; x++) {
+      for (let z = cropBaseZ; z < cropBaseZ + 2 && z < GRID; z++) {
+        if (cells[x][z].kind || cells[x][z].terrain === 'water' || cells[x][z].terrain === 'path') continue;
         const cropKinds = ['crop', 'corn', 'wheat', 'pumpkin'];
-        cells[x][z] = { terrain: 'dirt', kind: cropKinds[(x + z + seed) % cropKinds.length], floors: 1, buildingType: null };
+        const gx = boardX * GRID + x, gz = boardZ * GRID + z;
+        cells[x][z] = {
+          terrain: 'dirt',
+          kind: cropKinds[Math.floor(cellRand(gx, gz, 0xc121) * cropKinds.length)],
+          floors: 1, buildingType: null, fenceSide: null, extras: [],
+        };
       }
     }
 
-    for (let i = 0; i < 12; i++) {
-      const x = Math.floor(cellRand(boardX * 11 + i, boardZ * 13, seed) * GRID);
-      const z = Math.floor(cellRand(boardX * 17, boardZ * 19 + i, seed) * GRID);
+    // Scatter trees / tufts / rocks using global coords so the same
+    // patch of world always renders the same scenery.
+    for (let i = 0; i < 14; i++) {
+      const x = Math.floor(cellRand(boardX * 11 + i, boardZ * 13, 0xa1) * GRID);
+      const z = Math.floor(cellRand(boardX * 17, boardZ * 19 + i, 0xa2) * GRID);
       if (cells[x][z].kind || cells[x][z].terrain !== 'grass') continue;
-      const r = cellRand(boardX + i, boardZ - i, seed);
+      const gx = boardX * GRID + x, gz = boardZ * GRID + z;
+      const r = cellRand(gx, gz, 0xa3);
       cells[x][z] = {
         terrain: 'grass',
         kind: r < 0.55 ? 'tree' : (r < 0.80 ? 'tuft' : 'rock'),
-        floors: 1 + Math.floor(cellRand(boardX - i, boardZ + i, seed) * 3),
+        floors: 1 + Math.floor(cellRand(gx, gz, 0xa4) * 3),
         buildingType: null,
         fenceSide: null,
+        extras: [],
       };
     }
 
+    cells.__seed = boardSeed;
+    cells.__pathZ = pathZ;
+    cells.__pathX = pathX;
+    cells.__riverX = riverX;
     ghostBoardCells.set(key, cells);
     return cells;
   }
 
-  function getGhostNeighbors(cells, x, z, prop, value) {
+  // Resolve a cell at any (boardX, boardZ, x, z) — wrapping into the
+  // neighbour board when x/z fall outside [0, GRID). Returns null if the
+  // board generation is suppressed (e.g. blank ghost mode).
+  function ghostCellAt(boardX, boardZ, x, z) {
+    let bx = boardX, bz = boardZ;
+    if (x < 0)      { bx -= 1; x += GRID; }
+    else if (x >= GRID) { bx += 1; x -= GRID; }
+    if (z < 0)      { bz -= 1; z += GRID; }
+    else if (z >= GRID) { bz += 1; z -= GRID; }
+    const gx = bx * GRID + x;
+    const gz = bz * GRID + z;
+    // Home board (0, 0): world[][] is always the truth, edited or not.
+    if (bx === 0 && bz === 0) {
+      if (x < 0 || z < 0 || x >= HOME_GRID_MAX || z >= HOME_GRID_MAX) return null;
+      return world[x] && world[x][z] || null;
+    }
+    // Non-home: prefer a USER-EDITED override; otherwise fall through
+    // to the generated cells.
+    if (world[gx] && world[gx][gz] && world[gx][gz].userEdited) {
+      return world[gx][gz];
+    }
+    const neighbour = makeGhostWorld(bx, bz);
+    return neighbour && neighbour[x] && neighbour[x][z] || null;
+  }
+
+  // Cross-board aware neighbour helpers. They take the local board coords
+  // so they can peek into the neighbouring board when (x, z) sits on an
+  // edge — that's how paths and rivers visually continue across boards.
+  function getGhostNeighbors(cells, x, z, prop, value, boardX, boardZ) {
+    const n = ghostCellAt(boardX, boardZ, x,     z - 1);
+    const s = ghostCellAt(boardX, boardZ, x,     z + 1);
+    const e = ghostCellAt(boardX, boardZ, x + 1, z);
+    const w = ghostCellAt(boardX, boardZ, x - 1, z);
     return {
-      n: z > 0          && cells[x][z - 1][prop] === value,
-      s: z < GRID - 1   && cells[x][z + 1][prop] === value,
-      e: x < GRID - 1   && cells[x + 1][z][prop] === value,
-      w: x > 0          && cells[x - 1][z][prop] === value,
+      n: !!(n && n[prop] === value),
+      s: !!(s && s[prop] === value),
+      e: !!(e && e[prop] === value),
+      w: !!(w && w[prop] === value),
     };
   }
 
-  function getGhostTerrainNeighbors(cells, x, z) {
+  function getGhostTerrainNeighbors(cells, x, z, boardX, boardZ) {
+    const n = ghostCellAt(boardX, boardZ, x,     z - 1);
+    const s = ghostCellAt(boardX, boardZ, x,     z + 1);
+    const e = ghostCellAt(boardX, boardZ, x + 1, z);
+    const w = ghostCellAt(boardX, boardZ, x - 1, z);
     return {
-      n: z > 0          ? cells[x][z - 1].terrain : null,
-      s: z < GRID - 1   ? cells[x][z + 1].terrain : null,
-      e: x < GRID - 1   ? cells[x + 1][z].terrain : null,
-      w: x > 0          ? cells[x - 1][z].terrain : null,
+      n: n ? n.terrain : null,
+      s: s ? s.terrain : null,
+      e: e ? e.terrain : null,
+      w: w ? w.terrain : null,
     };
   }
 
@@ -4469,9 +4644,17 @@
 
     for (let x = 0; x < GRID; x++) {
       for (let z = 0; z < GRID; z++) {
+        // Only skip cells the user has explicitly edited (userEdited
+        // flag). The pre-allocated world[0..HOME_GRID_MAX) rows are full
+        // of default grass that must NOT mask the ghost board — they're
+        // future home cells, not overrides.
+        const gx = x + boardX * GRID;
+        const gz = z + boardZ * GRID;
+        if (world[gx] && world[gx][gz] && world[gx][gz].userEdited) continue;
+
         const tile = makeTile(cells[x][z].terrain, {
-          path: getGhostNeighbors(cells, x, z, 'terrain', 'path'),
-          terrain: getGhostTerrainNeighbors(cells, x, z),
+          path: getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ),
+          terrain: getGhostTerrainNeighbors(cells, x, z, boardX, boardZ),
         }, x + boardX * GRID, z + boardZ * GRID, tileLevelForCell(cells[x][z]));
         tile.position.copy(ghostCellPos(boardX, boardZ, x, z));
         tile.userData.gx = x;
@@ -6239,19 +6422,48 @@
   }
 
   // -------- click → place / erase --------
+  // Remove the ghost board's mesh for a given local cell so a freshly
+  // materialised home cellMesh doesn't render on top of the original
+  // ghost tile/object at the same world position.
+  function removeGhostCellMesh(boardX, boardZ, lx, lz) {
+    const key = ghostBoardKey(boardX, boardZ);
+    const board = ghostBoards.get(key);
+    if (!board) return;
+    const toRemove = [];
+    for (const child of board.children) {
+      if (child.userData.gx === lx && child.userData.gz === lz) toRemove.push(child);
+    }
+    for (const child of toRemove) {
+      board.remove(child);
+      disposeGroup(child);
+    }
+  }
+
   function applyToolToCell(cell) {
-    // Handle both home board and ghost board cells
     if (cell.boardX || cell.boardZ) {
-      // Ghost board click: materialize the cell and apply tool
+      // Skip if the currently selected tool would no-op (e.g. auto mode
+      // without an API key) — otherwise we'd materialise + remove the
+      // ghost mesh for a click that produced no replacement, leaving a
+      // hole. Same for any other tool that ends up doing nothing.
+      if (selectedTool.auto) {
+        const keyEl = document.getElementById('gen-key');
+        if (!keyEl || !keyEl.value) return;
+      }
+      // Ghost-board click — copy the generated cell into the user-edit
+      // store, mark it as edited, strip the ghost mesh so we don't
+      // double-render, then let applyTool / setCell render the home
+      // cellMesh.
       const ghostCells = makeGhostWorld(cell.boardX, cell.boardZ);
       const ghostCell = ghostCells[cell.x][cell.z];
       const x = cell.x + (cell.boardX || 0) * GRID;
       const z = cell.z + (cell.boardZ || 0) * GRID;
       if (!world[x]) world[x] = [];
-      world[x][z] = { ...ghostCell };
+      world[x][z] = { ...ghostCell, userEdited: true };
+      removeGhostCellMesh(cell.boardX, cell.boardZ, cell.x, cell.z);
       applyTool(x, z);
+      // Re-stamp the flag after setCell rewrote the cell.
+      if (world[x] && world[x][z]) world[x][z].userEdited = true;
     } else {
-      // Home board click
       applyTool(cell.x, cell.z);
     }
   }
@@ -6896,6 +7108,13 @@
   }
 
   function doReset() {
+    // Reset always returns to the original 8x8 grid, regardless of what
+    // the user resized to. setHomeGridSize is a no-op if GRID is already
+    // at the default. skipRebuild because loadInitialScene immediately
+    // rebuilds every cell anyway.
+    if (GRID !== HOME_GRID_DEFAULT && typeof setHomeGridSize === 'function') {
+      setHomeGridSize(HOME_GRID_DEFAULT, { skipRebuild: true });
+    }
     loadInitialScene();
     resetCameraDefaults();
     if (typeof playSfx === 'function') playSfx('whoosh');
@@ -7136,9 +7355,9 @@
       renderTiltBlur = 3.5;
       renderTiltFocus = 18;
       applyTiltShiftSettings();
-      renderGhostOpacity = 0.22;
-      renderFloorOpacity = 0.38;
-      renderObjectOpacity = 0.6;
+      renderGhostOpacity = 1;
+      renderFloorOpacity = 1;
+      renderObjectOpacity = 1;
       updateGhostRenderBubble();
       persistSettings();
       syncControls();
@@ -7169,7 +7388,7 @@
     if (!isFinite(v)) return fallback;
     return Math.max(min, Math.min(max, v));
   }
-  let audioMusicVolume = storedAudio(AUDIO_LS.music, 0.55, 0, 1);
+  let audioMusicVolume = storedAudio(AUDIO_LS.music, 0.20, 0, 1);
   let audioSfxVolume   = storedAudio(AUDIO_LS.sfx,   0.7,  0, 1);
   let audioMusicMuted  = localStorage.getItem(AUDIO_LS.musicMuted) === '1';
   let audioSfxMuted    = localStorage.getItem(AUDIO_LS.sfxMuted)   === '1';
@@ -7532,18 +7751,37 @@
   var CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
   var CLOUD_Z_RANGE = 18;
 
+  // Build a per-puff cloned material so each piece of the cloud can sit
+  // at its own opacity — gives the cloud a wispy, uneven feel instead of
+  // a single solid silhouette. Tagged so syncCloudPopulation can dispose
+  // them when the cloud is recycled.
+  function cloneCloudMat(baseMat, opacity) {
+    const m = baseMat.clone();
+    m.transparent = true;
+    m.opacity = opacity;
+    m.depthWrite = false;
+    m.userData = m.userData || {};
+    m.userData.cloudInstance = true;
+    return m;
+  }
+
   function makeCloud() {
     const g = new THREE.Group();
     const puffs = 4 + Math.floor(Math.random() * 3);
     const big = roundedBox(1.3, 0.55, 0.95, 0.18);
-    const main = new THREE.Mesh(big, M.cloud);
+    // Main body — the most opaque part so the cloud has a readable core.
+    const main = new THREE.Mesh(big, cloneCloudMat(M.cloud, 0.78 + Math.random() * 0.12));
     main.position.set(0, 0, 0);
     g.add(main);
     for (let i = 0; i < puffs; i++) {
       const w = 0.55 + Math.random() * 0.55;
       const h = 0.40 + Math.random() * 0.30;
       const d = 0.55 + Math.random() * 0.45;
-      const puff = new THREE.Mesh(roundedBox(w, h, d, 0.16), Math.random() < 0.55 ? M.cloud : M.cloudShade);
+      // Puffs swing 0.35 → 0.85 opacity so edges feather and centre puffs
+      // can still read solid.
+      const baseMat = Math.random() < 0.55 ? M.cloud : M.cloudShade;
+      const puffOpacity = 0.35 + Math.random() * 0.5;
+      const puff = new THREE.Mesh(roundedBox(w, h, d, 0.16), cloneCloudMat(baseMat, puffOpacity));
       puff.position.set(
         (Math.random() - 0.5) * 1.4,
         (Math.random() - 0.3) * 0.18,
@@ -7551,8 +7789,8 @@
       );
       g.add(puff);
     }
-    // Underside shade — a thin slab of the darker material at the base.
-    const base = new THREE.Mesh(roundedBox(1.5, 0.18, 1.05, 0.16), M.cloudShade);
+    // Underside shade — softer than the body so the bottom feels gauzy.
+    const base = new THREE.Mesh(roundedBox(1.5, 0.18, 1.05, 0.16), cloneCloudMat(M.cloudShade, 0.45 + Math.random() * 0.15));
     base.position.set(0, -0.22, 0);
     g.add(base);
     g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
@@ -7570,10 +7808,17 @@
     const c = makeCloud();
     const scale = 0.7 + Math.random() * 0.8;
     c.scale.set(scale, scale * CLOUD_FLATTEN, scale);
+    // Anchor the cloud field on the current camera target so clouds are
+    // generated wherever the user is panning, not just over the home
+    // board. `initial` clouds scatter across the full range; respawned
+    // clouds enter from the west edge of the field.
+    const cx = target.x;
+    const cz = target.z;
     c.position.set(
-      initial ? (Math.random() - 0.5) * CLOUD_RANGE_X * 2 : -CLOUD_RANGE_X - Math.random() * 4,
+      cx + (initial ? (Math.random() - 0.5) * CLOUD_RANGE_X * 2
+                    : -CLOUD_RANGE_X - Math.random() * 4),
       renderCloudHeight + (Math.random() - 0.5) * CLOUD_Y_JITTER,
-      (Math.random() - 0.5) * CLOUD_Z_RANGE
+      cz + (Math.random() - 0.5) * CLOUD_Z_RANGE
     );
     c.userData.driftSpeed = 0.35 + Math.random() * 0.45; // base m/s, then multiplied by renderCloudSpeed
     c.userData.yOffset = (Math.random() - 0.5) * CLOUD_Y_JITTER;
@@ -7598,7 +7843,12 @@
     while (clouds.length > target) {
       const c = clouds.pop();
       cloudGroup.remove(c);
-      c.traverse(o => safeDisposeGeometry(o.geometry));
+      c.traverse(o => {
+        safeDisposeGeometry(o.geometry);
+        if (o.material && o.material.userData && o.material.userData.cloudInstance) {
+          o.material.dispose();
+        }
+      });
     }
     while (clouds.length < target) {
       spawnCloud(true);
@@ -7608,12 +7858,28 @@
   function updateClouds(dt) {
     if (!clouds || !clouds.length) return;
     const baseSpeed = renderCloudSpeed * 2.4; // 0 → 2.4 m/s scalar
-    if (baseSpeed <= 0.0001) return;
+    const cx = target.x;
+    const cz = target.z;
     for (const c of clouds) {
-      c.position.x += c.userData.driftSpeed * baseSpeed * dt;
-      if (c.position.x > CLOUD_RANGE_X) {
-        c.position.x = -CLOUD_RANGE_X - Math.random() * 2;
-        c.position.z = (Math.random() - 0.5) * CLOUD_Z_RANGE;
+      if (baseSpeed > 0.0001) {
+        c.position.x += c.userData.driftSpeed * baseSpeed * dt;
+      }
+      const dx = c.position.x - cx;
+      const dz = c.position.z - cz;
+      // East edge — wrap back to the west side of the camera.
+      if (dx > CLOUD_RANGE_X) {
+        c.position.x = cx - CLOUD_RANGE_X - Math.random() * 2;
+        c.position.z = cz + (Math.random() - 0.5) * CLOUD_Z_RANGE;
+        c.userData.yOffset = (Math.random() - 0.5) * CLOUD_Y_JITTER;
+        c.position.y = renderCloudHeight + c.userData.yOffset;
+        continue;
+      }
+      // The user panned far enough that this cloud is now outside the
+      // field. Recycle it to a fresh position around the camera so the
+      // sky stays populated wherever they go.
+      if (dx < -CLOUD_RANGE_X * 1.4 || Math.abs(dz) > CLOUD_Z_RANGE * 1.4) {
+        c.position.x = cx + (Math.random() - 0.5) * CLOUD_RANGE_X * 2;
+        c.position.z = cz + (Math.random() - 0.5) * CLOUD_Z_RANGE;
         c.userData.yOffset = (Math.random() - 0.5) * CLOUD_Y_JITTER;
         c.position.y = renderCloudHeight + c.userData.yOffset;
       }
@@ -8349,26 +8615,27 @@
     saveTimer = setTimeout(() => {
       try {
         const cells = [];
-        for (let x = 0; x < GRID; x++) {
-          if (!world[x]) continue;
-          for (let z = 0; z < GRID; z++) {
-            const c = world[x][z];
-            if (c) {
-              const entry = serializeCell(x, z, c);
-              if (entry) cells.push(entry);
-            }
-          }
-        }
-        // Also save cells outside the 8x8 home board
-        for (let x = -GRID; x < GRID * 2; x++) {
-          if (x >= 0 && x < GRID) continue;
-          if (!world[x]) continue;
-          for (let z = -GRID; z < GRID * 2; z++) {
-            const c = world[x][z];
-            if (c) {
-              const entry = serializeCell(x, z, c);
-              if (entry) cells.push(entry);
-            }
+        // Walk every populated row + cell, including out-of-home
+        // overrides from clicks on ghost boards. Cells with default
+        // grass / no kind return null from serializeCell and are
+        // skipped naturally.
+        for (const xKey of Object.keys(world)) {
+          const x = parseInt(xKey, 10);
+          if (!Number.isFinite(x)) continue;
+          const row = world[xKey];
+          if (!row) continue;
+          const insideHomeX = x >= 0 && x < GRID;
+          for (const zKey of Object.keys(row)) {
+            const z = parseInt(zKey, 10);
+            if (!Number.isFinite(z)) continue;
+            const c = row[zKey];
+            if (!c) continue;
+            const insideHome = insideHomeX && z >= 0 && z < GRID;
+            // Outside the home grid we only save cells the user has
+            // actually edited — skips the 20x20 pre-allocated buffer.
+            if (!insideHome && !c.userEdited) continue;
+            const entry = serializeCell(x, z, c);
+            if (entry) cells.push(entry);
           }
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -8420,7 +8687,6 @@
         continue;
       }
       if (typeof x !== 'number' || typeof z !== 'number') continue;
-      if (x < 0 || x >= GRID || z < 0 || z >= GRID) continue;
       const normalizedKind = kind || null;
       const normalizedFloors = floors || 1;
       const normalizedTerrainFloors = terrainFloors || (data.v === 3 ? 1 : (normalizedKind ? 1 : normalizedFloors));
@@ -8450,6 +8716,9 @@
         fenceSide: normalizedKind === 'fence' ? normalizeFenceSide(fenceSide) : null,
         extras: normalizedExtras,
         rotationY, offsetX, offsetZ,
+        __outOfHome: x < 0 || x >= GRID || z < 0 || z >= GRID,
+        __x: x,
+        __z: z,
       });
     }
 
@@ -8484,6 +8753,32 @@
         renderCellTile(x, z, { animate: false });
         if (world[x][z].kind === 'bridge') renderCellObject(x, z, { animate: false });
       }
+    }
+
+    // Replay out-of-home overrides — ghost board cells the user has
+    // built / erased / modified. setCell handles any global coord via
+    // tilePos, so the home cellMesh path renders them on top of (and in
+    // place of) the regenerated ghost board.
+    for (const o of overrides.values()) {
+      if (!o.__outOfHome) continue;
+      const x = o.__x, z = o.__z;
+      if (!world[x]) world[x] = [];
+      setCell(x, z, {
+        terrain: o.terrain,
+        terrainFloors: o.terrainFloors,
+        kind: o.kind,
+        floors: o.floors,
+        buildingType: o.buildingType,
+        fenceSide: o.fenceSide,
+        extras: o.extras,
+        rotationY: o.rotationY,
+        offsetX: o.offsetX,
+        offsetZ: o.offsetZ,
+        animate: false,
+        forceTile: true,
+      });
+      // Re-tag as user-edited so future ghost board builds know to skip.
+      if (world[x] && world[x][z]) world[x][z].userEdited = true;
     }
 
     suppressSave = false;
