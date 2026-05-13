@@ -11262,15 +11262,27 @@
       keyEl.value = localStorage.getItem(AI_LS.key(provider)) || '';
     }
 
+    // Track whether the user has just typed in the key field — only an
+    // explicit user input should be allowed to *remove* a stored key.
+    // Auto-saves triggered by provider / model switches must never wipe
+    // a key that's still in localStorage (was: a transient empty keyEl
+    // would delete the saved value).
+    let keyEditedByUser = false;
+    keyEl.addEventListener('input', () => { keyEditedByUser = true; });
     function saveProviderState() {
       const provider = providerEl.value;
       localStorage.setItem(AI_LS.provider, provider);
       if (modelEl.value) localStorage.setItem(AI_LS.model(provider), modelEl.value);
-      if (keyEl.value) localStorage.setItem(AI_LS.key(provider), keyEl.value);
-      else localStorage.removeItem(AI_LS.key(provider));
+      if (keyEl.value) {
+        localStorage.setItem(AI_LS.key(provider), keyEl.value);
+      } else if (keyEditedByUser) {
+        // Only remove the stored key if the user actually cleared the
+        // field themselves; never wipe on auto-save.
+        localStorage.removeItem(AI_LS.key(provider));
+      }
       if (promptEl.value) localStorage.setItem(AI_LS.prompt, promptEl.value);
       const autoBtn = document.querySelector('.tool[data-id="auto"]');
-      if (autoBtn) autoBtn.disabled = !keyEl.value;
+      if (autoBtn) autoBtn.disabled = !(keyEl.value || localStorage.getItem(AI_LS.key(provider)));
     }
 
     function open() {
@@ -11301,6 +11313,10 @@
     closeBtn.addEventListener('click', close);
     modal.addEventListener('click', e => { if (e.target === modal) close(); });
     providerEl.addEventListener('change', () => {
+      // Switching provider is not an explicit key edit — reset the
+      // "edited" flag so the auto-save can't accidentally wipe the new
+      // provider's stored key.
+      keyEditedByUser = false;
       loadProviderState();
       saveProviderState();
     });
@@ -12577,6 +12593,12 @@
         const opt = e.target.closest('.view-option');
         if (!opt) return;
         const target = opt.getAttribute('data-view');
+        // Post-processing forces ortho — surface this so the user
+        // understands why "First-person" / "Soft" don't take effect.
+        if (typeof postProcessingEnabled !== 'undefined' && postProcessingEnabled && target !== 'ortho') {
+          console.info('[view] Post-processing forces top-down. Disable Settings → Post FX to use other views.');
+          if (typeof showToast === 'function') showToast('Disable Post FX to use ' + target + ' view.');
+        }
         if (typeof setCameraMode === 'function') {
           try { setCameraMode(target); } catch (err) { console.warn('[view] setCameraMode failed:', err); }
         }
@@ -12598,15 +12620,114 @@
     function applyTod(min) {
       document.body.classList.remove('tod-dawn','tod-day','tod-dusk','tod-night');
       document.body.classList.add(todClassFromMinutes(min));
+      applyLights();
     }
-    function applySeason(season) {
+    function applySeason(seasonV) {
       document.body.classList.remove('season-spring','season-summer','season-autumn','season-winter');
-      document.body.classList.add('season-' + season);
+      document.body.classList.add('season-' + seasonV);
+      applyLights();
     }
-    function applyWeather(weather) {
+    function applyWeather(weatherV) {
       document.body.classList.remove('weather-clear','weather-cloudy','weather-rain','weather-snow');
-      document.body.classList.add('weather-' + weather);
+      document.body.classList.add('weather-' + weatherV);
+      applyLights();
     }
+
+    // Capture light defaults the first time we run so we can modulate
+    // around them without losing the baseline. Then every time a tod /
+    // season / weather class is applied we recompute the live values.
+    // This intentionally touches only intensity + colour — no positions,
+    // no shadow params, no animation state.
+    let lightBase = null;
+    function captureLightBase() {
+      if (lightBase) return;
+      if (typeof sun === 'undefined' || typeof hemi === 'undefined' || typeof ambient === 'undefined') return;
+      lightBase = {
+        sunI:  sun.intensity,
+        sunC:  sun.color.getHex(),
+        hemiI: hemi.intensity,
+        hemiSky: hemi.color.getHex(),
+        hemiGround: hemi.groundColor.getHex(),
+        ambI:  ambient.intensity,
+        ambC:  ambient.color.getHex(),
+      };
+    }
+    function lerpColor(a, b, t) {
+      const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+      const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+      const r = Math.round(ar + (br - ar) * t);
+      const g = Math.round(ag + (bg - ag) * t);
+      const bl = Math.round(ab + (bb - ab) * t);
+      return (r << 16) | (g << 8) | bl;
+    }
+    function todProfile(min) {
+      // Smooth blend across four anchor points: 00:00 night, 07:00 dawn,
+      // 13:00 day, 19:30 dusk → 23:00 back to night.  Returns multipliers
+      // and colour anchors.
+      const ANCHORS = [
+        { t:    0, sunI: 0.18, hemiI: 0.40, sunC: 0x6f8acf, hemiSky: 0x4760a8, hemiGround: 0x2a2522 }, // deep night
+        { t:  420, sunI: 0.85, hemiI: 0.80, sunC: 0xffc794, hemiSky: 0xffd9a6, hemiGround: 0x6f4b2a }, // 07:00 dawn
+        { t:  780, sunI: 1.35, hemiI: 0.90, sunC: 0xffffff, hemiSky: 0xffffff, hemiGround: 0xb39879 }, // 13:00 day
+        { t: 1170, sunI: 0.95, hemiI: 0.80, sunC: 0xff9966, hemiSky: 0xff8a6a, hemiGround: 0x6f4b2a }, // 19:30 dusk
+        { t: 1380, sunI: 0.22, hemiI: 0.42, sunC: 0x7a8fcc, hemiSky: 0x4760a8, hemiGround: 0x2a2522 }, // 23:00 night
+        { t: 1440, sunI: 0.18, hemiI: 0.40, sunC: 0x6f8acf, hemiSky: 0x4760a8, hemiGround: 0x2a2522 },
+      ];
+      // Find bracketing anchors.
+      for (let i = 0; i < ANCHORS.length - 1; i++) {
+        const a = ANCHORS[i], b = ANCHORS[i + 1];
+        if (min >= a.t && min <= b.t) {
+          const t = (min - a.t) / Math.max(1, (b.t - a.t));
+          return {
+            sunI: a.sunI + (b.sunI - a.sunI) * t,
+            hemiI: a.hemiI + (b.hemiI - a.hemiI) * t,
+            sunC: lerpColor(a.sunC, b.sunC, t),
+            hemiSky: lerpColor(a.hemiSky, b.hemiSky, t),
+            hemiGround: lerpColor(a.hemiGround, b.hemiGround, t),
+          };
+        }
+      }
+      return ANCHORS[0];
+    }
+    function weatherProfile(w) {
+      // Returns multipliers + tint that compose with the tod profile.
+      if (w === 'rain')   return { mul: 0.55, tint: 0x6a7a90, hemiMul: 0.7 };
+      if (w === 'snow')   return { mul: 0.78, tint: 0xc8d4e0, hemiMul: 0.9 };
+      if (w === 'cloudy') return { mul: 0.68, tint: 0xa8a8a8, hemiMul: 0.85 };
+      return { mul: 1.0, tint: null, hemiMul: 1.0 };
+    }
+    function seasonHemiGround(s) {
+      // Subtly shift the ground (hemi.groundColor) palette by season.
+      if (s === 'spring') return 0xa6c768;
+      if (s === 'summer') return 0xb39879;
+      if (s === 'autumn') return 0xb46a2a;
+      if (s === 'winter') return 0xd8dee8;
+      return 0xb39879;
+    }
+    function applyLights() {
+      captureLightBase();
+      if (!lightBase) { console.warn('[lights] no baseline captured'); return; }
+      const tod = todProfile(todMinutes);
+      const wx  = weatherProfile(weather);
+      const seasonGround = seasonHemiGround(season);
+      try {
+        sun.intensity = Math.max(0, lightBase.sunI * (tod.sunI / 1.35) * wx.mul);
+        const sc = wx.tint != null ? lerpColor(tod.sunC, wx.tint, 0.35) : tod.sunC;
+        sun.color.setHex(sc);
+        hemi.intensity = Math.max(0, lightBase.hemiI * (tod.hemiI / 0.30) * wx.hemiMul);
+        // Clamp hemi.intensity to a sane ceiling so weather=clear at noon
+        // doesn't blow out exposure (lightBase.hemiI may have been edited
+        // by the render-settings panel since boot).
+        if (hemi.intensity > 1.6) hemi.intensity = 1.6;
+        hemi.color.setHex(tod.hemiSky);
+        // Blend the season ground tint with the tod ground anchor.
+        hemi.groundColor.setHex(lerpColor(tod.hemiGround, seasonGround, 0.45));
+        // Lift ambient just enough at night so nothing is pitch black.
+        const ambBoost = (tod.sunI < 0.5) ? 1.6 : 1.0;
+        ambient.intensity = Math.max(0, lightBase.ambI * ambBoost);
+      } catch (err) { console.warn('[lights] apply failed:', err); }
+    }
+    window.__applyLights = applyLights;
+    window.__lightBase = () => lightBase;
     function formatTime(min) {
       const h = String(Math.floor(min / 60) % 24).padStart(2, '0');
       const m = String(min % 60).padStart(2, '0');
