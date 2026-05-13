@@ -20,7 +20,7 @@ Outputs:
   dist/world.schema.json
   dist/README.md
   dist/LICENSE
-  dist/assets/*.png               Screenshots/assets
+  dist/assets/*                   Screenshots/assets
   dist/sounds/*.mp3               Music + foley used by the app
   dist/.nojekyll                  GitHub Pages compatibility
   dist/VERSION.txt                Build metadata
@@ -35,10 +35,6 @@ HELP
 done
 
 cd "$ROOT"
-
-# Apply database migrations automatically during deploy when Netlify exposes DB credentials.
-# Locally, this is skipped unless NETLIFY_DB_URL or DATABASE_URL is set.
-node scripts/migrate.mjs
 
 if [[ ! -f tiny-world-builder.html ]]; then
   echo "Missing tiny-world-builder.html" >&2
@@ -59,16 +55,13 @@ NODE
 rm -rf "$DIST"
 mkdir -p "$DIST/assets"
 
-# Bundle the auth library for the browser
-npx esbuild src/auth-bundle.js --bundle --format=iife --minify --outfile="$DIST/auth.js"
-
 cp tiny-world-builder.html "$DIST/index.html"
 cp tiny-world-builder.html "$DIST/tiny-world-builder.html"
 cp world.schema.json "$DIST/world.schema.json"
 cp README.md "$DIST/README.md"
 cp LICENSE "$DIST/LICENSE"
 
-for img in tinyworld-*.png; do
+for img in tinyworld-*.png plane-*.jpg perf-after.jpg; do
   [[ -e "$img" ]] || continue
   cp "$img" "$DIST/assets/$img"
 done
@@ -77,13 +70,23 @@ done
 # The page expects this exact directory at the deploy root.
 if [[ -d sounds ]]; then
   mkdir -p "$DIST/sounds"
-  cp -R sounds/. "$DIST/sounds/"
+  (cd sounds && find . -type f ! -name '.DS_Store' -exec sh -c '
+    for f do
+      mkdir -p "../dist/sounds/$(dirname "$f")"
+      cp "$f" "../dist/sounds/$f"
+    done
+  ' sh {} +)
 fi
 
 # 3D model assets referenced directly by the single-file app.
 if [[ -d models ]]; then
   mkdir -p "$DIST/models"
-  cp -R models/. "$DIST/models/"
+  (cd models && find . -type f ! -name '.DS_Store' -exec sh -c '
+    for f do
+      mkdir -p "../dist/models/$(dirname "$f")"
+      cp "$f" "../dist/models/$f"
+    done
+  ' sh {} +)
 fi
 
 : > "$DIST/.nojekyll"

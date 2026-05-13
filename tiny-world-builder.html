@@ -2557,7 +2557,7 @@
               </select>
             </label>
             <label>Model
-              <input id="gen-model" list="gen-model-list" autocomplete="off" spellcheck="false" placeholder="gpt-5.2-latest" />
+              <input id="gen-model" list="gen-model-list" autocomplete="off" spellcheck="false" placeholder="gpt-5.2" />
               <datalist id="gen-model-list"></datalist>
               <div class="profile-hint" style="margin-top:4px;">Type any model name your key has access to. Suggestions are just shortcuts.</div>
             </label>
@@ -2612,7 +2612,6 @@
     </div>
   </div>
 
-  <script src="auth.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <script>
@@ -10812,27 +10811,28 @@
   // localStorage under tinyworld:ai:* — never sent anywhere except the chosen
   // provider. Three providers supported out of the box.
   const AI_DEFAULTS = {
-    // Verified against provider docs/search 2026-05-11. Prefer the
+    // Verified against provider docs/search 2026-05-13. Prefer the
     // provider-maintained "latest" aliases where available so this app
     // doesn't silently age back to last year's models.
     openai: {
-      model: 'gpt-5.2-latest',
+      model: 'gpt-5.2',
       endpoint: 'https://api.openai.com/v1/chat/completions',
       // Suggestions only — the input is a free-text field; type any
       // model your key has access to.  Provider-maintained "-latest"
       // aliases first so this list doesn't silently age out.
       models: [
-        'gpt-5.2-latest', 'gpt-5.2', 'gpt-5.2-mini',
-        'chat-latest',
+        'gpt-5.2', 'gpt-5.2-chat-latest',
         'gpt-5.1', 'gpt-5.1-chat-latest', 'gpt-5.1-mini',
       ],
     },
     anthropic: {
-      model: 'claude-opus-4-7',
+      model: 'claude-opus-4-1-20250805',
       endpoint: 'https://api.anthropic.com/v1/messages',
       models: [
-        'claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5',
-        'claude-opus-4-7-1m',
+        'claude-opus-4-1-20250805',
+        'claude-opus-4-20250514',
+        'claude-sonnet-4-20250514',
+        'claude-3-7-sonnet-latest',
       ],
     },
     xai: {
@@ -10840,7 +10840,7 @@
       endpoint: 'https://api.x.ai/v1/chat/completions',
       models: [
         'grok-4.3-latest', 'grok-4.3',
-        'grok-4.20-reasoning', 'grok-4.20-non-reasoning',
+        'grok-4.20-reasoning', 'grok-4.20',
       ],
     },
   };
@@ -10863,7 +10863,7 @@
       },
       kind: {
         type: ['string', 'null'],
-        enum: [null, 'house', 'tree', 'fence', 'rock', 'hill', 'bridge', 'crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'tuft', 'flower', 'bush', 'cow', 'sheep'],
+        enum: [null, 'house', 'tree', 'fence', 'rock', 'bridge', 'crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'tuft', 'flower', 'bush', 'cow', 'sheep'],
       },
       floors: {
         type: 'integer',
@@ -11045,7 +11045,7 @@
     if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4) return 'unsupported v: ' + data.v;
     if (!Array.isArray(data.cells)) return 'cells must be an array';
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
-    const okKind = new Set([null,'house','tree','fence','rock','hill','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
+    const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
     const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
@@ -11534,7 +11534,7 @@
       throw new Error('schema check: response was not an object');
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
-    const okKind = new Set([null,'house','tree','fence','rock','hill','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
+    const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
     const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
     let kind = data.kind === undefined ? null : data.kind;
     let terrain = data.terrain;
@@ -12742,7 +12742,7 @@
 
   // -------- profile + saves --------
   function initAccountModal() {
-    const Auth = window.NetlifyAuth;
+    const Auth = window.TinyWorldAuth;
     const modal = document.getElementById('account-modal');
     const closeBtn = document.getElementById('account-close');
     const tabProfile = document.getElementById('tab-profile');
@@ -12958,9 +12958,9 @@
   }
 
   // -------- auth --------
-  // Local dev bypass: on localhost / file:// / ?dev, skip the auth library
-  // entirely and run the existing "no auth library" branch so settings,
-  // AI generate, and cloud features are all unlocked.
+  // Static deploy bypass: when no optional auth library is present, run the
+  // existing "no auth library" branch so settings and AI generation stay
+  // available on static hosts such as Vercel.
   function __isLocalDev() {
     try {
       const u = new URL(location.href);
@@ -12971,7 +12971,7 @@
     } catch (_) { return false; }
   }
   function initAuth() {
-    const Auth = __isLocalDev() ? null : window.NetlifyAuth;
+    const Auth = __isLocalDev() ? null : window.TinyWorldAuth;
     if (!Auth) {
       // No auth library — single-user local mode. Hide all auth UI
       // and treat the user as logged in so settings/AI aren't
@@ -13852,6 +13852,8 @@
     const listEl = document.getElementById('world-menu-list');
     const emptyEl = document.getElementById('world-menu-empty');
     if (!trigger || !menu || !labelEl || !nameInput || !listEl) return;
+    const manageBtn = menu.querySelector('[data-action="manage"]');
+    if (!window.TinyWorldAuth && manageBtn) manageBtn.hidden = true;
 
     function paintLabel() {
       const active = findActiveWorld();
@@ -14107,10 +14109,11 @@
       items.push({ group: 'Settings', label: 'Settings — Sky',    run: settingsTab('sky') });
       items.push({ group: 'Settings', label: 'Settings — Post FX',run: settingsTab('post') });
       items.push({ group: 'Settings', label: 'Settings — AI',     run: settingsTab('ai') });
-      // Account
-      items.push({ group: 'Account', label: 'Open account / My Builds', run: topBtnAction('account-btn') });
-      items.push({ group: 'Account', label: 'Sign in', run: topBtnAction('auth-login-btn-top') });
-      items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('auth-logout-btn') });
+      if (window.TinyWorldAuth) {
+        items.push({ group: 'Account', label: 'Open account / My Builds', run: topBtnAction('account-btn') });
+        items.push({ group: 'Account', label: 'Sign in', run: topBtnAction('auth-login-btn-top') });
+        items.push({ group: 'Account', label: 'Sign out', run: topBtnAction('auth-logout-btn') });
+      }
       return items;
     }
 

@@ -59,8 +59,8 @@
         },
         "buildingType": {
           "type": ["string", "null"],
-          "enum": [null, "cottage", "manor", "tower", "skyscraper"],
-          "description": "Forces a single-cell house variant. Only meaningful when kind='house'. null = 'auto': cluster logic merges adjacent houses into linear/L/T/+/2x2 forms and auto-promotes solo 4+ floor houses to skyscrapers. cottage/manor/tower/skyscraper bypass clustering — adjacent forced-variant houses stay independent."
+          "enum": [null, "cottage", "manor", "tower", "turret", "skyscraper"],
+          "description": "Forces a single-cell house variant. Only meaningful when kind='house'. null = 'auto': cluster logic merges adjacent houses into linear/L/T/+/2x2 forms and auto-promotes solo 4+ floor houses to skyscrapers. cottage/manor/tower/turret/skyscraper bypass clustering — adjacent forced-variant houses stay independent."
         },
         "fenceSide": {
           "type": ["string", "null"],

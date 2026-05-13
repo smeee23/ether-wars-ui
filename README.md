@@ -10,6 +10,16 @@ open tiny-world-builder.html
 python3 -m http.server 8000
 ```
 
+## Deploy
+
+The app deploys to Vercel as a static site. `vercel.json` runs `./publish.sh`
+and serves the generated `dist/` directory.
+
+```bash
+npm run build
+vercel deploy
+```
+
 ## Controls
 
 | Action            | Input                                  |
