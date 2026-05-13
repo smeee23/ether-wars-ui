@@ -10016,7 +10016,8 @@
           }
         } else {
           markCameraMoving();
-          azimuth -= ddx * 0.008;
+          // azimuth -= ddx * 0.008;
+          azimuth += ddx * 0.008;
           polar = Math.max(0.18, Math.min(1.25, polar - ddy * 0.006));
           updateCamera();
         }
