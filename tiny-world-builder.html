@@ -4971,7 +4971,7 @@
     return null;
   }
 
-  function makeTile(terrain, neighbors, x = 0, z = 0, level = 1) {
+  function makeTile(terrain, neighbors, x = 0, z = 0, level = 1, opts = {}) {
     const g = new THREE.Group();
     g.userData = { kind: 'tile', terrain };
     const pathN = (neighbors && neighbors.path) || { n: false, s: false, e: false, w: false };
@@ -4982,6 +4982,8 @@
     // mathematical tile height, otherwise rain ripples and snow buildup hide
     // inside the top face at grazing camera angles.
     g.userData.weatherSurfaceY = topY + WEATHER_SURFACE_PAD;
+
+    const skipTerrain = !!(opts && opts.skipTerrain);
 
     // Dirt / riser block (sides + bottom of tile).
     // For grass we *always* use a simple vertical brown dirt wall (BoxGeometry
@@ -4996,45 +4998,47 @@
     // culling (home render window + ghostPreloadRadius + frustum) is what keeps
     // us from drawing tiles that are completely off-screen. Removing riser bottoms
     // entirely is a possible further optimization if triangle count becomes an issue.
-    let riserSize = TILE * 1.04;
-    let topSize   = TILE * 0.98;
-    let riserBevel = 0.04;
-    let topBevel   = 0.06;
+    if (!skipTerrain) {
+      let riserSize = TILE * 1.04;
+      let topSize   = TILE * 0.98;
+      let riserBevel = 0.04;
+      let topBevel   = 0.06;
 
-    if (terrain === 'grass') {
-      riserSize  = TILE * 0.98;
-      topSize    = TILE * 1.04;
-      riserBevel = 0.02;
-      topBevel   = 0.04;
+      if (terrain === 'grass') {
+        riserSize  = TILE * 0.98;
+        topSize    = TILE * 1.04;
+        riserBevel = 0.02;
+        topBevel   = 0.04;
+      }
+
+      if (terrain === 'grass') {
+        // Brown dirt wall for grass — provides the visible dirt edges on any
+        // drop or perimeter. The larger top hides it from the top.
+        const dirtGeo = new THREE.BoxGeometry(riserSize, DIRT_H + rise, riserSize);
+        dirtGeo.translate(0, (DIRT_H + rise) * 0.5, 0);
+        const riser = new THREE.Mesh(dirtGeo, M.dirt);
+        riser.position.y = -DIRT_H;
+        g.add(riser);
+      } else {
+        const riser = new THREE.Mesh(roundedSlab(riserSize, DIRT_H + rise, riserBevel), M.dirt);
+        riser.position.y = -DIRT_H;
+        g.add(riser);
+      }
+
+      // top cap
+      let topMat = M.grass;
+      if (terrain === 'path')  topMat = M.path;
+      if (terrain === 'water') topMat = M.water;
+      if (terrain === 'dirt')  topMat = M.dirtRich;
+      if (terrain === 'stone') topMat = M.stone;
+      if (terrain === 'lava')  topMat = M.lava;
+      if (terrain === 'sand')  topMat = M.sand;
+      if (terrain === 'snow')  topMat = M.snow;
+
+      const top = new THREE.Mesh(roundedSlab(topSize, TOP_H, topBevel), topMat);
+      top.position.y = rise;
+      g.add(top);
     }
-
-    if (terrain === 'grass') {
-      // Brown dirt wall for grass — provides the visible dirt edges on any
-      // drop or perimeter. The larger top hides it from the top.
-      const dirtGeo = new THREE.BoxGeometry(riserSize, DIRT_H + rise, riserSize);
-      dirtGeo.translate(0, (DIRT_H + rise) * 0.5, 0);
-      const riser = new THREE.Mesh(dirtGeo, M.dirt);
-      riser.position.y = -DIRT_H;
-      g.add(riser);
-    } else {
-      const riser = new THREE.Mesh(roundedSlab(riserSize, DIRT_H + rise, riserBevel), M.dirt);
-      riser.position.y = -DIRT_H;
-      g.add(riser);
-    }
-
-    // top cap
-    let topMat = M.grass;
-    if (terrain === 'path')  topMat = M.path;
-    if (terrain === 'water') topMat = M.water;
-    if (terrain === 'dirt')  topMat = M.dirtRich;
-    if (terrain === 'stone') topMat = M.stone;
-    if (terrain === 'lava')  topMat = M.lava;
-    if (terrain === 'sand')  topMat = M.sand;
-    if (terrain === 'snow')  topMat = M.snow;
-
-    const top = new THREE.Mesh(roundedSlab(topSize, TOP_H, topBevel), topMat);
-    top.position.y = rise;
-    g.add(top);
 
     // Tiny deterministic grass flecks. They stay put when a neighbour rerender
     // refreshes shore/path bands, so tiles no longer visually "shuffle".
@@ -11167,11 +11171,13 @@
       worldGroup.remove(entry.tile);
       disposeGroup(entry.tile);
     }
+
     const cell = getWorldCell(x, z);
     const tile = makeTile(cell.terrain, {
       path: getPathNeighbors(x, z),
       terrain: getTerrainNeighbors(x, z),
     }, x, z, tileLevelForCell(cell));
+
     const p = tilePos(x, z);
     tile.position.copy(p);
     groundReceiveOnly(tile);
@@ -11182,6 +11188,7 @@
     prepareFadeable(tile, { opacity: opacityAtWorldPosition(p.x, p.z), grayscale: isOutsideHomeGrid(x, z) });
     worldGroup.add(tile);
     entry.tile = tile;
+
     if (animate) animateDrop(tile, 2.4, 0.42, delay, easeOutCubic, false);
   }
 
