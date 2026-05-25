@@ -115,7 +115,7 @@
   .brand .title em {
     font-style: italic;
     font-weight: 400;
-    color: #a08454;
+    color: #970202;
   }
   .brand .sub {
     font-size: 12px;
@@ -359,7 +359,7 @@
   }
   .crowd-panel {
     position: fixed;
-    top: 96px;
+    top: 396px;
     right: 14px;
     z-index: 42;
     width: 248px;
@@ -378,11 +378,80 @@
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
+  .player-stats-panel {
+    position: fixed;
+    top: 396px;
+    right: 276px;
+    z-index: 42;
+    width: 220px;
+    background: rgba(255, 255, 255, 0.76);
+    border: 1px solid rgba(80, 70, 54, 0.22);
+    border-radius: 16px;
+    box-shadow:
+      0 1px 2px rgba(20, 30, 50, 0.08),
+      0 18px 44px -16px rgba(40, 50, 80, 0.30);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+  }
   .crowd-panel h3 {
     margin: 0;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
+    color: var(--ink);
+  }
+  .player-stats-panel h3 {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+  }
+  .player-stat {
+    display: grid;
+    grid-template-columns: 82px 1fr 36px;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .player-stat-value {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+  }
+  .player-stat-bar {
+    height: 8px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(35, 45, 60, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(35, 45, 60, 0.08);
+  }
+  .player-stat-fill {
+    display: block;
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    transition: width 160ms ease;
+  }
+  .player-stat-fill.army { background: linear-gradient(90deg, #d24a4f, #e58b42); }
+  .player-stat-fill.food { background: linear-gradient(90deg, #6fb442, #f2c849); }
+  .player-stat-fill.population { background: linear-gradient(90deg, #3a72c8, #74b4d8); }
+  .player-stat-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .player-stat-total strong {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
   .crowd-panel .crowd-row {
@@ -428,6 +497,20 @@
       right: 8px;
       width: 210px;
       max-height: 42vh;
+    }
+    .player-stats-panel {
+      top: auto;
+      right: 226px;
+      bottom: 220px;
+      width: 210px;
+      max-height: 42vh;
+    }
+  }
+  @media (max-width: 560px) {
+    .player-stats-panel {
+      right: 8px;
+      bottom: calc(220px + 42vh + 8px);
+      max-height: 30vh;
     }
   }
 
@@ -2236,11 +2319,7 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
-  .minimap-toggle {
-    font-size: 11px; line-height: 1; padding: 0 3px; margin-left: 4px;
-    border: none; background: transparent; color: var(--muted); cursor: pointer;
-  }
-  .minimap-toggle:hover { color: var(--ink); }
+  
   .minimap-autoexpand {
     display: flex;
     align-items: center;
@@ -3597,7 +3676,6 @@
       <div class="minimap-foot">
         <span id="minimap-size">8×8</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
-        <button type="button" class="minimap-toggle" id="minimap-toggle" aria-label="Toggle map" title="Hide/show map (N)">–</button>
       </div>
       <label class="minimap-autoexpand" for="minimap-autoexpand">
         <span>Autoexpand</span>
@@ -3641,8 +3719,35 @@
     </div>
   </div>
 
+  <div class="player-stats-panel" id="player-stats-panel" aria-label="Player stats">
+    <h3>User stats</h3>
+    <div class="player-stat">
+      <span>Army</span>
+      <span class="player-stat-bar"><span class="player-stat-fill army" id="player-stat-army-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-army">0</span>
+    </div>
+    <div class="player-stat">
+      <span>Food</span>
+      <span class="player-stat-bar"><span class="player-stat-fill food" id="player-stat-food-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-food">0</span>
+    </div>
+    <div class="player-stat">
+      <span>Population</span>
+      <span class="player-stat-bar"><span class="player-stat-fill population" id="player-stat-population-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-population">0</span>
+    </div>
+    <div class="player-stat-total">
+      <span>Lands conquered</span>
+      <strong id="player-stat-lands">0</strong>
+    </div>
+    <div class="player-stat-total">
+      <span>Neighbors</span>
+      <strong id="player-stat-neighbors">0</strong>
+    </div>
+  </div>
+
   <div class="brand">
-    <div class="title">Tiny World <em>Builder</em></div>
+    <div class="title">EtherLands</div>
     <div class="sub">Tap to place · drag to orbit · pinch or scroll to zoom</div>
     <!-- Kept for JS to relocate into the toolbar's world-slot. -->
     <button type="button" class="brand-title-btn" id="world-menu-btn" aria-haspopup="menu" aria-expanded="false">
@@ -3652,8 +3757,8 @@
   </div>
 
   <div class="token-pill" title="Solana token">
-    <span class="ticker">$TINYWORLD</span>
-    <span class="ca">CA: 7bK4jRMa3aY85wJMQEQqWsmY9mmrRT32AFWZ23cBpump</span>
+    <span class="ticker">Land Address:</span>
+    <span class="ca">0x7bK4jRMa3aY85wJMQEQqWsmY9mmrRT32AFWZ23cBpump</span>
   </div>
 
   <!-- View modes popup -->
@@ -14245,6 +14350,107 @@
   }
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
+  let playerStatsUpdateQueued = false;
+
+  function clampStatPercent(value, target) {
+    if (!target || target <= 0) return 0;
+    return Math.max(0, Math.min(100, Math.round((value / target) * 100)));
+  }
+
+  function cellCountsAsConquered(cell) {
+    if (!cell) return false;
+    return !!(cell.userEdited || cell.kind || cell.terrain !== 'grass' || terrainLevelForCell(cell) > 1);
+  }
+
+  function collectPlayerStats() {
+    let army = 0;
+    let food = 0;
+    let population = Math.max(0, Math.round(crowdCount || 0));
+    let lands = 0;
+    const conquered = new Set();
+    const neighborCells = new Set();
+
+    for (const xKey of Object.keys(world)) {
+      const x = parseInt(xKey, 10);
+      if (!Number.isFinite(x)) continue;
+      const row = world[xKey];
+      if (!row) continue;
+      for (const zKey of Object.keys(row)) {
+        const z = parseInt(zKey, 10);
+        if (!Number.isFinite(z)) continue;
+        const cell = row[zKey];
+        if (!cell) continue;
+        const floors = Math.max(1, cell.floors || 1);
+        const terrainFloors = Math.max(1, terrainLevelForCell(cell));
+        const conqueredCell = cellCountsAsConquered(cell);
+        if (conqueredCell) {
+          lands += 1;
+          conquered.add(x + ',' + z);
+        }
+        if (cell.kind === 'house') {
+          population += floors * 10;
+          if (cell.buildingType === 'tower' || cell.buildingType === 'turret') army += floors * 18;
+        } else if (cell.kind === 'fence') {
+          army += 8;
+        } else if (cell.kind === 'rock') {
+          army += terrainFloors * 3;
+        } else if (cell.kind === 'cow' || cell.kind === 'sheep') {
+          food += 8;
+          population += 2;
+        } else if (CROP_KINDS.has(cell.kind)) {
+          food += floors * 15;
+        }
+        if (cell.terrain === 'dirt' && !CROP_KINDS.has(cell.kind)) food += 2;
+      }
+    }
+
+    for (const key of conquered) {
+      const [x, z] = key.split(',').map(Number);
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nk = (x + dx) + ',' + (z + dz);
+        if (!conquered.has(nk)) neighborCells.add(nk);
+      }
+    }
+
+    return {
+      army,
+      food,
+      population,
+      lands,
+      neighbors: neighborCells.size,
+      armyPercent: clampStatPercent(army, Math.max(25, population * 0.55)),
+      foodPercent: clampStatPercent(food, Math.max(30, population * 1.15)),
+      populationPercent: clampStatPercent(population, Math.max(20, lands * 4)),
+    };
+  }
+
+  function setPlayerStat(id, value, percent) {
+    const valueEl = document.getElementById('player-stat-' + id);
+    const barEl = document.getElementById('player-stat-' + id + '-bar');
+    if (valueEl) valueEl.textContent = String(Math.round(value));
+    if (barEl) barEl.style.width = Math.max(0, Math.min(100, percent || 0)) + '%';
+  }
+
+  function updatePlayerStatsPanel() {
+    playerStatsUpdateQueued = false;
+    const panel = document.getElementById('player-stats-panel');
+    if (!panel) return;
+    const stats = collectPlayerStats();
+    setPlayerStat('army', stats.army, stats.armyPercent);
+    setPlayerStat('food', stats.food, stats.foodPercent);
+    setPlayerStat('population', stats.population, stats.populationPercent);
+    const landsEl = document.getElementById('player-stat-lands');
+    const neighborsEl = document.getElementById('player-stat-neighbors');
+    if (landsEl) landsEl.textContent = String(stats.lands);
+    if (neighborsEl) neighborsEl.textContent = String(stats.neighbors);
+  }
+
+  function schedulePlayerStatsUpdate() {
+    if (playerStatsUpdateQueued) return;
+    playerStatsUpdateQueued = true;
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(updatePlayerStatsPanel);
+    else setTimeout(updatePlayerStatsPanel, 0);
+  }
 
   function setCell(x, z, opts) {
     const { terrain, terrainFloors, kind = null, floors, buildingType, fenceSide, tileDelay = 0, objectDelay = 0, animate = true, impactDust = true, forceTile = false, rotationY, offsetX, offsetZ, appearance } = opts;
@@ -17441,6 +17647,7 @@
       if (crowdPausedLiveEl) crowdPaused = !!crowdPausedLiveEl.checked;
       if (crowdDebugEl) crowdDebug = !!crowdDebugEl.checked;
       applyCrowdSettings();
+      schedulePlayerStatsUpdate();
       if (Math.abs(oldVoxelGap - renderVoxelGap) > 0.001 || Math.abs(oldVoxelBevel - renderVoxelBevel) > 0.001) scheduleVoxelStampRefresh();
       if (oldVoxelTerrain !== renderVoxelTerrain || oldTerrainVoxelResolution !== renderTerrainVoxelResolution) rebuildTerrainRender();
       updateGhostRenderBubble();
@@ -17538,6 +17745,7 @@
       crowdMode = 'wander';
       crowdShowArrows = true;
       applyCrowdSettings({ reseed: true });
+      schedulePlayerStatsUpdate();
       renderAutoExpand = false;
       const autoExpandEl = document.getElementById('minimap-autoexpand');
       if (autoExpandEl) autoExpandEl.checked = false;
@@ -17557,10 +17765,12 @@
     });
     if (crowdReseedLiveEl) crowdReseedLiveEl.addEventListener('click', () => {
       applyCrowdSettings({ reseed: true });
+      schedulePlayerStatsUpdate();
       syncControls();
     });
     if (crowdReseedEl) crowdReseedEl.addEventListener('click', () => {
       applyCrowdSettings({ reseed: true });
+      schedulePlayerStatsUpdate();
       syncControls();
     });
     syncControls();
@@ -23241,6 +23451,7 @@
 
   function saveState() {
     if (typeof window.__requestMinimapRepaint === 'function') window.__requestMinimapRepaint();
+    if (typeof schedulePlayerStatsUpdate === 'function') schedulePlayerStatsUpdate();
     if (suppressSave) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -24500,7 +24711,7 @@
   function bootApp() {
     if (appBooted) return;
     appBooted = true;
-    initWelcomeDialog();
+    //initWelcomeDialog();
     buildToolbar();
     selectTool(DEFAULT_TOOL);
     if (!loadState()) {
@@ -24509,6 +24720,7 @@
     }
     ensureGhostBoardsAroundTarget();
     initCrowdLayer();
+    schedulePlayerStatsUpdate();
     onResize();
     renderer.setAnimationLoop(animate);
     const vehicleDemoRequest = getVehicleDemoUrlRequest();
@@ -24794,22 +25006,7 @@
         requestMinimapRepaint();
       });
     }
-    // Restore collapsed state.
-    try {
-      if (localStorage.getItem('tinyworld:minimap.collapsed') === '1') wrap.classList.add('collapsed');
-    } catch (_) {}
-    function toggleCollapsed() {
-      wrap.classList.toggle('collapsed');
-      try { localStorage.setItem('tinyworld:minimap.collapsed', wrap.classList.contains('collapsed') ? '1' : '0'); } catch (_) {}
-    }
-    const minimapToggle = document.getElementById('minimap-toggle');
-    if (minimapToggle) minimapToggle.addEventListener('click', toggleCollapsed);
-    // Keyboard shortcut: N toggles the minimap (matches OWB).
-    window.addEventListener('keydown', e => {
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'n' || e.key === 'N') toggleCollapsed();
-    });
+    
 
     // -- draggable minimap --
     // Stored as top/left offsets so any viewport size resolves the same.
