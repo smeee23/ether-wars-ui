@@ -3674,7 +3674,7 @@
     <div class="minimap-card">
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
-        <span id="minimap-size">8×8</span>
+        <span id="minimap-size">15×15</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
       </div>
       <label class="minimap-autoexpand" for="minimap-autoexpand">
@@ -4704,16 +4704,19 @@
 
   // -------- constants --------
   // GRID is the home board edge length. Mutable: the user can resize it
-  // from tiny 8×8 dioramas up to 48×48 worlds. Tiles outside the current
+  // from compact 15×15 dioramas up to 48×48 worlds. Tiles outside the current
   // home grid are still tracked in world[][] (used by ghost boards and
   // export) but rendered grayscale; growing GRID brings those tiles into
   // the home area and rebuilds them in full colour.
-  const HOME_GRID_DEFAULT = 8;
+  const HOME_GRID_DEFAULT = 15;
   const HOME_GRID_MIN = 8;
   const HOME_GRID_MAX = 48;
-  const HOME_GRID_OPTIONS = [8, 12, 16, 20, 32, 48];
+  const HOME_GRID_OPTIONS = [8, 12, 15, 16, 20, 32, 48];
   const HOME_GRID_OPTION_SET = new Set(HOME_GRID_OPTIONS);
+  const HOME_GRID_LS = 'tinyworld:home-grid';
+  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-15.v1';
   let GRID = HOME_GRID_DEFAULT;
+  let migrateHomeGridDefaultTo15 = false;
 
   function isValidGridSize(n) {
     return Number.isInteger(n) && HOME_GRID_OPTION_SET.has(n);
@@ -4830,7 +4833,13 @@
     window.addEventListener('resize', () => place(active));
   })();
   try {
-    const stored = parseInt(localStorage.getItem('tinyworld:home-grid') || '', 10);
+    const storedRaw = localStorage.getItem(HOME_GRID_LS);
+    let stored = parseInt(storedRaw || '', 10);
+    if (localStorage.getItem(HOME_GRID_DEFAULT_MIGRATION_LS) !== '1' && (!storedRaw || stored === 8 || stored === 12)) {
+      migrateHomeGridDefaultTo15 = true;
+      stored = HOME_GRID_DEFAULT;
+      localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT));
+    }
     GRID = coerceGridSize(stored, GRID);
   } catch (_) {}
   const TILE = 1;
@@ -5914,6 +5923,10 @@
     cloud:     new THREE.MeshLambertMaterial({ color: 0xfdfcf8 }),
     cloudShade:new THREE.MeshLambertMaterial({ color: 0xdcd9d0 }),
 
+    surroundingLandTop:  new THREE.MeshLambertMaterial({ color: 0xd9d9d9, side: THREE.FrontSide }),
+    surroundingLandSide: new THREE.MeshLambertMaterial({ color: 0xcfcfcf, side: THREE.FrontSide }),
+    borderShade: new THREE.MeshBasicMaterial({ color: 0x2f5f75, transparent: true, opacity: 0.22, depthWrite: false }),
+    borderOccupied: new THREE.MeshBasicMaterial({ color: 0xc72d26, transparent: true, opacity: 0.36, depthWrite: false }),
     hover:     new THREE.MeshBasicMaterial({ color: 0x2a2722, transparent: true, opacity: 0.18, depthWrite: false }),
     hoverErase:new THREE.MeshBasicMaterial({ color: 0xb84838, transparent: true, opacity: 0.28, depthWrite: false }),
   };
@@ -6036,7 +6049,7 @@
     },
   };
   const weatherMaterialBase = new Map();
-  const WEATHER_MATERIAL_SKIP = new Set(['hover', 'hoverErase', 'waterFoam', 'cloud', 'cloudShade']);
+  const WEATHER_MATERIAL_SKIP = new Set(['surroundingLandTop', 'surroundingLandSide', 'borderShade', 'borderOccupied', 'hover', 'hoverErase', 'waterFoam', 'cloud', 'cloudShade']);
   function rememberWeatherMaterialBase() {
     for (const [name, mat] of Object.entries(M)) {
       if (!mat || !mat.color || WEATHER_MATERIAL_SKIP.has(name)) continue;
@@ -6440,6 +6453,20 @@
     return null;
   }
 
+  function isHomeBorderCell(x, z) {
+    return x >= 0 && x < GRID && z >= 0 && z < GRID && (x === 0 || z === 0 || x === GRID - 1 || z === GRID - 1);
+  }
+
+  function isBorderCellOccupied(cell) {
+    if (!cell) return false;
+    return !!(cell.userEdited || cell.kind || (cell.extras && cell.extras.length) || cell.terrain !== 'grass' || terrainLevelForCell(cell) > 1);
+  }
+
+  function borderOverlayState(cell, x, z) {
+    if (!isHomeBorderCell(x, z)) return 'none';
+    return isBorderCellOccupied(cell) ? 'occupied' : 'border';
+  }
+
   function makeTile(terrain, neighbors, x = 0, z = 0, level = 1, opts = {}) {
     const g = new THREE.Group();
     g.userData = { kind: 'tile', terrain };
@@ -6581,6 +6608,16 @@
     // micro-geometry here (grass flecks, shore strips, water ripple lines,
     // water insets, path trim bands, pavers, and scuffs) became visible as
     // chunky rectangular panels under pixel rendering.
+    if (opts && opts.showBorder) {
+      const state = borderOverlayState(getWorldCell(x, z), x, z);
+      if (state !== 'none') {
+        const overlay = new THREE.Mesh(getBoxGeometry(TILE * 1.02, 0.018, TILE * 1.02), state === 'occupied' ? M.borderOccupied : M.borderShade);
+        overlay.position.y = topY + 0.014;
+        overlay.renderOrder = 12;
+        overlay.userData.noShadow = true;
+        g.add(overlay);
+      }
+    }
 
     castReceive(g);
     return g;
@@ -12039,6 +12076,103 @@
     return !!(world[x] && world[x][z] && world[x][z].userEdited);
   }
 
+  // -------- surrounding land --------
+  // Visual-only perimeter land. These slots deliberately do not write to
+  // world[][] or cellMeshes and do not carry gx/gz raycast metadata.
+  const SURROUNDING_NEIGHBOR_SLOTS = [
+    { id: 'north-0', edge: 'north', index: 0, occupied: true,  color: '#4f8fd9', label: 'Northwest neighbor' },
+    { id: 'north-1', edge: 'north', index: 1, occupied: false, color: '#aebaa5', label: 'Northeast open land' },
+    { id: 'east-0',  edge: 'east',  index: 0, occupied: true,  color: '#d47a4c', label: 'East upper neighbor' },
+    { id: 'east-1',  edge: 'east',  index: 1, occupied: false, color: '#aebaa5', label: 'East lower open land' },
+    { id: 'south-0', edge: 'south', index: 0, occupied: false, color: '#aebaa5', label: 'Southwest open land' },
+    { id: 'south-1', edge: 'south', index: 1, occupied: true,  color: '#c9a23e', label: 'Southeast neighbor' },
+    { id: 'west-0',  edge: 'west',  index: 0, occupied: true,  color: '#6ba86d', label: 'West upper neighbor' },
+    { id: 'west-1',  edge: 'west',  index: 1, occupied: false, color: '#aebaa5', label: 'West lower open land' },
+  ];
+  const surroundingLandGroup = new THREE.Group();
+  surroundingLandGroup.name = 'surroundingLand';
+  surroundingLandGroup.renderOrder = -8;
+  worldGroup.add(surroundingLandGroup);
+  const surroundingLandTintMaterials = new Map();
+
+  function surroundingLandTintMaterial(color, occupied) {
+    const clean = normalizeHexColor(color) || '#e6e6e6';
+    const opacity = occupied ? 0.84 : 0.075;
+    const key = clean + ':' + opacity;
+    if (!surroundingLandTintMaterials.has(key)) {
+      surroundingLandTintMaterials.set(key, new THREE.MeshBasicMaterial({
+        color: clean,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+      }));
+    }
+    return surroundingLandTintMaterials.get(key);
+  }
+
+  function slotCenter(edge, index, slotLen, outsideDepth, insideTint) {
+    const along = -GRID / 2 + slotLen * (index + 0.5);
+    if (edge === 'north') return { landX: along, landZ: -GRID / 2 - outsideDepth / 2, tintX: along, tintZ: -GRID / 2 + (insideTint - outsideDepth) / 2 };
+    if (edge === 'south') return { landX: along, landZ:  GRID / 2 + outsideDepth / 2, tintX: along, tintZ:  GRID / 2 + (outsideDepth - insideTint) / 2 };
+    if (edge === 'east')  return { landX:  GRID / 2 + outsideDepth / 2, landZ: along, tintX:  GRID / 2 + (outsideDepth - insideTint) / 2, tintZ: along };
+    return { landX: -GRID / 2 - outsideDepth / 2, landZ: along, tintX: -GRID / 2 + (insideTint - outsideDepth) / 2, tintZ: along };
+  }
+
+  function makeSurroundingLandSlot(slot) {
+    const edge = slot.edge;
+    const index = slot.index === 1 ? 1 : 0;
+    const slotLen = GRID * 0.5 * TILE;
+    const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
+    const insideTint = Math.min(0.9, Math.max(0.55, GRID * 0.055)) * TILE;
+    const isHorizontal = edge === 'north' || edge === 'south';
+    const landW = isHorizontal ? slotLen : outsideDepth;
+    const landD = isHorizontal ? outsideDepth : slotLen;
+    const tintW = isHorizontal ? slotLen : outsideDepth + insideTint;
+    const tintD = isHorizontal ? outsideDepth + insideTint : slotLen;
+    const pos = slotCenter(edge, index, slotLen, outsideDepth, insideTint);
+    const group = new THREE.Group();
+    group.name = 'surrounding-land-' + slot.id;
+    group.userData = { visualOnly: true, neighborSlot: slot.id };
+
+    const dirt = new THREE.Mesh(getOpenBoxGeometry(landW, DIRT_H, landD, true, false, false, false, false, false), M.surroundingLandSide);
+    dirt.position.set(pos.landX, -DIRT_H * 0.5, pos.landZ);
+    group.add(dirt);
+
+    const top = new THREE.Mesh(getOpenBoxGeometry(landW, TOP_H, landD, false, true, false, false, false, false), M.surroundingLandTop);
+    top.position.set(pos.landX, TOP_H * 0.5, pos.landZ);
+    group.add(top);
+
+    const tint = new THREE.Mesh(getBoxGeometry(tintW, 0.018, tintD), surroundingLandTintMaterial(slot.color, !!slot.occupied));
+    tint.position.set(pos.tintX, TOP_H + 0.034, pos.tintZ);
+    tint.renderOrder = 10;
+    tint.userData.noShadow = true;
+    group.add(tint);
+
+    groundReceiveOnly(group);
+    return group;
+  }
+
+  function buildSurroundingLand() {
+    while (surroundingLandGroup.children.length) {
+      const child = surroundingLandGroup.children.pop();
+      disposeGroup(child);
+    }
+    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
+      if (!slot || !['north', 'east', 'south', 'west'].includes(slot.edge)) continue;
+      surroundingLandGroup.add(makeSurroundingLandSlot(slot));
+    }
+  }
+
+  function setSurroundingNeighborSlots(slots) {
+    if (!Array.isArray(slots)) return;
+    SURROUNDING_NEIGHBOR_SLOTS.length = 0;
+    for (const slot of slots) SURROUNDING_NEIGHBOR_SLOTS.push(slot);
+    buildSurroundingLand();
+  }
+  window.__tinyworldNeighborSlots = SURROUNDING_NEIGHBOR_SLOTS;
+  window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
+  buildSurroundingLand();
+
   // -------- home board border --------
   // No visible board marker. The old dark rectangle/outline under the start
   // board read as an artifact in pixel mode.
@@ -12056,7 +12190,7 @@
   // Non-editable neighbouring boards. They preview the multiplayer shape of
   // the world without changing the central board's world/cellMeshes contract.
   const ghostBoards = new Map(); // 'boardX,boardZ' -> THREE.Group
-  const ghostBoardCells = new Map(); // 'boardX,boardZ' -> 8x8 local board cells
+  const ghostBoardCells = new Map(); // 'boardX,boardZ' -> GRID x GRID local board cells
   let ghostBoardsBlank = false;
   const VIEW_EDGE_FADE_TILES = 2;
   let ghostPreloadRadius = ghostBoardsEnabledForGrid() ? Math.min(renderVisibleDistance, renderBudgetForGrid(GRID).ghostRadius) : 0;
@@ -12307,7 +12441,7 @@
     return x < GRID - 1 || x > 0 ? 'x' : 'z';
   }
 
-  // Cells outside the saved 8x8 home grid are rendered in grayscale so the
+  // Cells outside the saved home grid are rendered in grayscale so the
   // user can tell at a glance that those areas won't be saved.
   function isOutsideHomeGrid(x, z) {
     return x < 0 || x >= GRID || z < 0 || z >= GRID;
@@ -14070,7 +14204,7 @@
       path: getPathNeighbors(x, z),
       terrain: getTerrainNeighbors(x, z),
       levels: getLevelNeighbors(x, z),
-    }, x, z, tileLevelForCell(cell));
+    }, x, z, tileLevelForCell(cell), { showBorder: true });
 
     const p = tilePos(x, z);
     tile.position.copy(p);
@@ -14095,6 +14229,7 @@
       renderCellTile(x, z, { animate: false });
     }
     if (typeof rebuildExistingGhostBoards === 'function') rebuildExistingGhostBoards();
+    if (typeof buildSurroundingLand === 'function') buildSurroundingLand();
     for (const id of Array.from(thumbScenes.keys())) refreshToolThumb(id);
     if (typeof renderStampBuilderCards === 'function') renderStampBuilderCards();
   }
@@ -14318,6 +14453,7 @@
     if (!world[x] || !world[x][z]) return;
     const cell = world[x][z];
     if (!cell.extras) cell.extras = [];
+    const prevBorderState = borderOverlayState(cell, x, z);
     // De-dupe identical fence sides; level them up instead.
     if (extra.kind === 'fence') {
       const side = normalizeFenceSide(extra.fenceSide);
@@ -14333,6 +14469,7 @@
     }
     const newIdx = cell.extras.length;
     cell.extras.push(Object.assign({ floors: 1 }, extra));
+    if (prevBorderState !== borderOverlayState(cell, x, z)) renderCellTile(x, z, { animate: false });
     // Animate only the newly-added entry; everything before it
     // re-mounts at its resting position without a drop.
     renderCellExtras(x, z, { animateFrom: newIdx });
@@ -14342,7 +14479,9 @@
 
   function popCellExtra(x, z) {
     if (!world[x] || !world[x][z] || !world[x][z].extras || !world[x][z].extras.length) return false;
+    const prevBorderState = borderOverlayState(world[x][z], x, z);
     world[x][z].extras.pop();
+    if (prevBorderState !== borderOverlayState(world[x][z], x, z)) renderCellTile(x, z, { animate: false });
     renderCellExtras(x, z); // no animation — surviving extras stay put
     refreshVehiclesForWorldObstacleChange(x, z);
     saveState();
@@ -14507,8 +14646,10 @@
       : (kindIsNew ? null : normalizeAppearance(prev.appearance));
     const appearanceChanged = !sameAppearance(prev.appearance, newAppearance);
     const userEdited = !!(prev.userEdited || (opts && opts.userEdited));
+    const prevBorderState = borderOverlayState(prev, x, z);
     world[x][z] = { terrain: nextTerrain, terrainFloors: newTerrainFloors, kind: nextKind, floors: newFloors, buildingType: newBType, fenceSide: newFenceSide, extras: carriedExtras, rotationY: newRotationY, offsetX: newOffsetX, offsetZ: newOffsetZ, appearance: newAppearance };
     if (userEdited) world[x][z].userEdited = true;
+    const borderStateChanged = prevBorderState !== borderOverlayState(world[x][z], x, z);
     const vehicleDrivableChanged = prevVehicleDrivable !== isVehicleDrivableCell(world[x][z]);
     if (vehicleDrivableChanged) refreshVehiclesForWorldObstacleChange(x, z);
 
@@ -14534,7 +14675,7 @@
       }
     }
 
-    if (terrainChanged || tileHeightChanged || forceTile) {
+    if (terrainChanged || tileHeightChanged || forceTile || borderStateChanged) {
       renderCellTile(x, z, { animate, delay: tileDelay });
     } else if (!cellMeshes[x + ',' + z] || !cellMeshes[x + ',' + z].tile) {
       // Defensive: if for any reason this cell has no ground mesh
@@ -14557,7 +14698,7 @@
       if (getWorldCell(x, z).kind === 'bridge') renderCellObject(x, z, { animate: false });
     }
     if (!kindChanged && !floorsChanged && !terrainFloorsChanged && !bTypeChanged && !fenceSideChanged && !appearanceChanged && !transformChanged) {
-      if (terrainChanged || tileHeightChanged || forceTile) {
+      if (terrainChanged || tileHeightChanged || forceTile || borderStateChanged) {
         saveState();
         emitCellWebhook();
       }
@@ -16794,7 +16935,7 @@
         }
       }
     }
-    // Also export cells outside the 8x8 home board
+    // Also export cells outside the home board
     for (let x = -GRID; x < GRID * 2; x++) {
       if (x >= 0 && x < GRID) continue;
       if (!world[x]) continue;
@@ -16907,7 +17048,7 @@
   // ---------- first-person walk ----------
   // Ports OWB's src/main.js:194-343 ideas (eye-level camera, pointer-lock
   // mouse-look, WASD + space jump + shift sprint) but simplified for
-  // tinyworld's 8×8 grid:
+  // tinyworld's grid:
   //   - ground height is sampled directly from world[x][z].terrainFloors
   //     rather than via raycast (every cell is 1×1 with a known top Y).
   //   - collision is bound-clamping to the home grid; no obstacle box
@@ -17106,9 +17247,10 @@
     maxPumpkinPositions.clear();
     carriagePumpkin = null;
     applyAutoPreviewSettingsForGrid({ explored: hasUserPanned, deferEnsure: true });
-    try { localStorage.setItem('tinyworld:home-grid', String(GRID)); } catch (_) {}
+    try { localStorage.setItem(HOME_GRID_LS, String(GRID)); } catch (_) {}
     updateUnsavedCopyForGrid();
     if (typeof buildHomeBorder === 'function') buildHomeBorder();
+    if (typeof buildSurroundingLand === 'function') buildSurroundingLand();
 
     // Drop every ghost board — their world positions are anchored to GRID.
     for (const [key, board] of ghostBoards) {
@@ -17306,7 +17448,7 @@
     clearVehicleRuntime();
     renderVisibleSize = GRID;
     if (typeof requestHomeRenderWindowSync === 'function') requestHomeRenderWindowSync({ force: true });
-    // Reset always returns to the original 8x8 grid, regardless of what
+    // Reset always returns to the default grid size, regardless of what
     // the user resized to. setHomeGridSize is a no-op if GRID is already
     // at the default. skipRebuild because loadInitialScene immediately
     // rebuilds every cell anyway.
@@ -20987,7 +21129,7 @@
         }
       }
     }
-    // Also save any cells outside the 8x8 home board
+    // Also save any cells outside the home board
     for (let x = -GRID; x < GRID * 2; x++) {
       if (x >= 0 && x < GRID) continue; // already saved above
       if (!world[x]) continue;
@@ -21047,7 +21189,7 @@
 
   function buildAutoSystemPrompt() {
     return [
-      'You are the Auto palette tool for Tiny World Builder, an 8x8 isometric voxel scene.',
+      'You are the Auto palette tool for Tiny World Builder, a resizable isometric voxel scene.',
       'Read the current home-board JSON and produce a ranked batch of candidate tile actions the player may place next.',
       'Do not choose coordinates and do not replace the whole world. The player will still choose the clicked tile locally.',
       'Base the suggestions on the current sparse world state, nearby patterns, and what would be coherent next manual placements.',
@@ -24130,8 +24272,19 @@
       if (!raw) return false;
       data = JSON.parse(raw);
     } catch (_) { return false; }
+    if (migrateHomeGridDefaultTo15 && data && (data.gridSize === 8 || data.gridSize === 12)) {
+      data = Object.assign({}, data, { gridSize: HOME_GRID_DEFAULT });
+    }
     const ok = applyState(data, { keepCamera: true });
-    if (ok) resetCameraDefaults();
+    if (ok) {
+      if (migrateHomeGridDefaultTo15) {
+        try {
+          localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT));
+          localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
+        } catch (_) {}
+      }
+      resetCameraDefaults();
+    }
     return ok;
   }
 
@@ -24737,7 +24890,7 @@
   // -------- minimap (ported from OWB hud.js redrawMinimap) --------
   // Repaints a 2D top-down map window from world + generated preview-board
   // state. The map follows the current camera target, so panning away from
-  // the home board keeps a useful 2D overview instead of a stale 8x8 tile.
+  // the home board keeps a useful 2D overview instead of a stale home tile.
   // Tile colour comes from the terrain palette (matches the 3D scene);
   // a per-kind silhouette is overlaid for any populated cell so trees,
   // houses, animals etc. read as the same shape they do in 3D.
