@@ -12097,13 +12097,14 @@
 
   function surroundingLandTintMaterial(color, occupied) {
     const clean = normalizeHexColor(color) || '#e6e6e6';
-    const opacity = occupied ? 0.84 : 0.075;
+    const opacity = occupied ? 0.74 : 0.075;
     const key = clean + ':' + opacity;
     if (!surroundingLandTintMaterials.has(key)) {
       surroundingLandTintMaterials.set(key, new THREE.MeshBasicMaterial({
         color: clean,
         transparent: true,
         opacity,
+        depthTest: true,
         depthWrite: false,
       }));
     }
@@ -12144,7 +12145,9 @@
 
     const tint = new THREE.Mesh(getBoxGeometry(tintW, 0.018, tintD), surroundingLandTintMaterial(slot.color, !!slot.occupied));
     tint.position.set(pos.tintX, TOP_H + 0.034, pos.tintZ);
-    tint.renderOrder = 10;
+    // Draw early in the transparent pass so airborne transparent objects
+    // such as voxel clouds are not tinted over by the perimeter overlay.
+    tint.renderOrder = -10;
     tint.userData.noShadow = true;
     group.add(tint);
 
@@ -22481,7 +22484,7 @@
   // -------- floating agent wiring --------
   (function wireFloatingAgent() {
     const form = document.getElementById('agent-input');
-    const grip = document.getElementById('agent-grip');
+    const grip = document.getElementById('git ');
     const targetChip = document.getElementById('agent-target-chip');
     const input = document.getElementById('agent-prompt');
     const send = document.getElementById('agent-send');
