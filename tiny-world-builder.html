@@ -404,6 +404,23 @@
     left: 74px;
     right: auto;
   }
+  .player-stats-panel {
+    top: auto;
+    right: auto;
+    bottom: 98px;
+    left: 50%;
+    width: 520px;
+    max-width: calc(100vw - 32px);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    column-gap: 14px;
+    row-gap: 8px;
+    transform: translateX(-50%);
+  }
+  .player-stats-panel h3 {
+    grid-column: 1 / -1;
+  }
   .neighbor-stats-panel[hidden] {
     display: none;
   }
@@ -563,10 +580,12 @@
     }
     .player-stats-panel {
       top: auto;
-      right: 226px;
-      bottom: 220px;
-      width: 210px;
+      right: auto;
+      bottom: 90px;
+      left: 50%;
+      width: min(520px, calc(100vw - 24px));
       max-height: 42vh;
+      transform: translateX(-50%);
     }
     .neighbor-stats-panel {
       top: auto;
@@ -578,8 +597,11 @@
   }
   @media (max-width: 560px) {
     .player-stats-panel {
-      right: 8px;
-      bottom: calc(220px + 42vh + 8px);
+      right: auto;
+      bottom: 86px;
+      left: 50%;
+      width: calc(100vw - 24px);
+      grid-template-columns: 1fr;
       max-height: 30vh;
     }
   }
@@ -1209,7 +1231,7 @@
       0 12px 36px -12px rgba(40, 50, 80, 0.22);
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
-    z-index: 36;
+    z-index: 48;
     transform-origin: bottom center;
     transform: translate(-50%, 14px) scaleX(0.42) scaleY(0.92);
     opacity: 0;
@@ -3796,10 +3818,18 @@
       <span class="player-stat-bar"><span class="player-stat-fill army" id="player-stat-army-bar"></span></span>
       <span class="player-stat-value" id="player-stat-army">0</span>
     </div>
+    <div class="player-stat-total">
+      <span>Lands conquered</span>
+      <strong id="player-stat-lands">0</strong>
+    </div>
     <div class="player-stat">
       <span>Food</span>
       <span class="player-stat-bar"><span class="player-stat-fill food" id="player-stat-food-bar"></span></span>
       <span class="player-stat-value" id="player-stat-food">0</span>
+    </div>
+    <div class="player-stat-total">
+      <span>Some stat</span>
+      <strong id="player-stat-lands">0</strong>
     </div>
     <div class="player-stat">
       <span>Population</span>
@@ -3807,12 +3837,16 @@
       <span class="player-stat-value" id="player-stat-population">0</span>
     </div>
     <div class="player-stat-total">
-      <span>Lands conquered</span>
-      <strong id="player-stat-lands">0</strong>
-    </div>
-    <div class="player-stat-total">
       <span>Neighbors</span>
       <strong id="player-stat-neighbors">0</strong>
+    </div>
+    <div class="player-stat-total">
+      <span>Round number</span>
+      <strong id="player-stat-round-number">1</strong>
+    </div>
+    <div class="player-stat-total">
+      <span>Entries remaining</span>
+      <strong id="player-stat-entries-remaining">22 / 200</strong>
     </div>
   </div>
 
@@ -3957,11 +3991,6 @@
         <span class="world-menu-label">Duplicate</span>
         <span class="world-menu-hint">copy of this world</span>
       </button>
-      <button class="world-menu-item" data-action="generate" role="menuitem" data-ai-interface>
-        <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span>
-        <span class="world-menu-label">Generate from prompt…</span>
-        <span class="world-menu-hint">⌘G</span>
-      </button>
     </div>
     <div class="world-menu-section" id="world-menu-slots">
       <div class="world-menu-section-title">My worlds</div>
@@ -4042,9 +4071,6 @@
     <input type="file" id="import-file" accept=".json,application/json" hidden />
     <button class="btn icon" id="stamp-builder" data-tooltip="Stamp builder" aria-label="Open stamp builder">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7l9 5 9-5-9-5Z"/><path d="m3 7 9 5v10l-9-5V7Z"/><path d="m21 7-9 5v10l9-5V7Z"/></svg>
-    </button>
-    <button class="btn icon" id="generate" data-tooltip="Generate from prompt" aria-label="Generate world from prompt" data-ai-interface hidden>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>
     </button>
     <button class="btn icon" id="clear" data-tooltip="Clear to grass" aria-label="Clear world to grass">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
@@ -4316,143 +4342,19 @@
     </form>
   </div>
 
-  <div id="gen-modal" class="modal" data-ai-interface hidden>
-    <form class="modal-card gen-card" role="dialog" aria-modal="true" aria-labelledby="gen-title" onsubmit="return false">
-      <div class="modal-head">
-        <strong id="gen-title">Generate Tiny World</strong>
-        <button class="modal-close" id="gen-close" title="Close">×</button>
-      </div>
-      <p class="modal-copy">Describe the world you want, then tune the generated layout before replacing the current build.</p>
-
-      <label>Prompt
-        <textarea id="gen-prompt" rows="3" placeholder="a small fishing village by a river, a crop field next to two cottages, rocky outcrops on edges"></textarea>
-      </label>
-
-      <div class="gen-section" data-section="size">
-        <div class="gen-section-head">
-          <span class="gen-section-title">Board size</span>
-        </div>
-        <label>Home board
-          <select id="gen-grid-size">
-            <option value="8">8 × 8</option>
-            <option value="12">12 × 12</option>
-            <option value="16">16 × 16</option>
-            <option value="20">20 × 20</option>
-            <option value="32">32 × 32</option>
-            <option value="48">48 × 48</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="gen-section" data-section="seed">
-        <div class="gen-section-head">
-          <span class="gen-section-title">Seed</span>
-        </div>
-        <div class="gen-row gen-row-seed">
-          <input id="gen-seed" type="text" placeholder="leave blank for random" autocomplete="off" />
-          <button class="gen-mini" id="gen-seed-random" type="button" data-tooltip="New random seed" aria-label="Random seed">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>
-          </button>
-          <button class="gen-mini" id="gen-seed-copy" type="button" data-tooltip="Copy seed" aria-label="Copy seed">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-          <button class="gen-mini" id="gen-seed-paste" type="button" data-tooltip="Paste seed" aria-label="Paste seed">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="gen-section" data-section="biomes">
-        <div class="gen-section-head">
-          <span class="gen-section-title">Composition</span>
-          <span class="gen-section-sum" id="gen-biome-sum">100%</span>
-        </div>
-        <div class="gen-sliders" id="gen-biome-sliders">
-          <label class="gen-slider-row" data-biome="grass">
-            <span class="gen-slider-label"><span class="gen-swatch" style="background:#9bc16a"></span>Grass</span>
-            <input type="range" min="0" max="100" step="1" value="55" data-biome="grass" />
-            <span class="gen-slider-val">55%</span>
-          </label>
-          <label class="gen-slider-row" data-biome="forest">
-            <span class="gen-slider-label"><span class="gen-swatch" style="background:#4f8a3a"></span>Forest</span>
-            <input type="range" min="0" max="100" step="1" value="20" data-biome="forest" />
-            <span class="gen-slider-val">20%</span>
-          </label>
-          <label class="gen-slider-row" data-biome="water">
-            <span class="gen-slider-label"><span class="gen-swatch" style="background:#5da3c8"></span>Water</span>
-            <input type="range" min="0" max="100" step="1" value="10" data-biome="water" />
-            <span class="gen-slider-val">10%</span>
-          </label>
-          <label class="gen-slider-row" data-biome="dirt">
-            <span class="gen-slider-label"><span class="gen-swatch" style="background:#b8945a"></span>Farmland</span>
-            <input type="range" min="0" max="100" step="1" value="10" data-biome="dirt" />
-            <span class="gen-slider-val">10%</span>
-          </label>
-          <label class="gen-slider-row" data-biome="settlement">
-            <span class="gen-slider-label"><span class="gen-swatch" style="background:#c98a5b"></span>Settlement</span>
-            <input type="range" min="0" max="100" step="1" value="5" data-biome="settlement" />
-            <span class="gen-slider-val">5%</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="gen-section" data-section="elevation">
-        <div class="gen-section-head">
-          <span class="gen-section-title">Elevation</span>
-          <span class="gen-section-sum" id="gen-elev-sum">100%</span>
-        </div>
-        <div class="gen-sliders" id="gen-elev-sliders">
-          <label class="gen-slider-row" data-elev="plains">
-            <span class="gen-slider-label">Plains</span>
-            <input type="range" min="0" max="100" step="1" value="55" data-elev="plains" />
-            <span class="gen-slider-val">55%</span>
-          </label>
-          <label class="gen-slider-row" data-elev="hills">
-            <span class="gen-slider-label">Hills</span>
-            <input type="range" min="0" max="100" step="1" value="30" data-elev="hills" />
-            <span class="gen-slider-val">30%</span>
-          </label>
-          <label class="gen-slider-row" data-elev="mountains">
-            <span class="gen-slider-label">Mountains</span>
-            <input type="range" min="0" max="100" step="1" value="15" data-elev="mountains" />
-            <span class="gen-slider-val">15%</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="gen-section" data-section="advanced">
-        <label class="gen-check">
-          <input type="checkbox" id="gen-procedural" />
-          <span>Procedural (offline) <em class="gen-hint">— skip the LLM, generate directly from seed</em></span>
-        </label>
-        <label class="gen-check">
-          <input type="checkbox" id="gen-disable-autofill" />
-          <span>Disable outside auto-fill <em class="gen-hint">blank grass beyond the generated board</em></span>
-        </label>
-      </div>
-
-      <div class="help-line">Replaces the current world. Model and API key live in Settings → AI.</div>
-      <div class="modal-foot gen-actions">
-        <span id="gen-status"></span>
-        <button class="btn" id="gen-go" type="button">Generate</button>
-      </div>
-    </form>
-  </div>
-
   <div id="render-modal" class="modal" hidden>
     <form class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="render-title" onsubmit="return false">
       <div class="modal-head">
         <strong id="render-title">Settings</strong>
         <button class="modal-close" id="render-close" title="Close">×</button>
       </div>
-      <p class="modal-copy">Tune the screen, world preview, sky, and AI defaults for this session.</p>
+      <p class="modal-copy">Tune the screen, world preview, and sky for this session.</p>
       <div class="settings-layout">
         <nav class="settings-tabs" aria-label="Settings sections">
           <button type="button" class="settings-tab active" data-settings-tab="screen">Screen</button>
           <button type="button" class="settings-tab" data-settings-tab="world">World</button>
           <button type="button" class="settings-tab" data-settings-tab="crowd">Crowd</button>
           <button type="button" class="settings-tab" data-settings-tab="sky">Sky</button>
-          <button type="button" class="settings-tab" data-settings-tab="ai" data-ai-interface>AI</button>
         </nav>
         <div class="settings-panels">
           <section class="settings-panel active" data-settings-panel="screen">
@@ -4668,27 +4570,6 @@
               <output id="render-tilt-focus-value"></output>
             </div>
           </section>
-
-          <section class="settings-panel" data-settings-panel="ai" data-ai-interface>
-            <div class="settings-section-title">AI generation</div>
-            <label>Provider
-              <select id="gen-provider">
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-                <option value="xai">xAI / Grok</option>
-                <option value="gemini">Gemini</option>
-              </select>
-            </label>
-            <label>Model
-              <input id="gen-model" list="gen-model-list" autocomplete="off" spellcheck="false" placeholder="gpt-5.5" />
-              <datalist id="gen-model-list"></datalist>
-              <div class="profile-hint" style="margin-top:4px;">Type any model name your key has access to. Suggestions are just shortcuts.</div>
-            </label>
-            <label>API key <span style="font-weight:400;font-size:11px;">(stored in this browser only)</span>
-              <input id="gen-key" type="password" autocomplete="off" placeholder="sk-... / xai-... / etc" />
-            </label>
-            <div class="help-line">Used by Generate, Auto, and the floating agent. The prompt tells models to assemble requests from Tiny World primitives: terrain, paths, fences, rocks, crops, bridges, trees, tufts, and building clusters.</div>
-          </section>
         </div>
       </div>
       <div class="modal-foot">
@@ -4704,27 +4585,11 @@
         <strong id="stamp-builder-title">Stamp builder</strong>
         <button class="modal-close" id="stamp-builder-close" title="Close">×</button>
       </div>
-      <p class="modal-copy">Preview, select, generate, and refresh voxel stamp builds.</p>
-      <input id="voxel-build-image-file" class="visually-hidden-file" type="file" accept="image/png,image/jpeg,image/webp" />
-      <div class="stamp-creative-panel">
-        <textarea id="voxel-build-prompt" placeholder="Describe a voxel stamp..."></textarea>
-        <div class="stamp-creative-actions">
-          <button class="btn" id="voxel-build-create" type="button">Create</button>
-          <label class="btn" id="voxel-build-image" for="voxel-build-image-file">Choose image</label>
-        </div>
-        <div class="stamp-image-strip" id="voxel-build-image-strip" hidden>
-          <img id="voxel-build-image-preview" alt="" />
-          <span class="stamp-image-name" id="voxel-build-image-name"></span>
-          <button class="btn" id="voxel-build-image-clear" type="button">Clear image</button>
-        </div>
-      </div>
+      <p class="modal-copy">Preview, select, import, and refresh voxel stamp builds.</p>
       <input id="voxel-build-import-file" type="file" accept=".json,application/json" hidden />
       <div class="modal-tools" style="display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px;">
         <button class="btn" id="voxel-build-import" type="button">Import build JSON</button>
-        <button class="btn" id="voxel-build-upscale" type="button">Reinterpret 2x</button>
-        <button class="btn" id="voxel-build-enhance" type="button">AI enhance</button>
         <button class="btn" id="voxel-build-use-selected" type="button">Use selected object</button>
-        <button class="btn" id="voxel-build-enhance-selected" type="button">Enhance selected</button>
       </div>
       <div class="stamp-builder-grid" id="stamp-builder-grid"></div>
       <div class="modal-foot">
@@ -4733,52 +4598,6 @@
       </div>
     </form>
   </div>
-
-  <div id="agent-panel" class="agent-panel" data-ai-interface aria-live="polite">
-    <div class="agent-panel-head">
-      <span id="agent-panel-title">Agent conversation</span>
-      <button type="button" class="agent-panel-clear" id="agent-panel-clear" aria-label="Clear conversation">⌫</button>
-      <button type="button" class="agent-panel-toggle" id="agent-panel-toggle" aria-label="Close conversation">×</button>
-    </div>
-    <div class="agent-selection-preview" id="agent-selection-preview" hidden>
-      <div class="selection-tabbar">
-        <button type="button" class="selection-tab active" data-tab="preview">Preview</button>
-        <button type="button" class="selection-tab" data-tab="details">Details</button>
-      </div>
-      <div class="selection-tab-content active" data-content="preview">
-        <div class="selection-preview-pane">
-          <canvas id="selection-preview-canvas" width="128" height="128"></canvas>
-          <div class="selection-preview-actions" id="selection-preview-actions"></div>
-        </div>
-      </div>
-      <div class="selection-tab-content" data-content="details">
-        <div class="selection-details-pane">
-          <div class="agent-selection-count" id="agent-selection-count">0 tiles selected</div>
-          <ul class="agent-selection-list" id="agent-selection-list"></ul>
-          <div class="agent-selection-properties" id="agent-selection-properties" hidden></div>
-          <div class="agent-selection-hint">Type above and the prompt will target this selection.</div>
-        </div>
-      </div>
-    </div>
-    <div class="agent-messages" id="agent-messages"></div>
-  </div>
-
-  <!-- Persistent right-edge grip handle. Only visible when the agent panel has
-       real history and is currently slid off-screen. Exact same glassmorphism
-       and ⋮⋮ drag cue as the bottom input bar. -->
-  <button id="agent-panel-handle" class="agent-panel-handle" title="Show agent conversation" aria-label="Show agent conversation" hidden>⋮⋮</button>
-
-  <div id="generation-plan-overlay" class="generation-plan-overlay" hidden aria-hidden="true">
-    <img id="generation-plan-image" alt="" />
-  </div>
-
-  <form id="agent-input" class="agent-input" data-ai-interface autocomplete="off">
-    <button type="button" class="agent-grip" id="agent-grip" title="Drag agent input" aria-label="Drag agent input">⋮⋮</button>
-    <button type="button" class="agent-target-chip" id="agent-target-chip" title="Selected object target" aria-label="Clear selected object target" hidden></button>
-    <input id="agent-prompt" type="text" placeholder="Ask the agent to change this world…" aria-label="Ask the agent" />
-    <button type="submit" class="agent-send" id="agent-send" aria-label="Send to agent">↑</button>
-    <div id="agent-suggestions" class="agent-suggestions" role="listbox" aria-label="Suggested prompts" hidden></div>
-  </form>
 
   <div class="toolbar" id="toolbar"></div>
   <div class="flyout" id="flyout" hidden></div>
@@ -6569,8 +6388,7 @@
   }
 
   function borderOverlayState(cell, x, z) {
-    if (!isHomeBorderCell(x, z)) return 'none';
-    return isBorderCellOccupied(cell) ? 'occupied' : 'border';
+    return 'none';
   }
 
   function makeTile(terrain, neighbors, x = 0, z = 0, level = 1, opts = {}) {
@@ -12219,10 +12037,10 @@
 
   function slotCenter(edge, index, slotLen, outsideDepth, insideTint) {
     const along = -GRID / 2 + slotLen * (index + 0.5);
-    if (edge === 'north') return { landX: along, landZ: -GRID / 2 - outsideDepth / 2, tintX: along, tintZ: -GRID / 2 + (insideTint - outsideDepth) / 2 };
-    if (edge === 'south') return { landX: along, landZ:  GRID / 2 + outsideDepth / 2, tintX: along, tintZ:  GRID / 2 + (outsideDepth - insideTint) / 2 };
-    if (edge === 'east')  return { landX:  GRID / 2 + outsideDepth / 2, landZ: along, tintX:  GRID / 2 + (outsideDepth - insideTint) / 2, tintZ: along };
-    return { landX: -GRID / 2 - outsideDepth / 2, landZ: along, tintX: -GRID / 2 + (insideTint - outsideDepth) / 2, tintZ: along };
+    if (edge === 'north') return { landX: along, landZ: -GRID / 2 - outsideDepth / 2, tintX: along, tintZ: -GRID / 2 - outsideDepth / 2 };
+    if (edge === 'south') return { landX: along, landZ:  GRID / 2 + outsideDepth / 2, tintX: along, tintZ:  GRID / 2 + outsideDepth / 2 };
+    if (edge === 'east')  return { landX:  GRID / 2 + outsideDepth / 2, landZ: along, tintX:  GRID / 2 + outsideDepth / 2, tintZ: along };
+    return { landX: -GRID / 2 - outsideDepth / 2, landZ: along, tintX: -GRID / 2 - outsideDepth / 2, tintZ: along };
   }
 
   function makeSurroundingLandSlot(slot) {
@@ -12234,8 +12052,8 @@
     const isHorizontal = edge === 'north' || edge === 'south';
     const landW = isHorizontal ? slotLen : outsideDepth;
     const landD = isHorizontal ? outsideDepth : slotLen;
-    const tintW = isHorizontal ? slotLen : outsideDepth + insideTint;
-    const tintD = isHorizontal ? outsideDepth + insideTint : slotLen;
+    const tintW = isHorizontal ? slotLen : outsideDepth;
+    const tintD = isHorizontal ? outsideDepth : slotLen;
     const pos = slotCenter(edge, index, slotLen, outsideDepth, insideTint);
     const group = new THREE.Group();
     group.name = 'surrounding-land-' + slot.id;
@@ -14753,6 +14571,15 @@
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
   let playerStatsUpdateQueued = false;
+  const PLAYER_GAME_STATE_MOCK = {
+    roundNumber: 1,
+    entriesRemaining: 22,
+    maxEntries: 200,
+  };
+
+  function getPlayerGameState() {
+    return window.__tinyworldPlayerGameState || PLAYER_GAME_STATE_MOCK;
+  }
 
   function clampStatPercent(value, target) {
     if (!target || target <= 0) return 0;
@@ -14814,12 +14641,16 @@
       }
     }
 
+    const gameState = getPlayerGameState();
     return {
       army,
       food,
       population,
       lands,
       neighbors: neighborCells.size,
+      roundNumber: Math.max(1, Math.round(gameState.roundNumber || 1)),
+      entriesRemaining: Math.max(0, Math.round(gameState.entriesRemaining || 0)),
+      maxEntries: Math.max(0, Math.round(gameState.maxEntries || 0)),
       armyPercent: clampStatPercent(army, Math.max(25, population * 0.55)),
       foodPercent: clampStatPercent(food, Math.max(30, population * 1.15)),
       populationPercent: clampStatPercent(population, Math.max(20, lands * 4)),
@@ -14843,8 +14674,12 @@
     setPlayerStat('population', stats.population, stats.populationPercent);
     const landsEl = document.getElementById('player-stat-lands');
     const neighborsEl = document.getElementById('player-stat-neighbors');
+    const roundNumberEl = document.getElementById('player-stat-round-number');
+    const entriesRemainingEl = document.getElementById('player-stat-entries-remaining');
     if (landsEl) landsEl.textContent = String(stats.lands);
     if (neighborsEl) neighborsEl.textContent = String(stats.neighbors);
+    if (roundNumberEl) roundNumberEl.textContent = String(stats.roundNumber);
+    if (entriesRemainingEl) entriesRemainingEl.textContent = stats.entriesRemaining + ' / ' + stats.maxEntries;
   }
 
   function schedulePlayerStatsUpdate() {
@@ -15754,7 +15589,6 @@
 
   // -------- tools --------
   const TOOLS = [
-    { id: 'auto',   label: 'Auto',   auto: true, color: '#3a72c8', shortcut: '0', group: 'tools', hidden: true },
     { id: 'select', label: 'Select', select: true, color: '#c8b06f', shortcut: 'v', group: 'tools' },
     { id: 'grass',  label: 'Grass',  terrain: 'grass', color: '#9ec74b', shortcut: '1', group: 'terrain' },
     { id: 'path',   label: 'Path',   terrain: 'path',  color: '#e8d5a8', shortcut: '2', group: 'terrain' },
@@ -19262,7 +19096,7 @@
         }
         selectedVoxelBuildId = stamp.id;
         renderStampBuilderCards();
-        if (status) status.textContent = 'Selected ' + selectedBoardObjectLabel(target) + ' as AI target';
+        if (status) status.textContent = 'Selected ' + selectedBoardObjectLabel(target) + ' as stamp source';
       });
     }
     if (enhanceSelectedBtn) {
@@ -22280,6 +22114,7 @@
     const seedCopyBtn = document.getElementById('gen-seed-copy');
     const seedPasteBtn = document.getElementById('gen-seed-paste');
     const gridSizeEl = document.getElementById('gen-grid-size');
+    if (!modal || !openBtn || !closeBtn || !goBtn || !promptEl || !providerEl || !modelEl || !keyEl || !statusEl) return;
     fillGridSizeSelect(gridSizeEl);
     const disableAutofillEl = document.getElementById('gen-disable-autofill');
     const proceduralEl = document.getElementById('gen-procedural');
@@ -26196,10 +26031,6 @@
           const active = findActiveWorld();
           const baseName = (active && active.name) || 'World';
           saveAsNew(baseName + ' (copy)');
-        } else if (action === 'generate') {
-          if (typeof openGenerateModal === 'function') openGenerateModal();
-          else { const g = document.getElementById('generate'); if (g) g.click(); }
-          close();
         } else if (action === 'save-as') {
           const name = (nameInput.value.trim()) || ('World ' + (readWorldsMeta().length + 1));
           saveAsNew(name);
@@ -26328,10 +26159,6 @@
       } });
       items.push({ group: 'World', label: 'Export world as JSON', run: topBtnAction('export') });
       items.push({ group: 'World', label: 'Import world from JSON', run: topBtnAction('import') });
-      items.push({ group: 'World', label: 'Generate from prompt…', hint: 'AI generation panel', kbd: '⌘G', run: () => {
-        if (typeof openGenerateModal === 'function') openGenerateModal();
-        else topBtnAction('generate')();
-      } });
       items.push({ group: 'World', label: 'Generate procedurally (offline)', hint: 'seed + biomes, no LLM', run: () => {
         try {
           const state = (typeof window.__genState === 'function') ? window.__genState() : null;
@@ -26347,7 +26174,6 @@
       items.push({ group: 'Settings', label: 'Settings — Screen', run: settingsTab('screen') });
       items.push({ group: 'Settings', label: 'Settings — World',  run: settingsTab('world') });
       items.push({ group: 'Settings', label: 'Settings — Sky',    run: settingsTab('sky') });
-      items.push({ group: 'Settings', label: 'Settings — AI',     run: settingsTab('ai') });
       if (window.TinyWorldAuth) {
         items.push({ group: 'Account', label: 'Open account / My Builds', run: topBtnAction('account-btn') });
         items.push({ group: 'Account', label: 'Sign in', run: topBtnAction('auth-login-btn-top') });
