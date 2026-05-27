@@ -378,7 +378,8 @@
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
-  .player-stats-panel {
+  .player-stats-panel,
+  .neighbor-stats-panel {
     position: fixed;
     top: 396px;
     right: 276px;
@@ -397,6 +398,15 @@
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
+  .neighbor-stats-panel {
+    top: auto;
+    bottom: 72px;
+    left: 74px;
+    right: auto;
+  }
+  .neighbor-stats-panel[hidden] {
+    display: none;
+  }
   .crowd-panel h3 {
     margin: 0;
     font-size: 12px;
@@ -404,12 +414,64 @@
     letter-spacing: 0.08em;
     color: var(--ink);
   }
-  .player-stats-panel h3 {
+  .player-stats-panel h3,
+  .neighbor-stats-panel h3 {
     margin: 0;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--ink);
+  }
+  .stats-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .neighbor-stats-close {
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(80, 70, 54, 0.22);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.64);
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .neighbor-stats-close:hover {
+    background: rgba(255, 255, 255, 0.9);
+  }
+  .neighbor-slot-buttons {
+    position: fixed;
+    inset: 0;
+    z-index: 31;
+    pointer-events: none;
+  }
+  .neighbor-slot-button {
+    position: absolute;
+    width: 28px;
+    height: 28px;
+    border: 1px solid rgba(80, 70, 54, 0.26);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow:
+      0 1px 2px rgba(20, 30, 50, 0.08),
+      0 10px 24px -14px rgba(40, 50, 80, 0.36);
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    pointer-events: auto;
+    transform: translate(-50%, -50%);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+  }
+  .neighbor-slot-button:hover,
+  .neighbor-slot-button.active {
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(80, 70, 54, 0.42);
   }
   .player-stat {
     display: grid;
@@ -441,6 +503,7 @@
   .player-stat-fill.army { background: linear-gradient(90deg, #d24a4f, #e58b42); }
   .player-stat-fill.food { background: linear-gradient(90deg, #6fb442, #f2c849); }
   .player-stat-fill.population { background: linear-gradient(90deg, #3a72c8, #74b4d8); }
+  .player-stat-fill.trade { background: linear-gradient(90deg, #8e6ccf, #45b5a3); }
   .player-stat-total {
     display: flex;
     align-items: center;
@@ -502,6 +565,13 @@
       top: auto;
       right: 226px;
       bottom: 220px;
+      width: 210px;
+      max-height: 42vh;
+    }
+    .neighbor-stats-panel {
+      top: auto;
+      bottom: 72px;
+      left: 8px;
       width: 210px;
       max-height: 42vh;
     }
@@ -3745,6 +3815,42 @@
       <strong id="player-stat-neighbors">0</strong>
     </div>
   </div>
+
+  <div class="neighbor-stats-panel" id="neighbor-stats-panel" aria-label="Neighbor stats" hidden>
+    <div class="stats-panel-header">
+      <h3 id="neighbor-stats-title">Neighbor</h3>
+      <button class="neighbor-stats-close" id="neighbor-stats-close" type="button" aria-label="Close neighbor stats">X</button>
+    </div>
+    <div class="player-stat">
+      <span>Army</span>
+      <span class="player-stat-bar"><span class="player-stat-fill army" id="neighbor-stat-army-bar"></span></span>
+      <span class="player-stat-value" id="neighbor-stat-army">0</span>
+    </div>
+    <div class="player-stat">
+      <span>Food</span>
+      <span class="player-stat-bar"><span class="player-stat-fill food" id="neighbor-stat-food-bar"></span></span>
+      <span class="player-stat-value" id="neighbor-stat-food">0</span>
+    </div>
+    <div class="player-stat">
+      <span>Trade</span>
+      <span class="player-stat-bar"><span class="player-stat-fill trade" id="neighbor-stat-trade-bar"></span></span>
+      <span class="player-stat-value" id="neighbor-stat-trade">0</span>
+    </div>
+    <div class="player-stat-total">
+      <span>Lands conquered</span>
+      <strong id="neighbor-stat-land-conquered">0</strong>
+    </div>
+    <div class="player-stat-total">
+      <span>Neighbor</span>
+      <strong id="neighbor-stat-neighbor">-</strong>
+    </div>
+    <div class="player-stat-total">
+      <span>Contract</span>
+      <strong id="neighbor-stat-contract-address">-</strong>
+    </div>
+  </div>
+
+  <div class="neighbor-slot-buttons" id="neighbor-slot-buttons" aria-label="Neighbor slots"></div>
 
   <div class="brand">
     <div class="title">EtherLands</div>
@@ -12080,14 +12186,14 @@
   // Visual-only perimeter land. These slots deliberately do not write to
   // world[][] or cellMeshes and do not carry gx/gz raycast metadata.
   const SURROUNDING_NEIGHBOR_SLOTS = [
-    { id: 'north-0', edge: 'north', index: 0, occupied: true,  color: '#4f8fd9', label: 'Northwest neighbor' },
-    { id: 'north-1', edge: 'north', index: 1, occupied: false, color: '#aebaa5', label: 'Northeast open land' },
-    { id: 'east-0',  edge: 'east',  index: 0, occupied: true,  color: '#d47a4c', label: 'East upper neighbor' },
-    { id: 'east-1',  edge: 'east',  index: 1, occupied: false, color: '#aebaa5', label: 'East lower open land' },
-    { id: 'south-0', edge: 'south', index: 0, occupied: false, color: '#aebaa5', label: 'Southwest open land' },
-    { id: 'south-1', edge: 'south', index: 1, occupied: true,  color: '#c9a23e', label: 'Southeast neighbor' },
-    { id: 'west-0',  edge: 'west',  index: 0, occupied: true,  color: '#6ba86d', label: 'West upper neighbor' },
-    { id: 'west-1',  edge: 'west',  index: 1, occupied: false, color: '#aebaa5', label: 'West lower open land' },
+    { id: 'north-0', edge: 'north', index: 0, occupied: true,  color: '#4f8fd9', label: 'Northwest neighbor', stats: { army: 54, food: 72, trade: 28, landConquered: 17, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'north-1', edge: 'north', index: 1, occupied: false, color: '#aebaa5', label: 'Northeast open land', stats: { army: 0, food: 12, trade: 4, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'east-0',  edge: 'east',  index: 0, occupied: true,  color: '#d47a4c', label: 'East upper neighbor', stats: { army: 38, food: 46, trade: 62, landConquered: 12, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'east-1',  edge: 'east',  index: 1, occupied: false, color: '#aebaa5', label: 'East lower open land', stats: { army: 0, food: 9, trade: 7, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'south-0', edge: 'south', index: 0, occupied: false, color: '#aebaa5', label: 'Southwest open land', stats: { army: 0, food: 15, trade: 5, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'south-1', edge: 'south', index: 1, occupied: true,  color: '#c9a23e', label: 'Southeast neighbor', stats: { army: 61, food: 35, trade: 31, landConquered: 20, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'west-0',  edge: 'west',  index: 0, occupied: true,  color: '#6ba86d', label: 'West upper neighbor', stats: { army: 27, food: 84, trade: 49, landConquered: 9, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
+    { id: 'west-1',  edge: 'west',  index: 1, occupied: false, color: '#aebaa5', label: 'West lower open land', stats: { army: 0, food: 18, trade: 3, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
   ];
   const surroundingLandGroup = new THREE.Group();
   surroundingLandGroup.name = 'surroundingLand';
@@ -12171,10 +12277,164 @@
     SURROUNDING_NEIGHBOR_SLOTS.length = 0;
     for (const slot of slots) SURROUNDING_NEIGHBOR_SLOTS.push(slot);
     buildSurroundingLand();
+    rebuildNeighborSlotButtons();
+    updateNeighborSlotButtonPositions();
   }
+
+  // -------- neighbor stats panel --------
+  const neighborSlotButtonsEl = document.getElementById('neighbor-slot-buttons');
+  const neighborStatsPanelEl = document.getElementById('neighbor-stats-panel');
+  const neighborStatsTitleEl = document.getElementById('neighbor-stats-title');
+  const neighborStatsCloseEl = document.getElementById('neighbor-stats-close');
+  const neighborSlotButtonById = new Map();
+  const neighborSlotProjectPoint = new THREE.Vector3();
+  const neighborSlotWorldPoint = new THREE.Vector3();
+  const neighborSlotOcclusionRaycaster = new THREE.Raycaster();
+  let activeNeighborSlotId = null;
+
+  function isClickableNeighborSlot(slot) {
+    return !!slot && !!slot.occupied;
+  }
+
+  function defaultNeighborStats(slot) {
+    return {
+      army: slot && slot.occupied ? 10 : 0,
+      food: slot && slot.occupied ? 10 : 0,
+      trade: slot && slot.occupied ? 10 : 0,
+      landConquered: slot && slot.occupied ? 1 : 0,
+      neighbor: slot && slot.occupied ? 'Occupied' : 'Open land',
+      contractAddress: '0x2fe5b...67e4c',
+    };
+  }
+
+  function statsForNeighborSlot(slot) {
+    return Object.assign(defaultNeighborStats(slot), (slot && slot.stats) || {});
+  }
+
+  function setNeighborStat(id, value, percent) {
+    const valueEl = document.getElementById('neighbor-stat-' + id);
+    const barEl = document.getElementById('neighbor-stat-' + id + '-bar');
+    if (valueEl) valueEl.textContent = String(Math.round(value || 0));
+    if (barEl) barEl.style.width = Math.max(0, Math.min(100, percent || 0)) + '%';
+  }
+
+  function updateNeighborSlotActiveButtons() {
+    for (const [id, btn] of neighborSlotButtonById) {
+      btn.classList.toggle('active', id === activeNeighborSlotId);
+    }
+  }
+
+  function openNeighborStats(slot) {
+    if (!slot || !neighborStatsPanelEl) return;
+    const stats = statsForNeighborSlot(slot);
+    activeNeighborSlotId = slot.id;
+    if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = slot.label || 'Neighbor';
+    setNeighborStat('army', stats.army, stats.army);
+    setNeighborStat('food', stats.food, stats.food);
+    setNeighborStat('trade', stats.trade, stats.trade);
+    const landEl = document.getElementById('neighbor-stat-land-conquered');
+    const neighborEl = document.getElementById('neighbor-stat-neighbor');
+    const contractEl = document.getElementById('neighbor-stat-contract-address');
+    if (landEl) landEl.textContent = String(Math.round(stats.landConquered || 0));
+    if (neighborEl) neighborEl.textContent = stats.neighbor || '-';
+    if (contractEl) contractEl.textContent = stats.contractAddress || '-';
+    neighborStatsPanelEl.hidden = false;
+    updateNeighborSlotActiveButtons();
+  }
+
+  function closeNeighborStats() {
+    activeNeighborSlotId = null;
+    if (neighborStatsPanelEl) neighborStatsPanelEl.hidden = true;
+    updateNeighborSlotActiveButtons();
+  }
+
+  function rebuildNeighborSlotButtons() {
+    if (!neighborSlotButtonsEl) return;
+    neighborSlotButtonsEl.innerHTML = '';
+    neighborSlotButtonById.clear();
+    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
+      if (!isClickableNeighborSlot(slot)) continue;
+      const btn = document.createElement('button');
+      btn.className = 'neighbor-slot-button';
+      btn.type = 'button';
+      btn.textContent = 'i';
+      btn.style.borderColor = slot.color || '';
+      btn.setAttribute('aria-label', 'View ' + (slot.label || 'neighbor') + ' stats');
+      btn.title = slot.label || 'Neighbor';
+      btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openNeighborStats(slot);
+      });
+      neighborSlotButtonsEl.appendChild(btn);
+      neighborSlotButtonById.set(slot.id, btn);
+    }
+    updateNeighborSlotActiveButtons();
+  }
+
+  function hitBelongsToNeighborSlot(obj, slotId) {
+    let n = obj;
+    while (n) {
+      if (n.userData && n.userData.neighborSlot === slotId) return true;
+      n = n.parent;
+    }
+    return false;
+  }
+
+  function hitIsNeighborSlotChrome(obj) {
+    let n = obj;
+    while (n) {
+      if (n.userData && n.userData.neighborSlot) return true;
+      n = n.parent;
+    }
+    return false;
+  }
+
+  function neighborSlotIsOccluded(slot, slotDistance) {
+    neighborSlotOcclusionRaycaster.setFromCamera(neighborSlotProjectPoint, camera);
+    const hits = neighborSlotOcclusionRaycaster.intersectObjects(scene.children, true);
+    for (const h of hits) {
+      if (!h || !h.object || !h.object.visible) continue;
+      if (hitBelongsToNeighborSlot(h.object, slot.id)) return false;
+      if (hitIsNeighborSlotChrome(h.object)) continue;
+      if (h.distance < slotDistance - 0.18) return true;
+    }
+    return false;
+  }
+
+  function updateNeighborSlotButtonPositions() {
+    if (!neighborSlotButtonById.size) return;
+    const slotLen = GRID * 0.5 * TILE;
+    const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
+    const insideTint = Math.min(0.9, Math.max(0.55, GRID * 0.055)) * TILE;
+    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
+      const btn = neighborSlotButtonById.get(slot.id);
+      if (!btn) continue;
+      const pos = slotCenter(slot.edge, slot.index === 1 ? 1 : 0, slotLen, outsideDepth, insideTint);
+      neighborSlotWorldPoint.set(pos.landX, TOP_H + 0.12, pos.landZ);
+      worldGroup.localToWorld(neighborSlotWorldPoint);
+      neighborSlotProjectPoint.copy(neighborSlotWorldPoint).project(camera);
+      const visible =
+        neighborSlotProjectPoint.z >= -1 &&
+        neighborSlotProjectPoint.z <= 1 &&
+        neighborSlotProjectPoint.x >= -1.08 &&
+        neighborSlotProjectPoint.x <= 1.08 &&
+        neighborSlotProjectPoint.y >= -1.08 &&
+        neighborSlotProjectPoint.y <= 1.08 &&
+        !neighborSlotIsOccluded(slot, camera.position.distanceTo(neighborSlotWorldPoint));
+      btn.hidden = !visible;
+      if (!visible) continue;
+      btn.style.left = ((neighborSlotProjectPoint.x + 1) * 0.5 * window.innerWidth) + 'px';
+      btn.style.top = ((-neighborSlotProjectPoint.y + 1) * 0.5 * window.innerHeight) + 'px';
+    }
+  }
+
+  if (neighborStatsCloseEl) neighborStatsCloseEl.addEventListener('click', closeNeighborStats);
   window.__tinyworldNeighborSlots = SURROUNDING_NEIGHBOR_SLOTS;
   window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
   buildSurroundingLand();
+  rebuildNeighborSlotButtons();
+  updateNeighborSlotButtonPositions();
 
   // -------- home board border --------
   // No visible board marker. The old dark rectangle/outline under the start
@@ -20613,6 +20873,7 @@
     }
     updateSmoke(dt);
     updateXRFrame(xrFrame);
+    updateNeighborSlotButtonPositions();
 
     renderScene();
   }
@@ -20638,6 +20899,7 @@
       const btn = document.querySelector('.tool[data-id="' + selectedTool.id + '"]');
       if (btn) positionFlyout(btn, fl);
     }
+    updateNeighborSlotButtonPositions();
   }
   window.addEventListener('resize', onResize);
 
