@@ -93,6 +93,7 @@
   }
   canvas { display: block; cursor: grab; touch-action: none; }
   canvas.placing { cursor: crosshair; }
+  canvas.neighbor-hover { cursor: pointer; }
   canvas.dragging { cursor: grabbing; }
 
   /* Original top-left brand (restored from main): Fraunces serif title
@@ -463,6 +464,7 @@
     position: fixed;
     inset: 0;
     z-index: 31;
+    display: none;
     pointer-events: none;
   }
   .neighbor-slot-button {
@@ -4398,10 +4400,12 @@
               <select id="render-home-grid">
                 <option value="8">8 × 8</option>
                 <option value="12">12 × 12</option>
+                <option value="15">15 × 15</option>
                 <option value="16">16 × 16</option>
                 <option value="20">20 × 20</option>
                 <option value="32">32 × 32</option>
                 <option value="48">48 × 48</option>
+                <option value="50">50 × 50</option>
               </select>
             </label>
             <div class="range-row">
@@ -4633,22 +4637,35 @@
 
   // -------- constants --------
   // GRID is the home board edge length. Mutable: the user can resize it
-  // from compact 15×15 dioramas up to 48×48 worlds. Tiles outside the current
+  // from compact village dioramas up to 50×50 worlds. Tiles outside the current
   // home grid are still tracked in world[][] (used by ghost boards and
   // export) but rendered grayscale; growing GRID brings those tiles into
   // the home area and rebuilds them in full colour.
-  const HOME_GRID_DEFAULT = 15;
+  // Mock territory stat. Replace this line with a fixed number while tuning
+  // (for example `let landsConquered = 25;`) or later with indexed game data.
+  let landsConquered = Math.floor(Math.random() * 100) + 1;
   const HOME_GRID_MIN = 8;
-  const HOME_GRID_MAX = 48;
-  const HOME_GRID_OPTIONS = [8, 12, 15, 16, 20, 32, 48];
-  const HOME_GRID_OPTION_SET = new Set(HOME_GRID_OPTIONS);
+  const HOME_GRID_MAX = 50;
+
+  function gridSizeForLandsConquered(value) {
+    const lands = Math.max(1, Math.min(100, Math.round(Number(value) || 1)));
+    const span = HOME_GRID_MAX - HOME_GRID_MIN;
+    const curve = (1 - Math.exp(-lands / 38)) / (1 - Math.exp(-100 / 38));
+    // Exponential soft cap: early lands unlock visible growth, then each
+    // additional conquest contributes less as the board approaches 50x50.
+    return Math.max(HOME_GRID_MIN, Math.min(HOME_GRID_MAX, Math.round(HOME_GRID_MIN + span * curve)));
+  }
+
+  const HOME_GRID_DEFAULT = gridSizeForLandsConquered(landsConquered);
+  const HOME_GRID_VIEW_BASE = 15;
+  const HOME_GRID_OPTIONS = [8, 12, 15, 16, 20, 32, 48, 50];
   const HOME_GRID_LS = 'tinyworld:home-grid';
   const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-15.v1';
   let GRID = HOME_GRID_DEFAULT;
   let migrateHomeGridDefaultTo15 = false;
 
   function isValidGridSize(n) {
-    return Number.isInteger(n) && HOME_GRID_OPTION_SET.has(n);
+    return Number.isInteger(n) && n >= HOME_GRID_MIN && n <= HOME_GRID_MAX;
   }
 
   function coerceGridSize(value, fallback = HOME_GRID_DEFAULT) {
@@ -4661,7 +4678,8 @@
     if (!el) return;
     const prev = coerceGridSize(el.value, GRID);
     el.innerHTML = '';
-    for (const size of HOME_GRID_OPTIONS) {
+    const sizes = Array.from(new Set(HOME_GRID_OPTIONS.concat([HOME_GRID_DEFAULT, GRID]))).sort((a, b) => a - b);
+    for (const size of sizes) {
       const opt = document.createElement('option');
       opt.value = String(size);
       opt.textContent = size + ' × ' + size;
@@ -5444,7 +5462,7 @@
   const panForward = new THREE.Vector3();
 
   function maxViewSize() {
-    return Math.max(MAX_VIEW_SIZE_BASE, DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_DEFAULT) * 1.35);
+    return Math.max(MAX_VIEW_SIZE_BASE, DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE) * 1.35);
   }
 
   function clampViewSize(value) {
@@ -8110,9 +8128,9 @@
     const g = new THREE.Group();
     level = Math.max(1, Math.min(MAX_FLOORS, level || 1));
     const visualLevel = fenceVisualLevel(level);
-    // Determine which axis the road runs along (x or z) so the gate
-    // spans across it. Default to span on the perpendicular axis.
-    const spanAlongX = pathOrientation === 'x';
+    // pathOrientation is the travel axis. The gate beam/posts must span
+    // perpendicular to it so the road passes through the opening.
+    const spanAlongX = pathOrientation === 'z';
 
     if (visualLevel === 2) {
       // Two short pillars flanking the crossing.
@@ -9472,7 +9490,7 @@
     const lv = Math.max(1, Math.min(MAX_FLOORS, level || 1));
     const visualLv = fenceVisualLevel(lv);
     const normalized = FENCE_SIDES.has(side) ? side : 'n';
-    const alongX = roadGate ? pathOrientation === 'x' : (normalized === 'n' || normalized === 's' || normalized === 'center-x');
+    const alongX = roadGate ? pathOrientation === 'z' : (normalized === 'n' || normalized === 's' || normalized === 'center-x');
     const offsetX = normalized === 'w' ? -0.43 : normalized === 'e' ? 0.43 : 0;
     const offsetZ = normalized === 'n' ? -0.43 : normalized === 's' ? 0.43 : 0;
     const mat = castle || visualLv >= 4 ? M.castleStone : (visualLv >= 3 ? M.fenceSteel : M.fence);
@@ -11766,7 +11784,7 @@
 
   function homeRenderWindowRadius() {
     const budget = renderBudgetForGrid(GRID);
-    const baseView = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_DEFAULT);
+    const baseView = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE);
     const zoomRatio = viewSize / Math.max(DEFAULT_VIEW_SIZE, baseView);
     const maxR = Math.max(budget.homeWindowMin, Math.floor(budget.homeWindowMax / 2));
     let radius = maxR;
@@ -12045,7 +12063,19 @@
   surroundingLandGroup.name = 'surroundingLand';
   surroundingLandGroup.renderOrder = -8;
   worldGroup.add(surroundingLandGroup);
+  const neighborHitGroup = new THREE.Group();
+  neighborHitGroup.name = 'neighborHitAreas';
+  worldGroup.add(neighborHitGroup);
   const surroundingLandTintMaterials = new Map();
+  const neighborHitMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.001,
+    depthWrite: false,
+  });
+  const neighborHighlightById = new Map();
+  const neighborSlotById = new Map();
+  let hoveredNeighborSlotId = null;
 
   function surroundingLandTintMaterial(color, occupied) {
     const clean = normalizeHexColor(color) || '#e6e6e6';
@@ -12107,15 +12137,79 @@
     return group;
   }
 
+  function makeNeighborHitSlot(slot) {
+    const edge = slot.edge;
+    const index = slot.index === 1 ? 1 : 0;
+    const slotLen = GRID * 0.5 * TILE;
+    const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
+    const insideTint = Math.min(0.9, Math.max(0.55, GRID * 0.055)) * TILE;
+    const isHorizontal = edge === 'north' || edge === 'south';
+    const hitW = isHorizontal ? slotLen : outsideDepth;
+    const hitD = isHorizontal ? outsideDepth : slotLen;
+    const pos = slotCenter(edge, index, slotLen, outsideDepth, insideTint);
+    const group = new THREE.Group();
+    group.name = 'neighbor-hit-' + slot.id;
+    group.userData = {
+      neighborHitArea: true,
+      neighborId: slot.id,
+      label: slot.label || 'Neighbor',
+      edge: slot.edge,
+      index: index,
+    };
+
+    const hit = new THREE.Mesh(getBoxGeometry(hitW, 0.08, hitD), neighborHitMaterial);
+    hit.position.set(pos.landX, TOP_H + 0.08, pos.landZ);
+    hit.userData = Object.assign({}, group.userData);
+    hit.userData.noShadow = true;
+    group.add(hit);
+
+    const highlight = new THREE.Mesh(getBoxGeometry(hitW, 0.028, hitD), new THREE.MeshBasicMaterial({
+      color: normalizeHexColor(slot.color) || '#ffffff',
+      transparent: true,
+      opacity: 0,
+      depthTest: true,
+      depthWrite: false,
+    }));
+    highlight.position.set(pos.landX, TOP_H + 0.075, pos.landZ);
+    highlight.renderOrder = -6;
+    highlight.userData.neighborHighlight = true;
+    highlight.userData.noShadow = true;
+    group.add(highlight);
+    neighborHighlightById.set(slot.id, highlight);
+
+    return group;
+  }
+
+  function updateNeighborSlotHighlights() {
+    for (const [id, mesh] of neighborHighlightById) {
+      const active = id === activeNeighborSlotId;
+      const hovered = id === hoveredNeighborSlotId;
+      mesh.material.opacity = active ? 8.99 : hovered ? 0.44 : 0;
+      mesh.visible = mesh.material.opacity > 0;
+    }
+  }
+
   function buildSurroundingLand() {
     while (surroundingLandGroup.children.length) {
       const child = surroundingLandGroup.children.pop();
       disposeGroup(child);
     }
+    while (neighborHitGroup.children.length) {
+      const child = neighborHitGroup.children.pop();
+      child.traverse(o => {
+        if (o.userData && o.userData.neighborHighlight && o.material && o.material.dispose) o.material.dispose();
+      });
+      disposeGroup(child);
+    }
+    neighborHighlightById.clear();
+    neighborSlotById.clear();
     for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
       if (!slot || !['north', 'east', 'south', 'west'].includes(slot.edge)) continue;
+      neighborSlotById.set(slot.id, slot);
       surroundingLandGroup.add(makeSurroundingLandSlot(slot));
+      if (isClickableNeighborSlot(slot)) neighborHitGroup.add(makeNeighborHitSlot(slot));
     }
+    updateNeighborSlotHighlights();
   }
 
   function setSurroundingNeighborSlots(slots) {
@@ -12124,7 +12218,6 @@
     for (const slot of slots) SURROUNDING_NEIGHBOR_SLOTS.push(slot);
     buildSurroundingLand();
     rebuildNeighborSlotButtons();
-    updateNeighborSlotButtonPositions();
   }
 
   // -------- neighbor stats panel --------
@@ -12133,9 +12226,6 @@
   const neighborStatsTitleEl = document.getElementById('neighbor-stats-title');
   const neighborStatsCloseEl = document.getElementById('neighbor-stats-close');
   const neighborSlotButtonById = new Map();
-  const neighborSlotProjectPoint = new THREE.Vector3();
-  const neighborSlotWorldPoint = new THREE.Vector3();
-  const neighborSlotOcclusionRaycaster = new THREE.Raycaster();
   let activeNeighborSlotId = null;
 
   function isClickableNeighborSlot(slot) {
@@ -12168,6 +12258,7 @@
     for (const [id, btn] of neighborSlotButtonById) {
       btn.classList.toggle('active', id === activeNeighborSlotId);
     }
+    updateNeighborSlotHighlights();
   }
 
   function openNeighborStats(slot) {
@@ -12198,81 +12289,7 @@
     if (!neighborSlotButtonsEl) return;
     neighborSlotButtonsEl.innerHTML = '';
     neighborSlotButtonById.clear();
-    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
-      if (!isClickableNeighborSlot(slot)) continue;
-      const btn = document.createElement('button');
-      btn.className = 'neighbor-slot-button';
-      btn.type = 'button';
-      btn.textContent = 'i';
-      btn.style.borderColor = slot.color || '';
-      btn.setAttribute('aria-label', 'View ' + (slot.label || 'neighbor') + ' stats');
-      btn.title = slot.label || 'Neighbor';
-      btn.addEventListener('click', e => {
-        e.preventDefault();
-        e.stopPropagation();
-        openNeighborStats(slot);
-      });
-      neighborSlotButtonsEl.appendChild(btn);
-      neighborSlotButtonById.set(slot.id, btn);
-    }
     updateNeighborSlotActiveButtons();
-  }
-
-  function hitBelongsToNeighborSlot(obj, slotId) {
-    let n = obj;
-    while (n) {
-      if (n.userData && n.userData.neighborSlot === slotId) return true;
-      n = n.parent;
-    }
-    return false;
-  }
-
-  function hitIsNeighborSlotChrome(obj) {
-    let n = obj;
-    while (n) {
-      if (n.userData && n.userData.neighborSlot) return true;
-      n = n.parent;
-    }
-    return false;
-  }
-
-  function neighborSlotIsOccluded(slot, slotDistance) {
-    neighborSlotOcclusionRaycaster.setFromCamera(neighborSlotProjectPoint, camera);
-    const hits = neighborSlotOcclusionRaycaster.intersectObjects(scene.children, true);
-    for (const h of hits) {
-      if (!h || !h.object || !h.object.visible) continue;
-      if (hitBelongsToNeighborSlot(h.object, slot.id)) return false;
-      if (hitIsNeighborSlotChrome(h.object)) continue;
-      if (h.distance < slotDistance - 0.18) return true;
-    }
-    return false;
-  }
-
-  function updateNeighborSlotButtonPositions() {
-    if (!neighborSlotButtonById.size) return;
-    const slotLen = GRID * 0.5 * TILE;
-    const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
-    const insideTint = Math.min(0.9, Math.max(0.55, GRID * 0.055)) * TILE;
-    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
-      const btn = neighborSlotButtonById.get(slot.id);
-      if (!btn) continue;
-      const pos = slotCenter(slot.edge, slot.index === 1 ? 1 : 0, slotLen, outsideDepth, insideTint);
-      neighborSlotWorldPoint.set(pos.landX, TOP_H + 0.12, pos.landZ);
-      worldGroup.localToWorld(neighborSlotWorldPoint);
-      neighborSlotProjectPoint.copy(neighborSlotWorldPoint).project(camera);
-      const visible =
-        neighborSlotProjectPoint.z >= -1 &&
-        neighborSlotProjectPoint.z <= 1 &&
-        neighborSlotProjectPoint.x >= -1.08 &&
-        neighborSlotProjectPoint.x <= 1.08 &&
-        neighborSlotProjectPoint.y >= -1.08 &&
-        neighborSlotProjectPoint.y <= 1.08 &&
-        !neighborSlotIsOccluded(slot, camera.position.distanceTo(neighborSlotWorldPoint));
-      btn.hidden = !visible;
-      if (!visible) continue;
-      btn.style.left = ((neighborSlotProjectPoint.x + 1) * 0.5 * window.innerWidth) + 'px';
-      btn.style.top = ((-neighborSlotProjectPoint.y + 1) * 0.5 * window.innerHeight) + 'px';
-    }
   }
 
   if (neighborStatsCloseEl) neighborStatsCloseEl.addEventListener('click', closeNeighborStats);
@@ -12280,7 +12297,6 @@
   window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
   buildSurroundingLand();
   rebuildNeighborSlotButtons();
-  updateNeighborSlotButtonPositions();
 
   // -------- home board border --------
   // No visible board marker. The old dark rectangle/outline under the start
@@ -12814,7 +12830,7 @@
     return op;
   }
 
-  function makeGhostObject(cells, x, z) {
+  function makeGhostObject(cells, x, z, boardX = 0, boardZ = 0) {
     const cell = cells[x][z];
     const level = cell.floors || 1;
     let mesh = null;
@@ -12833,7 +12849,15 @@
     else if (cell.kind === 'carrot')    mesh = makeVoxelCropKind('carrot', level);
     else if (cell.kind === 'sunflower') mesh = makeVoxelCropKind('sunflower', level);
     else if (cell.kind === 'chimney' || cell.kind === 'ripple' || cell.kind === 'shrub' || cell.kind === 'stone' || cell.kind === 'pebble' || cell.kind === 'bridge-rail') mesh = makeVoxelMicroKind(cell.kind, level, x + 1000, z + 1000);
-    else if (cell.kind === 'fence')     mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level);
+    else if (cell.kind === 'fence') {
+      if (cell.terrain === 'path') {
+        const pn = getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ);
+        const pathAxis = (pn.e || pn.w) ? 'x' : (pn.n || pn.s) ? 'z' : 'x';
+        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, true, pathAxis);
+      } else {
+        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level);
+      }
+    }
     else if (cell.kind === 'house') {
       if (cell.buildingType === 'manor') mesh = makeVoxelManor(level);
       else if (cell.buildingType === 'tower') mesh = makeVoxelTurret(Math.max(level, 2), true);
@@ -13340,7 +13364,7 @@
         // (large renderVisibleSize), far ghost boards switch to cheap proxies.
         // This is the "progressive when zooming out" behaviour requested.
         const obj = (detail === 'full')
-          ? makeGhostObject(cells, x, z)
+          ? makeGhostObject(cells, x, z, boardX, boardZ)
           : makeCheapGhostObject(cells[x][z], gx, gz);
         if (!obj) continue;
         obj.position.copy(ghostCellPos(boardX, boardZ, x, z));
@@ -15240,6 +15264,29 @@
     return null;
   }
 
+  function pickNeighborSlot(clientX, clientY) {
+    ndc.x = (clientX / window.innerWidth) * 2 - 1;
+    ndc.y = -(clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(neighborHitGroup.children, true);
+    for (const h of hits) {
+      let n = h.object;
+      while (n && !(n.userData && n.userData.neighborHitArea)) n = n.parent;
+      if (!n || !n.visible || !n.userData) continue;
+      const slot = neighborSlotById.get(n.userData.neighborId);
+      if (isClickableNeighborSlot(slot)) return slot;
+    }
+    return null;
+  }
+
+  function setHoveredNeighborSlot(slot) {
+    const id = slot ? slot.id : null;
+    if (hoveredNeighborSlotId === id) return;
+    hoveredNeighborSlotId = id;
+    renderer.domElement.classList.toggle('neighbor-hover', !!id);
+    updateNeighborSlotHighlights();
+  }
+
   function hoverHeightForCell(cell) {
     if (cell.boardX || cell.boardZ) {
       const cells = makeGhostWorld(cell.boardX, cell.boardZ);
@@ -16625,11 +16672,21 @@
     pinchPrevMid = null;
     hoverMesh.visible = false;
     currentHover = null;
+    setHoveredNeighborSlot(null);
     renderer.domElement.classList.remove('dragging');
     updateGhostPlacement();
   }
 
   function updateHoverAt(x, y) {
+    const neighborSlot = pickNeighborSlot(x, y);
+    if (neighborSlot) {
+      setHoveredNeighborSlot(neighborSlot);
+      hoverMesh.visible = false;
+      currentHover = null;
+      updateGhostPlacement();
+      return;
+    }
+    setHoveredNeighborSlot(null);
     const cell = pickTile(x, y);
     if (cell) {
       hoverMesh.position.set(cell.worldX, hoverHeightForCell(cell), cell.worldZ);
@@ -16662,6 +16719,7 @@
       pointerDown = null;
       hoverMesh.visible = false;
       currentHover = null;
+      setHoveredNeighborSlot(null);
       renderer.domElement.classList.add('dragging');
       return;
     }
@@ -16746,6 +16804,7 @@
         if (e.pointerType !== 'mouse') {
           hoverMesh.visible = false;
           currentHover = null;
+          setHoveredNeighborSlot(null);
         }
       }
       lastPointer = { x: e.clientX, y: e.clientY };
@@ -16781,12 +16840,18 @@
       return;
     }
 
-    if (pointerDown && !didDrag && currentHover && dragMode !== 'pan' && dragMode !== 'select-area') {
-      // Plain click on the select tool is a no-op; the user must hold
-      // shift to engage selection (shift+click for one cell, shift+drag
-      // for a marquee). Other tools apply as usual.
-      if (!(selectedTool && selectedTool.select)) {
-        applyToolToCell(currentHover);
+    if (pointerDown && !didDrag && dragMode !== 'pan' && dragMode !== 'select-area') {
+      const neighborSlot = pickNeighborSlot(e.clientX, e.clientY);
+      if (neighborSlot) {
+        openNeighborStats(neighborSlot);
+        setHoveredNeighborSlot(neighborSlot);
+      } else if (currentHover) {
+        // Plain click on the select tool is a no-op; the user must hold
+        // shift to engage selection (shift+click for one cell, shift+drag
+        // for a marquee). Other tools apply as usual.
+        if (!(selectedTool && selectedTool.select)) {
+          applyToolToCell(currentHover);
+        }
       }
     }
     // After Shift+drag rectangle with a placement tool: fill the whole area
@@ -16814,6 +16879,7 @@
       if (e.pointerType !== 'mouse') {
         hoverMesh.visible = false;
         currentHover = null;
+        setHoveredNeighborSlot(null);
       }
     }
   });
@@ -16833,6 +16899,7 @@
       dragMode = null;
       pinchPrevDist = 0;
       pinchPrevMid = null;
+      setHoveredNeighborSlot(null);
     }
   });
 
@@ -17319,15 +17386,15 @@
 
   function resetCameraDefaults() {
     // Scale the default view to the current home board so the whole
-    // grid sits inside the frame regardless of size (8 / 12 / 16 / 20 / 32 / 48).
-    viewSize = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_DEFAULT);
+    // grid sits inside the frame regardless of size.
+    viewSize = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE);
     azimuth = DEFAULT_AZIMUTH;
     polar = DEFAULT_POLAR;
     target.copy(DEFAULT_TARGET);
     setCameraMode(DEFAULT_CAMERA_MODE);
   }
 
-  // Resize the home board between the allowed presets (8 through 48).
+  // Resize the home board between the allowed sizes (8 through 50).
   // World data outside the previous board is preserved in world[][] —
   // growing the grid brings those tiles into the home area (so the
   // existing 'outside home' grayscale is no longer applied to them).
@@ -17504,7 +17571,7 @@
       az: azimuth, po: polar,
     };
     const end = {
-      tx: DEFAULT_TARGET.x, tz: DEFAULT_TARGET.z, view: DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_DEFAULT),
+      tx: DEFAULT_TARGET.x, tz: DEFAULT_TARGET.z, view: DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE),
       az: DEFAULT_AZIMUTH, po: DEFAULT_POLAR,
     };
     homeTween = { start, end, t: 0, dur: 0.55 };
@@ -17747,6 +17814,7 @@
       visibleSizeEl.max = String(maxRenderVisibleSizeForGrid(GRID));
       distanceEl.value = String(renderVisibleDistance);
       visibleSizeEl.value = String(renderVisibleSize);
+      fillGridSizeSelect(homeGridEl);
       if (homeGridEl) homeGridEl.value = String(GRID);
       brightnessEl.value = String(Math.round(renderBrightness * 100));
       lightingEl.value = String(Math.round(renderLighting * 100));
@@ -20737,7 +20805,6 @@
     }
     updateSmoke(dt);
     updateXRFrame(xrFrame);
-    updateNeighborSlotButtonPositions();
 
     renderScene();
   }
@@ -20763,7 +20830,6 @@
       const btn = document.querySelector('.tool[data-id="' + selectedTool.id + '"]');
       if (btn) positionFlyout(btn, fl);
     }
-    updateNeighborSlotButtonPositions();
   }
   window.addEventListener('resize', onResize);
 
@@ -20776,7 +20842,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://tinyworld.local/world.schema.json",
     "title": "TinyWorld",
-    "description": "Scene description for the Tiny World Builder. The renderer supports home grids from 8x8 to 48x48, plus sparse user-edited ghost-board cells outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
+    "description": "Scene description for the Tiny World Builder. The renderer supports home grids from 8x8 to 50x50, plus sparse user-edited ghost-board cells outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
     "type": "object",
     "additionalProperties": false,
     "required": [
@@ -20793,14 +20859,8 @@
       },
       "gridSize": {
         "type": "integer",
-        "enum": [
-          8,
-          12,
-          16,
-          20,
-          32,
-          48
-        ],
+        "minimum": 8,
+        "maximum": 50,
         "description": "Optional home board edge length. Defaults to the current app grid when omitted."
       },
       "cells": {

@@ -24,6 +24,9 @@ Fence levels:
 
 - `1`-`4`: stone/rock wall by default; the saved level still increments for repeat-click behavior.
 - `5+`: steel wall.
+- Fences on path terrain render as road gates. Path axis means travel
+  direction (`x` for east/west, `z` for north/south); gate posts and beams
+  must span the perpendicular axis so the path passes through the opening.
 
 Implementation guardrails:
 

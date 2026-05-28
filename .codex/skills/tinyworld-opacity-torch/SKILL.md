@@ -52,6 +52,9 @@ Interaction rules:
 - Left-click edits only the central home board through `pickTile`.
 - Preview board meshes must not set `userData.gx/gz` on their tile/object
   roots in a way that lets them be edited.
+- Surrounding neighbor territory click meshes are separate hit areas
+  (`neighborHitGroup`), carry neighbor metadata instead of `gx/gz`, and route
+  to the neighbor stats panel rather than terrain placement.
 - Right-drag pans. Space+drag pans. Left-drag orbits.
 
 The home board has a thin dark ground-line border (see

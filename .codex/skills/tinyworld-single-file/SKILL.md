@@ -13,6 +13,9 @@ Core rules:
 - Do not touch `tiny-world-builder BACKUP.html` if present.
 - Preserve style: 2-space indent, semicolons, single-quoted strings, section comments like `// -------- tools --------`.
 - Mutate board state through `setCell(x, z, opts)`, not direct `world[x][z]` writes outside initialization.
+- The startup home board default is derived from the mock `landsConquered`
+  stat via `gridSizeForLandsConquered()`. Keep camera framing tied to
+  `HOME_GRID_VIEW_BASE`, not the dynamic default.
 - Keep Three.js pinned to r128 and self-hosted under `vendor/three/`; do not reintroduce CDN runtime scripts.
 - Cluso is local feedback tooling only: it may be dynamically loaded on localhost/file URLs, but production `dist/` must not include `dist/cluso/` or static Cluso `<script>/<link>` tags.
 - Shared materials in `M.*` must not be mutated per instance; clone first for unique opacity/material behavior and dispose cloned materials in `disposeGroup`.
