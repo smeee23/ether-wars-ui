@@ -22,10 +22,7 @@ Expected behavior:
 
 Fence levels:
 
-- `1`: normal wood fence.
-- `2`: taller wood fence.
-- `3`: wire fence.
-- `4`: stone/rock wall.
+- `1`-`4`: stone/rock wall by default; the saved level still increments for repeat-click behavior.
 - `5+`: steel wall.
 
 Implementation guardrails:
