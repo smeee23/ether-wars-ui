@@ -5829,10 +5829,10 @@
 
     // Stone Tower — taller fantasy tower (variant 'tower'). Distinct
     // from castleStone so the silhouette reads differently from a turret.
-    towerStone:    new THREE.MeshLambertMaterial({ color: 0xa9a39a }),
-    towerStoneD:   new THREE.MeshLambertMaterial({ color: 0x77716a }),
-    towerRoof:     new THREE.MeshLambertMaterial({ color: 0x4a3a8c }),
-    towerRoofD:    new THREE.MeshLambertMaterial({ color: 0x2f2660 }),
+    towerStone:    new THREE.MeshLambertMaterial({ color: 0xb5afa4 }),
+    towerStoneD:   new THREE.MeshLambertMaterial({ color: 0x7e776e }),
+    towerRoof:     new THREE.MeshLambertMaterial({ color: 0x5d6268 }),
+    towerRoofD:    new THREE.MeshLambertMaterial({ color: 0x3f444a }),
     cropLeaf:  new THREE.MeshLambertMaterial({ color: 0x96d943 }),
     cropStem:  new THREE.MeshLambertMaterial({ color: 0x5e9c2e }),
 
@@ -7578,73 +7578,78 @@
     return composite;
   }
 
-  // Cylindrical stone tower with crenellations + arrow slits + flag. Replaces
+  // Tall stone keep with crenellations + arrow slits + flag. Replaces
   // a regular house render when isTurretHouse(x, z) is true. floors raises the
   // tower height the same way a house grows. userData.kind stays 'house' so
   // smoke loop and cluster refresh logic continues to find it; chimneyTops is
   // empty so no smoke spawns.
   function makeTurret(floors = 1) {
     const g = new THREE.Group();
-    const f = Math.max(1, floors);
-    const wallH = H.WALL_H * f + 0.20;
-    const radius = 0.42;
-    const platRadius = radius + 0.05;
+    const f = Math.max(4, floors);
+    const W = 0.78, D = 0.78;
+    const floorH = 0.30;
+    const totalH = floorH * f;
 
-    // Body — slight base flare for stability silhouette
-    const body = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius * 1.04, wallH, 12),
-      M.castleStone
-    );
-    body.position.y = wallH / 2;
+    // Body follows the high-rise footprint, restyled as heavy castle stone.
+    const body = new THREE.Mesh(roundedBox(W, totalH, D, 0.025), M.castleStone);
+    body.position.y = totalH / 2;
     g.add(body);
 
-    // Wall walk platform
-    const platform = new THREE.Mesh(
-      new THREE.CylinderGeometry(platRadius, platRadius, 0.06, 12),
-      M.castleStoneD
-    );
-    platform.position.y = wallH + 0.03;
+    // Floor bands and arrow slits reuse the skyscraper rhythm without glass.
+    for (let i = 0; i < f; i++) {
+      const yMid = (i + 0.5) * floorH;
+      if (i > 0) {
+        const band = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.025, D + 0.04), M.castleStoneD);
+        band.position.y = i * floorH;
+        g.add(band);
+      }
+      const slitH = 0.14;
+      const slitW = 0.06;
+      const sx = new THREE.Mesh(getBoxGeometry(0.025, slitH, slitW), M.castleSlit);
+      sx.position.set(W / 2 + 0.004, yMid, 0); g.add(sx);
+      const sw = new THREE.Mesh(getBoxGeometry(0.025, slitH, slitW), M.castleSlit);
+      sw.position.set(-W / 2 - 0.004, yMid, 0); g.add(sw);
+      const sz = new THREE.Mesh(getBoxGeometry(slitW, slitH, 0.025), M.castleSlit);
+      sz.position.set(0, yMid, D / 2 + 0.004); g.add(sz);
+      const sn = new THREE.Mesh(getBoxGeometry(slitW, slitH, 0.025), M.castleSlit);
+      sn.position.set(0, yMid, -D / 2 - 0.004); g.add(sn);
+    }
+
+    // Wall walk platform and square battlements.
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(W + 0.10, 0.06, D + 0.10), M.castleStoneD);
+    platform.position.y = totalH + 0.03;
     g.add(platform);
 
-    // Crenellations (8 merlons)
-    const merlonCount = 8;
-    for (let i = 0; i < merlonCount; i++) {
-      const a = (i / merlonCount) * Math.PI * 2;
+    const merlonPositions = [
+      [-0.32, 0.43], [0, 0.43], [0.32, 0.43],
+      [-0.32, -0.43], [0, -0.43], [0.32, -0.43],
+      [0.43, -0.32], [0.43, 0], [0.43, 0.32],
+      [-0.43, -0.32], [-0.43, 0], [-0.43, 0.32],
+    ];
+    for (const [mx, mz] of merlonPositions) {
       const merlon = new THREE.Mesh(
         new THREE.BoxGeometry(0.13, 0.14, 0.10),
         M.castleStone
       );
-      merlon.position.set(Math.cos(a) * platRadius, wallH + 0.13, Math.sin(a) * platRadius);
-      merlon.rotation.y = -a;
+      merlon.position.set(mx, totalH + 0.13, mz);
+      if (Math.abs(mx) > Math.abs(mz)) merlon.rotation.y = Math.PI / 2;
       g.add(merlon);
-    }
-
-    // Arrow slits at mid-height (4, offset between the cardinal merlons)
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + Math.PI / 8;
-      const slit = new THREE.Mesh(
-        getBoxGeometry(0.04, 0.20, 0.025),
-        M.castleSlit
-      );
-      slit.position.set(Math.cos(a) * (radius + 0.005), wallH * 0.55, Math.sin(a) * (radius + 0.005));
-      slit.rotation.y = -a;
-      g.add(slit);
     }
 
     // Door on +z face — keeps the same wood door material as houses for cohesion
     const door = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.34, 0.04), M.door);
-    door.position.set(0, 0.17, radius + 0.01);
+    door.position.set(0, 0.17, D / 2 + 0.01);
     g.add(door);
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.04), M.castleStoneD);
-    lintel.position.set(0, 0.36, radius + 0.01);
+    lintel.position.set(0, 0.36, D / 2 + 0.01);
     g.add(lintel);
 
     // Flag pole + flag at the apex
     const pole = new THREE.Mesh(getBoxGeometry(0.025, 0.22, 0.025), M.castleStoneD);
-    pole.position.y = wallH + 0.30;
+    pole.position.y = totalH + 0.30;
     g.add(pole);
     const flag = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.02), M.flagRed);
-    flag.position.set(0.09, wallH + 0.36, 0);
+    flag.position.set(0.09, totalH + 0.36, 0);
     g.add(flag);
 
     g.userData = { kind: 'house', chimneyTops: [] };
@@ -7924,26 +7929,28 @@
     railTop.position.y = balconyY + 0.14;
     g.add(railTop);
 
-    // Conical roof (purple slate) — built from a cone
+    // Conical roof — base sits directly on the wall top at every height.
+    const roofH = 0.50;
+    const roofBaseY = wallH;
     const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(radius + 0.08, 0.50, 14),
+      new THREE.ConeGeometry(radius + 0.08, roofH, 14),
       matRoof
     );
-    cone.position.y = wallH + 0.25;
+    cone.position.y = roofBaseY + roofH / 2;
     g.add(cone);
     // Cone trim ring at base
     const coneRing = new THREE.Mesh(
       new THREE.CylinderGeometry(radius + 0.10, radius + 0.10, 0.04, 14),
       matRoofD
     );
-    coneRing.position.y = wallH + 0.02;
+    coneRing.position.y = roofBaseY + 0.02;
     g.add(coneRing);
     // Finial spike + ball at apex
     const finialBall = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), M.knob);
-    finialBall.position.y = wallH + 0.55;
+    finialBall.position.y = roofBaseY + roofH + 0.05;
     g.add(finialBall);
     const finialSpike = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.18, 6), matStoneD);
-    finialSpike.position.y = wallH + 0.69;
+    finialSpike.position.y = roofBaseY + roofH + 0.19;
     g.add(finialSpike);
 
     // Bigger arched front door on +z
@@ -7983,10 +7990,10 @@
 
     // Flag on top
     const pole = new THREE.Mesh(getBoxGeometry(0.025, 0.30, 0.025), matStoneD);
-    pole.position.y = wallH + 0.85;
+    pole.position.y = roofBaseY + roofH + 0.35;
     g.add(pole);
     const flag = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.10, 0.02), M.flagRed);
-    flag.position.set(0.11, wallH + 0.93, 0);
+    flag.position.set(0.11, roofBaseY + roofH + 0.43, 0);
     g.add(flag);
 
     // No chimneys — towers get magic, not fireplaces. Empty chimneyTops keeps
@@ -8097,21 +8104,17 @@
   }
 
   // Road-aware fence variant — picked when the tile underneath is a
-  // path. Level 1: speed bump + zebra stripes. Level 2: zebra crossing
-  // with pillars at the sides. Level 3+: stone arch / gate spanning
+  // path. Levels 1-4: stone arch / gate spanning
   // the road. Always oriented across the path direction.
   function makeRoadGate(side = 'n', level = 1, pathOrientation = 'x') {
     const g = new THREE.Group();
     level = Math.max(1, Math.min(MAX_FLOORS, level || 1));
+    const visualLevel = fenceVisualLevel(level);
     // Determine which axis the road runs along (x or z) so the gate
     // spans across it. Default to span on the perpendicular axis.
     const spanAlongX = pathOrientation === 'x';
 
-    if (level === 1) {
-      // Level 1 is now an empty placeholder — no zebra stripes, no
-      // bump. The fence just doesn't render anything on a path at
-      // level 1.
-    } else if (level === 2) {
+    if (visualLevel === 2) {
       // Two short pillars flanking the crossing.
       const pillarMat = M.castleStone || M.fenceSteel;
       for (const s of [-1, 1]) {
@@ -8126,7 +8129,7 @@
       // Stone arch / gate spanning the road. Two pillars + a crossbar.
       const pillarMat = M.castleStone || M.fenceSteel;
       const beamMat   = M.castleStoneD || M.fenceSteel;
-      const pillarH   = 0.55 + Math.min(level - 3, 4) * 0.06;
+      const pillarH   = 0.55 + Math.min(visualLevel - 3, 4) * 0.06;
       for (const s of [-1, 1]) {
         const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.14, pillarH, 0.14), pillarMat);
         pillar.position.set(spanAlongX ? s * 0.42 : 0, pillarH / 2, spanAlongX ? 0 : s * 0.42);
@@ -8142,7 +8145,7 @@
       const stone = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.18, 0.20), pillarMat);
       stone.position.y = pillarH + 0.20;
       g.add(stone);
-      if (level >= 5) {
+      if (visualLevel >= 5) {
         const flag = new THREE.Mesh(getBoxGeometry(0.04, 0.22, 0.04), M.woodTrim || M.fenceSteel);
         flag.position.y = pillarH + 0.38;
         g.add(flag);
@@ -8154,9 +8157,14 @@
     return g;
   }
 
+  function fenceVisualLevel(level = 1) {
+    return Math.max(4, Math.max(1, Math.min(MAX_FLOORS, level || 1)));
+  }
+
   function makeFence(side = 'n', level = 1) {
     const g = new THREE.Group();
     level = Math.max(1, Math.min(MAX_FLOORS, level || 1));
+    const visualLevel = fenceVisualLevel(level);
     const normalized = FENCE_SIDES.has(side) ? side : 'n';
     const alongX = normalized === 'n' || normalized === 's' || normalized === 'center-x';
     const offsetX = normalized === 'w' ? -0.43 : normalized === 'e' ? 0.43 : 0;
@@ -8168,11 +8176,11 @@
         : [[offsetX, -0.50], [offsetX, 0.50]];
     }
 
-    if (level >= 4) {
-      const stone = level >= 5 ? M.fenceSteel : M.castleStone;
-      const capMat = level >= 5 ? M.skyFrame : M.castleStoneD;
-      const wallH = level >= 5 ? 0.58 : 0.46;
-      const wallT = level >= 5 ? 0.14 : 0.18;
+    if (visualLevel >= 4) {
+      const stone = visualLevel >= 5 ? M.fenceSteel : M.castleStone;
+      const capMat = visualLevel >= 5 ? M.skyFrame : M.castleStoneD;
+      const wallH = visualLevel >= 5 ? 0.58 : 0.46;
+      const wallT = visualLevel >= 5 ? 0.14 : 0.18;
       const wall = new THREE.Mesh(
         new THREE.BoxGeometry(alongX ? 1.08 : wallT, wallH, alongX ? wallT : 1.08),
         stone
@@ -8185,7 +8193,7 @@
       );
       cap.position.set(offsetX, wallH + 0.027, offsetZ);
       g.add(cap);
-    } else if (level === 3) {
+    } else if (visualLevel === 3) {
       const postGeo = getBoxGeometry(0.07, 0.52, 0.07);
       for (const [px, pz] of endpointOffsets()) {
         const post = new THREE.Mesh(postGeo, M.fenceSteel);
@@ -8201,7 +8209,7 @@
         g.add(wire);
       }
     } else {
-      const fenceScale = level === 2 ? 1.28 : 1;
+      const fenceScale = visualLevel === 2 ? 1.28 : 1;
       const postH = 0.32 * fenceScale;
       const postGeo = getBoxGeometry(0.09, postH, 0.09);
       for (const [px, pz] of endpointOffsets()) {
@@ -9337,36 +9345,51 @@
   function makeVoxelTurret(floors = 1, roofed = false, palette = null) {
     const g = new THREE.Group();
     const f = Math.max(1, Math.min(MAX_FLOORS, floors || 1));
-    const wallH = 0.48 + (f - 1) * 0.34;
     const stone = (palette && palette.stone) || (roofed ? M.towerStone : M.castleStone);
     const stoneD = (palette && palette.stoneD) || (roofed ? M.towerStoneD : M.castleStoneD);
     const roof = (palette && palette.roof) || M.towerRoof;
     const roofD = (palette && palette.roofD) || M.towerRoofD;
-    const stack = [[0.58, 0.58], [0.72, 0.42], [0.42, 0.72], [0.58, 0.58]];
-    for (let i = 0; i < f + 1; i++) {
-      const dims = stack[i % stack.length];
-      vbox(g, dims[0], 0.24, dims[1], 0, i * 0.22 + 0.12, 0, i % 2 ? stoneD : stone);
-    }
-    vbox(g, 0.82, 0.08, 0.82, 0, wallH + 0.04, 0, stoneD);
     if (roofed) {
+      const stack = [[0.58, 0.58], [0.72, 0.42], [0.42, 0.72], [0.58, 0.58]];
+      let bodyTopY = 0;
+      for (let i = 0; i < f + 1; i++) {
+        const dims = stack[i % stack.length];
+        const y = i * 0.22 + 0.12;
+        vbox(g, dims[0], 0.24, dims[1], 0, y, 0, i % 2 ? stoneD : stone);
+        bodyTopY = Math.max(bodyTopY, y + 0.12);
+      }
+      vbox(g, 0.82, 0.08, 0.82, 0, bodyTopY + 0.04, 0, stoneD);
       for (let i = 0; i < 4; i++) {
         const s = 0.74 - i * 0.14;
-        vbox(g, s, 0.11, s, 0, wallH + 0.10 + i * 0.10, 0, i === 3 ? roofD : roof);
+        vbox(g, s, 0.11, s, 0, bodyTopY + 0.10 + i * 0.10, 0, i === 3 ? roofD : roof);
       }
-      vbox(g, 0.035, 0.26, 0.035, 0, wallH + 0.62, 0, stoneD);
+      vbox(g, 0.035, 0.26, 0.035, 0, bodyTopY + 0.62, 0, stoneD);
     } else {
-      for (const x of [-0.30, 0, 0.30]) {
-        vbox(g, 0.11, 0.14, 0.11, x, wallH + 0.15, 0.34, stone);
-        vbox(g, 0.11, 0.14, 0.11, x, wallH + 0.15, -0.34, stone);
-        vbox(g, 0.11, 0.14, 0.11, 0.34, wallH + 0.15, x, stone);
-        vbox(g, 0.11, 0.14, 0.11, -0.34, wallH + 0.15, x, stone);
+      const keepFloors = Math.max(4, f);
+      const floorH = 0.24;
+      const h = keepFloors * floorH;
+      vbox(g, 0.78, h, 0.78, 0, h / 2, 0, stone);
+      for (let i = 1; i < keepFloors; i++) {
+        vbox(g, 0.84, 0.025, 0.84, 0, i * floorH, 0, stoneD);
       }
-      vbox(g, 0.025, 0.26, 0.025, 0, wallH + 0.34, 0, stoneD);
-      vbox(g, 0.16, 0.09, 0.025, 0.09, wallH + 0.42, 0, M.flagRed);
+      for (let i = 0; i < keepFloors; i++) {
+        const y = i * floorH + floorH * 0.55;
+        vbox(g, 0.030, 0.12, 0.070, 0.415, y, 0, M.castleSlit);
+        vbox(g, 0.030, 0.12, 0.070, -0.415, y, 0, M.castleSlit);
+        vbox(g, 0.070, 0.12, 0.030, 0, y, 0.415, M.castleSlit);
+        vbox(g, 0.070, 0.12, 0.030, 0, y, -0.415, M.castleSlit);
+      }
+      vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, stoneD);
+      for (const x of [-0.30, 0, 0.30]) {
+        vbox(g, 0.11, 0.14, 0.11, x, h + 0.15, 0.34, stone);
+        vbox(g, 0.11, 0.14, 0.11, x, h + 0.15, -0.34, stone);
+        vbox(g, 0.11, 0.14, 0.11, 0.34, h + 0.15, x, stone);
+        vbox(g, 0.11, 0.14, 0.11, -0.34, h + 0.15, x, stone);
+      }
+      vbox(g, 0.025, 0.26, 0.025, 0, h + 0.34, 0, stoneD);
+      vbox(g, 0.16, 0.09, 0.025, 0.09, h + 0.42, 0, M.flagRed);
     }
     voxelDoor(g, 0, 0.34, 'z', 0.34);
-    vbox(g, 0.10, 0.18, 0.030, 0, wallH * 0.58, 0.425, M.castleSlit);
-    vbox(g, 0.030, 0.18, 0.10, 0.425, wallH * 0.52, 0, M.castleSlit);
     g.userData = { kind: 'house', chimneyTops: [] };
     castReceive(g);
     return g;
@@ -9447,19 +9470,20 @@
   function makeVoxelFence(side = 'n', level = 1, castle = false, roadGate = false, pathOrientation = 'x') {
     const g = new THREE.Group();
     const lv = Math.max(1, Math.min(MAX_FLOORS, level || 1));
+    const visualLv = fenceVisualLevel(lv);
     const normalized = FENCE_SIDES.has(side) ? side : 'n';
     const alongX = roadGate ? pathOrientation === 'x' : (normalized === 'n' || normalized === 's' || normalized === 'center-x');
     const offsetX = normalized === 'w' ? -0.43 : normalized === 'e' ? 0.43 : 0;
     const offsetZ = normalized === 'n' ? -0.43 : normalized === 's' ? 0.43 : 0;
-    const mat = castle || lv >= 4 ? M.castleStone : (lv >= 3 ? M.fenceSteel : M.fence);
-    const dark = castle || lv >= 4 ? M.castleStoneD : (lv >= 3 ? M.fenceWire : M.fence);
+    const mat = castle || visualLv >= 4 ? M.castleStone : (visualLv >= 3 ? M.fenceSteel : M.fence);
+    const dark = castle || visualLv >= 4 ? M.castleStoneD : (visualLv >= 3 ? M.fenceWire : M.fence);
 
-    if (roadGate && lv === 1) {
+    if (roadGate && visualLv === 1) {
       g.userData = { kind: 'fence', level: lv, side: normalized };
       return g;
     }
-    if (castle || lv >= 4 || roadGate) {
-      const h = roadGate ? 0.62 + Math.max(0, lv - 3) * 0.05 : (castle ? 0.56 : 0.46);
+    if (castle || visualLv >= 4 || roadGate) {
+      const h = roadGate ? 0.62 + Math.max(0, visualLv - 3) * 0.05 : (castle ? 0.56 : 0.46);
       if (roadGate) {
         for (const s of [-1, 1]) vbox(g, 0.14, h, 0.14, alongX ? s * 0.42 : 0, h / 2, alongX ? 0 : s * 0.42, mat);
         vbox(g, alongX ? 1.02 : 0.16, 0.12, alongX ? 0.16 : 1.02, 0, h + 0.06, 0, dark);
@@ -9471,10 +9495,10 @@
         }
       }
     } else {
-      const postH = lv === 2 ? 0.40 : 0.32;
+      const postH = visualLv === 2 ? 0.40 : 0.32;
       const ends = alongX ? [[-0.50, offsetZ], [0.50, offsetZ]] : [[offsetX, -0.50], [offsetX, 0.50]];
       ends.forEach(([x, z]) => vbox(g, 0.09, postH, 0.09, x, postH / 2, z, mat));
-      for (const y of [0.12, 0.26, ...(lv >= 3 ? [0.40] : [])]) {
+      for (const y of [0.12, 0.26, ...(visualLv >= 3 ? [0.40] : [])]) {
         vbox(g, alongX ? 1.08 : 0.045, 0.055, alongX ? 0.045 : 1.08, offsetX, y, offsetZ, dark);
       }
     }
@@ -12834,6 +12858,8 @@
       leaves.position.y = 0.9 * level;
       g = new THREE.Group();
       g.add(trunk, leaves);
+    } else if (kind === 'house' && cell.buildingType === 'turret') {
+      g = new THREE.Mesh(getBoxGeometry(0.8, 1.2, 0.8), M.castleStone);
     } else if (kind === 'house' || kind === 'manor' || kind === 'tower' || kind === 'turret' || kind === 'skyscraper') {
       const h = 1.2 * level;
       g = new THREE.Mesh(getBoxGeometry(1.2, h, 1.2), M.dirtRich);
@@ -12849,7 +12875,7 @@
     } else if (kind === 'cow' || kind === 'sheep') {
       g = new THREE.Mesh(getBoxGeometry(0.6, 0.5, 0.9), M.dirtRich);
     } else if (kind === 'fence') {
-      g = new THREE.Mesh(getBoxGeometry(0.9, 0.7, 0.15), M.dirtRich);
+      g = new THREE.Mesh(getBoxGeometry(0.9, 0.7, 0.15), M.castleStone);
     } else if (kind === 'bridge') {
       g = new THREE.Mesh(getBoxGeometry(1.6, 0.3, 0.8), M.dirtRich);
     }
@@ -13926,7 +13952,7 @@
   // Castle-wall neighbours: same shape as getFenceNeighbors, but each value is
   // 'fence' | 'turret' | null. Turret-houses count as connection points so the
   // wall segment toward them extends to meet the tower cylinder. Used only on
-  // the castle render path; wood fences continue to use getFenceNeighbors.
+  // the castle render path; regular fences continue to use getFenceNeighbors.
   function getCastleWallNeighbors(x, z) {
     function probe(nx, nz) {
       if (getWorldCell(nx, nz).kind === 'fence') return 'fence';
@@ -15104,11 +15130,11 @@
     } else if (kind === 'house') {
       const v = tool.activeVariant;
       const bt = v && v.buildingType;
-      if      (bt === 'manor')      mesh = makeManor(1);
-      else if (bt === 'tower')      mesh = makeStoneTower(2);
-      else if (bt === 'turret')     mesh = makeTurret(1);
-      else if (bt === 'skyscraper') mesh = makeSkyscraper(4);
-      else                          mesh = makeHouse(1);
+      if      (bt === 'manor')      mesh = makeVoxelManor(1);
+      else if (bt === 'tower')      mesh = makeVoxelTurret(2, true);
+      else if (bt === 'turret')     mesh = makeVoxelTurret(1, false);
+      else if (bt === 'skyscraper') mesh = makeVoxelSkyscraper(4);
+      else                          mesh = makeVoxelLinearHouse(1, 'z', 1);
     } else if (tool.terrain) {
       // For pure terrain tools, show a thin coloured swatch hovering
       // just above the tile so the user can still see what they'd paint.
@@ -21281,7 +21307,7 @@
       'Rock is a scenic landmark prop. Bridge may sit on water and auto-orients toward nearby path or land; other water cells should not host any kind.',
       'Crops (crop, corn, wheat, pumpkin, carrot, sunflower) imply terrain=dirt; the renderer enforces that, but you may set terrain explicitly.',
       'Trees and tufts read best on grass. Rocks work as edges, overlooks, or focal points.',
-      'Use floors/intensity deliberately: terrain stacks into height, repeated objects gain size/detail, and fences vary from wood to wire/stone/steel wall styles.',
+      'Use floors/intensity deliberately: terrain stacks into height, repeated objects gain size/detail, and fences start as stone walls before higher levels become steel.',
       'Avoid noise and full-grid filling. Aim for a coherent, readable scene — vary heights, leave breathing room, group related elements.',
       PRIMITIVE_ASSEMBLY_PROMPT,
       '',
@@ -21298,7 +21324,7 @@
       'Base the suggestions on the current sparse world state, nearby patterns, and what would be coherent next manual placements.',
       'Act as a low-poly primitive assembler: suggest reusable primitive actions that help the player build larger requested forms from terrain, height, fences, rocks, buildings, crops, tufts, trees, and bridges.',
       'Prefer extending visible structures: paths continue, fences align as side/leaf wall runs, crops form fields, houses cluster, trees/rocks frame empty edges, bridges belong on water crossings.',
-      'Use floors/intensity as variation: repeated fences can become taller wood, wire, stone wall, or steel wall; repeated rocks, trees, bridges, crops, and tufts gain size/detail.',
+      'Use floors/intensity as variation: repeated fences stay stone at lower levels and become steel walls at the highest levels; repeated rocks, trees, bridges, crops, and tufts gain size/detail.',
       'Return varied suggestions, ordered best first: include structural options, terrain/path options, nature/detail options, and intensify/repeat options when useful.',
       'Suggestions must be reusable across several placements, so avoid relying on a single exact coordinate.',
       'If the player asks for a thing with no native kind (skate park, playground, market, airport, quarry, garden, plaza), decompose it into the closest existing primitive action rather than inventing a new kind.',
@@ -23049,8 +23075,16 @@
       const kind = target.cell.kind || target.kind;
       let obj = null;
       try {
-        if (kind === 'house') obj = makeHouse(target.cell.floors || 2, target.cell.buildingType || 'cottage');
+        if (kind === 'house') {
+          const bt = target.cell.buildingType || 'cottage';
+          if (bt === 'manor') obj = makeManor(target.cell.floors || 1);
+          else if (bt === 'tower') obj = makeStoneTower(Math.max(target.cell.floors || 1, 2));
+          else if (bt === 'turret') obj = makeTurret(target.cell.floors || 1);
+          else if (bt === 'skyscraper') obj = makeSkyscraper(Math.max(target.cell.floors || 1, 4));
+          else obj = makeHouse(target.cell.floors || 2);
+        }
         else if (kind === 'tree') obj = makeTree();
+        else if (kind === 'fence') obj = makeFence(normalizeFenceSide(target.cell.fenceSide), target.cell.floors || 1);
         else if (kind === 'voxel-build') obj = makeVoxelBuild(target.cell);
         else if (kind) obj = makeGenericObject(kind);
       } catch (e) { /* fallback */ }
@@ -25188,7 +25222,7 @@
       ctx.ellipse(cx, cy, s * 0.30, s * 0.22, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (kind === 'fence') {
-      ctx.fillStyle = minimapColor('fence', '#8a5a3b');
+      ctx.fillStyle = minimapColor('castleStone', '#b8b1a5');
       ctx.fillRect(cx - s * 0.34, cy - s * 0.06, s * 0.68, s * 0.12);
     } else if (kind === 'bridge') {
       ctx.fillStyle = minimapColor('bridgeWood', '#8b5a32');
