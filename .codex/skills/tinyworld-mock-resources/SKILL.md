@@ -11,6 +11,7 @@ Use this while the Resources model is frontend/mock-state only.
 - Keep cost/effect rules in `RESOURCE_BUILD_RULES`; do not spread resource economics into individual mesh factories.
 - `gold` is the spendable resource. Supported placements should call `trySpendMockResourcesForPlacement(selectedTool)` immediately before mutating world state.
 - If a placement cannot afford its gold cost, return without calling `setCell()` or `addCellExtra()`.
+- Erase refunds should derive from `RESOURCE_BUILD_RULES`, not a duplicated table. Multiply refunds/effect reversals by the stored build level (`floors` for objects, `terrainFloors` for repeated resource terrain), then clamp reversed resource effects at zero.
 - Resource placement audio should use the existing SFX helpers. Spend failures play the rejection clip in the spend helper; successes play after `setCell()` / `addCellExtra()` mutates the world.
 - Update the User Stats panel through `RESOURCE_KEYS`, `setPlayerStat()`, and `updatePlayerStatsPanel()`.
 - Mock round-action UI can read `resources.gold` for attack wagers, but must remain frontend-only until commit/reveal and contract/indexer state are explicitly added.

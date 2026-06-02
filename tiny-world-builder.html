@@ -14817,6 +14817,42 @@
     return null;
   }
 
+  function resourceRuleForPlacedCell(cell) {
+    if (!cell) return null;
+    if (cell.kind === 'house') {
+      const buildingType = cell.buildingType || 'house';
+      return RESOURCE_BUILD_RULES[buildingType] || RESOURCE_BUILD_RULES.house;
+    }
+    if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
+    if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
+    if (!cell.kind && cell.terrain === 'water') return RESOURCE_BUILD_RULES.water;
+    return null;
+  }
+
+  function normalizeBuildLevel(value) {
+    const level = Math.round(Number(value));
+    return Number.isFinite(level) && level > 0 ? level : 0;
+  }
+
+  function getCellBuildLevel(cell) {
+    if (!cell) return 1;
+    if (!cell.kind && cell.terrain === 'water') return normalizeBuildLevel(cell.terrainFloors) || 1;
+    const appearance = cell.appearance || {};
+    return normalizeBuildLevel(cell.floors)
+      || normalizeBuildLevel(cell.level)
+      || normalizeBuildLevel(cell.height)
+      || normalizeBuildLevel(cell.count)
+      || normalizeBuildLevel(appearance.floors)
+      || normalizeBuildLevel(appearance.level)
+      || normalizeBuildLevel(appearance.height)
+      || normalizeBuildLevel(appearance.count)
+      || 1;
+  }
+
+  function getBuildRefundMultiplier(cell) {
+    return Math.max(1, getCellBuildLevel(cell));
+  }
+
   function trySpendMockResourcesForPlacement(tool) {
     const rule = resourceRuleForTool(tool);
     if (!rule) return true;
@@ -14833,6 +14869,25 @@
     for (const key of Object.keys(effect)) {
       if (!RESOURCE_KEYS.includes(key) || key === 'gold') continue;
       resources[key] = Math.max(0, Math.round((resources[key] || 0) + effect[key]));
+    }
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
+  function refundMockResourcesForErase(cell) {
+    const rule = resourceRuleForPlacedCell(cell);
+    if (!rule) return false;
+    // TODO(contract/indexer): this mock UI refund uses the current config as
+    // a fallback. It multiplies by the stored frontend level (`floors` for
+    // objects, `terrainFloors` for repeated water placement); final onchain
+    // refund rules may differ.
+    const multiplier = getBuildRefundMultiplier(cell);
+    const goldRefund = Math.max(0, Math.round(((rule.cost && rule.cost.gold) || 0) * multiplier));
+    resources.gold = Math.max(0, Math.round((resources.gold || 0) + goldRefund));
+    const effect = rule.effect || {};
+    for (const key of Object.keys(effect)) {
+      if (!RESOURCE_KEYS.includes(key) || key === 'gold') continue;
+      resources[key] = Math.max(0, Math.round((resources[key] || 0) - (effect[key] * multiplier)));
     }
     schedulePlayerStatsUpdate();
     return true;
@@ -16649,6 +16704,29 @@
     return t;
   }
 
+  function eraseCellWithMockResourceRefund(x, z) {
+    if (!world[x]) world[x] = [];
+    const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
+    // Peel decorations off first — tufts / fences sitting alongside
+    // the main kind go before the main kind itself goes.
+    if (cell.extras && cell.extras.length) {
+      refundMockResourcesForErase(cell.extras[cell.extras.length - 1]);
+      popCellExtra(x, z);
+      return true;
+    }
+    if (cell.kind) {
+      refundMockResourcesForErase(cell);
+      setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
+      return true;
+    }
+    if (cell.terrain !== 'grass') {
+      refundMockResourcesForErase({ terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null });
+      setCell(x, z, { terrain: 'grass', terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
+      return true;
+    }
+    return false;
+  }
+
   function applyTool(x, z) {
     if (selectedTool.auto) {
       if (!getAIProviderState().key) return; // Can't auto-place without API key
@@ -16681,8 +16759,7 @@
           });
         } else if (selectedTool.erase) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
-            const current = getWorldCell(sx, sz);
-            setCell(sx, sz, { terrain: current.terrain, kind: null });
+            eraseCellWithMockResourceRefund(sx, sz);
           });
         }
         // Keep selection active for rapid multi-tool use on the area
@@ -16698,14 +16775,7 @@
     if (!world[x]) world[x] = [];
     const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
     if (selectedTool.erase) {
-      // Peel decorations off first — tufts / fences sitting alongside
-      // the main kind go before the main kind itself goes.
-      if (cell.extras && cell.extras.length) {
-        popCellExtra(x, z);
-        return;
-      }
-      if (cell.kind) setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
-      else if (cell.terrain !== 'grass') setCell(x, z, { terrain: 'grass', terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
+      eraseCellWithMockResourceRefund(x, z);
       return;
     }
     if (selectedTool.kind === 'house') {
