@@ -408,7 +408,7 @@
   .player-stats-panel {
     top: auto;
     right: auto;
-    bottom: 98px;
+    bottom: 198px;
     left: 50%;
     width: 520px;
     max-width: calc(100vw - 32px);
@@ -519,8 +519,11 @@
     border-radius: inherit;
     transition: width 160ms ease;
   }
+  .player-stat-fill.gold { background: linear-gradient(90deg, #d49b2f, #f2d35b); }
   .player-stat-fill.army { background: linear-gradient(90deg, #d24a4f, #e58b42); }
   .player-stat-fill.food { background: linear-gradient(90deg, #6fb442, #f2c849); }
+  .player-stat-fill.water { background: linear-gradient(90deg, #3f8fc6, #74c5e8); }
+  .player-stat-fill.shelter { background: linear-gradient(90deg, #8a765c, #c4a36d); }
   .player-stat-fill.population { background: linear-gradient(90deg, #3a72c8, #74b4d8); }
   .player-stat-fill.trade { background: linear-gradient(90deg, #8e6ccf, #45b5a3); }
   .player-stat-total {
@@ -1007,7 +1010,6 @@
      for the keyboard shortcut. Flyouts are unaffected. */
   .toolbar .tool:not(.flyout-tool) kbd {
     display: none;
-    //margin-top: -2px;
     font-weight: 700;
     color: var(--ink);
     font-size: 10.5px;
@@ -3816,39 +3818,29 @@
   <div class="player-stats-panel" id="player-stats-panel" aria-label="Player stats">
     <h3>User stats</h3>
     <div class="player-stat">
-      <span>Army</span>
-      <span class="player-stat-bar"><span class="player-stat-fill army" id="player-stat-army-bar"></span></span>
-      <span class="player-stat-value" id="player-stat-army">0</span>
-    </div>
-    <div class="player-stat-total">
-      <span>Lands conquered</span>
-      <strong id="player-stat-lands">0</strong>
+      <span>Gold</span>
+      <span class="player-stat-bar"><span class="player-stat-fill gold" id="player-stat-gold-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-gold">0</span>
     </div>
     <div class="player-stat">
       <span>Food</span>
       <span class="player-stat-bar"><span class="player-stat-fill food" id="player-stat-food-bar"></span></span>
       <span class="player-stat-value" id="player-stat-food">0</span>
     </div>
-    <div class="player-stat-total">
-      <span>Some stat</span>
-      <strong id="player-stat-lands">0</strong>
+    <div class="player-stat">
+      <span>Water</span>
+      <span class="player-stat-bar"><span class="player-stat-fill water" id="player-stat-water-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-water">0</span>
     </div>
     <div class="player-stat">
-      <span>Population</span>
-      <span class="player-stat-bar"><span class="player-stat-fill population" id="player-stat-population-bar"></span></span>
-      <span class="player-stat-value" id="player-stat-population">0</span>
+      <span>Shelter</span>
+      <span class="player-stat-bar"><span class="player-stat-fill shelter" id="player-stat-shelter-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-shelter">0</span>
     </div>
-    <div class="player-stat-total">
-      <span>Neighbors</span>
-      <strong id="player-stat-neighbors">0</strong>
-    </div>
-    <div class="player-stat-total">
-      <span>Round number</span>
-      <strong id="player-stat-round-number">1</strong>
-    </div>
-    <div class="player-stat-total">
-      <span>Entries remaining</span>
-      <strong id="player-stat-entries-remaining">22 / 200</strong>
+    <div class="player-stat">
+      <span>Army</span>
+      <span class="player-stat-bar"><span class="player-stat-fill army" id="player-stat-army-bar"></span></span>
+      <span class="player-stat-value" id="player-stat-army">0</span>
     </div>
   </div>
 
@@ -4644,6 +4636,16 @@
   // Mock territory stat. Replace this line with a fixed number while tuning
   // (for example `let landsConquered = 25;`) or later with indexed game data.
   let landsConquered = Math.floor(Math.random() * 100) + 1;
+  // Temporary mock Resources struct for frontend-only playtesting.
+  // TODO(contract/indexer): replace these values with contract, indexer, or S3
+  // game-state snapshot data when real game-state integration lands.
+  const resources = {
+    gold: 100,
+    food: 50,
+    water: 50,
+    shelter: 50,
+    army: 50,
+  };
   const HOME_GRID_MIN = 8;
   const HOME_GRID_MAX = 50;
 
@@ -14624,12 +14626,75 @@
   }
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
+  const RESOURCE_KEYS = ['gold', 'food', 'water', 'shelter', 'army'];
+  // Temporary frontend-only building economics for the mock Resources model.
+  // TODO(contract/indexer): replace this table with canonical costs/effects
+  // from contract/indexer state or a versioned game-state snapshot.
+  const RESOURCE_BUILD_RULES = {
+    water: { label: 'Well / Water', cost: { gold: 10 }, effect: { water: 12 } },
+    crop: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
+    corn: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
+    wheat: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
+    pumpkin: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
+    carrot: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
+    sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
+    house: { label: 'Housing', cost: { gold: 18 }, effect: { shelter: 12 } },
+    cottage: { label: 'Cottage', cost: { gold: 18 }, effect: { shelter: 14 } },
+    manor: { label: 'Housing', cost: { gold: 26 }, effect: { shelter: 20 } },
+    highrise: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
+    fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
+    tower: { label: 'Tower', cost: { gold: 25 }, effect: { army: 16 } },
+    turret: { label: 'Tower', cost: { gold: 28 }, effect: { army: 18 } },
+    // TODO(contract/indexer): Barracks is reserved for the future army-building
+    // tool/model. No visual placement is created here.
+    barracks: { label: 'Barracks', cost: { gold: 30 }, effect: { army: 22 }, placeholder: true },
+  };
   let playerStatsUpdateQueued = false;
   const PLAYER_GAME_STATE_MOCK = {
     roundNumber: 1,
     entriesRemaining: 22,
     maxEntries: 200,
   };
+
+  function resourceRuleForTool(tool) {
+    if (!tool) return null;
+    if (tool.terrain === 'water') return RESOURCE_BUILD_RULES.water;
+    if (tool.kind === 'house') {
+      const variant = tool.activeVariant;
+      const buildingType = (variant && variant.buildingType) || 'house';
+      return RESOURCE_BUILD_RULES[buildingType] || RESOURCE_BUILD_RULES.house;
+    }
+    if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
+    if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
+    return null;
+  }
+
+  function trySpendMockResourcesForPlacement(tool) {
+    const rule = resourceRuleForTool(tool);
+    if (!rule) return true;
+    const goldCost = Math.max(0, Math.round((rule.cost && rule.cost.gold) || 0));
+    if (resources.gold < goldCost) {
+      console.warn('Not enough gold to place ' + rule.label + ': need ' + goldCost + ', have ' + resources.gold + '.');
+      // Insufficient-gold placement rejection sound.
+      if (typeof playSfxClip === 'function') playSfxClip('knock', 'foley-knock-jingle-2.mp3');
+      schedulePlayerStatsUpdate();
+      return false;
+    }
+    resources.gold = Math.max(0, resources.gold - goldCost);
+    const effect = rule.effect || {};
+    for (const key of Object.keys(effect)) {
+      if (!RESOURCE_KEYS.includes(key) || key === 'gold') continue;
+      resources[key] = Math.max(0, Math.round((resources[key] || 0) + effect[key]));
+    }
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
+  function playMockResourcePlacementSuccess(tool) {
+    if (!resourceRuleForTool(tool)) return;
+    // Successful resource placement sound; fires after world state mutates.
+    if (typeof playSfxClip === 'function') playSfxClip('knock', 'foley-knock-jingle-1.mp3');
+  }
 
   function getPlayerGameState() {
     return window.__tinyworldPlayerGameState || PLAYER_GAME_STATE_MOCK;
@@ -14722,18 +14787,9 @@
     playerStatsUpdateQueued = false;
     const panel = document.getElementById('player-stats-panel');
     if (!panel) return;
-    const stats = collectPlayerStats();
-    setPlayerStat('army', stats.army, stats.armyPercent);
-    setPlayerStat('food', stats.food, stats.foodPercent);
-    setPlayerStat('population', stats.population, stats.populationPercent);
-    const landsEl = document.getElementById('player-stat-lands');
-    const neighborsEl = document.getElementById('player-stat-neighbors');
-    const roundNumberEl = document.getElementById('player-stat-round-number');
-    const entriesRemainingEl = document.getElementById('player-stat-entries-remaining');
-    if (landsEl) landsEl.textContent = String(stats.lands);
-    if (neighborsEl) neighborsEl.textContent = String(stats.neighbors);
-    if (roundNumberEl) roundNumberEl.textContent = String(stats.roundNumber);
-    if (entriesRemainingEl) entriesRemainingEl.textContent = stats.entriesRemaining + ' / ' + stats.maxEntries;
+    for (const key of RESOURCE_KEYS) {
+      setPlayerStat(key, resources[key] || 0, clampStatPercent(resources[key] || 0, 100));
+    }
   }
 
   function schedulePlayerStatsUpdate() {
@@ -16462,13 +16518,17 @@
         // Apply current tool to every selected cell
         if (selectedTool.terrain) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
+            if (!trySpendMockResourcesForPlacement(selectedTool)) return;
             setCell(sx, sz, { terrain: selectedTool.terrain });
+            playMockResourcePlacementSuccess(selectedTool);
           });
         } else if (selectedTool.kind) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
             const current = getWorldCell(sx, sz);
             const terrainForKind = selectedTool.terrainOverride || current.terrain || 'grass';
+            if (!trySpendMockResourcesForPlacement(selectedTool)) return;
             setCell(sx, sz, { kind: selectedTool.kind, terrain: terrainForKind });
+            playMockResourcePlacementSuccess(selectedTool);
           });
         } else if (selectedTool.erase) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
@@ -16484,7 +16544,7 @@
 
     // Audible feedback for any user-initiated placement / erase. The
     // per-group rate limiter inside playSfx keeps drag-painting sane.
-    if (typeof playSfxForTool === 'function') playSfxForTool(selectedTool);
+    if (!resourceRuleForTool(selectedTool) && typeof playSfxForTool === 'function') playSfxForTool(selectedTool);
     // Ensure world row exists
     if (!world[x]) world[x] = [];
     const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
@@ -16505,15 +16565,19 @@
         const newFloors = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
         if (newFloors === (cell.floors || 1)) return;
         // Floor stack preserves the existing buildingType (passing undefined).
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'house', floors: newFloors });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       // Fresh placement — read buildingType from the active fly-out variant.
       const variant = selectedTool.activeVariant;
       const bType = (variant && variant.buildingType) || null;
       const terrainForHouse = cell.terrain || 'grass';
+      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       const gt = consumeGhostTransform();
       setCell(x, z, { terrain: terrainForHouse, terrainFloors: terrainLevelForCell(cell), kind: 'house', buildingType: bType, rotationY: gt.rotationY, offsetX: gt.offsetX, offsetZ: gt.offsetZ });
+      playMockResourcePlacementSuccess(selectedTool);
       return;
     }
     if (selectedTool.kind === 'voxel-build') {
@@ -16540,23 +16604,31 @@
       if (cell.kind === 'fence' && normalizeFenceSide(cell.fenceSide) === side) {
         const newLevel = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
         if (newLevel === (cell.floors || 1)) return;
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: newLevel, fenceSide: side });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       // Different-side fence on a fence cell → add the new side as an
       // extra so multiple fence sides co-exist on the same tile.
       if (cell.kind === 'fence') {
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         addCellExtra(x, z, { kind: 'fence', fenceSide: side });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       // Different main occupant → fence co-exists alongside it.
       if (cell.kind && cell.kind !== 'fence') {
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         addCellExtra(x, z, { kind: 'fence', fenceSide: side });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       // Empty cell → fence becomes the main kind.
+      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       const gt2 = consumeGhostTransform();
       setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: 1, fenceSide: side, rotationY: gt2.rotationY, offsetX: gt2.offsetX, offsetZ: gt2.offsetZ });
+      playMockResourcePlacementSuccess(selectedTool);
       return;
     }
     if (selectedTool.kind) {
@@ -16566,7 +16638,9 @@
         const stackMax = selectedTool.kind === 'bridge' ? 4 : MAX_FLOORS;
         const newLevel = Math.min((cell.floors || 1) + 1, stackMax);
         if (newLevel === (cell.floors || 1)) return;
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: newLevel });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       // Tufts are decorative — they go alongside another main kind
@@ -16589,15 +16663,19 @@
         carriedExtras.push(cell.kind === 'fence'
           ? { kind: 'fence', fenceSide: cell.fenceSide || 'n', floors: cell.floors || 1 }
           : { kind: 'tuft', floors: cell.floors || 1 });
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         const gtd = consumeGhostTransform();
         setCell(x, z, { terrain: newTerrain, terrainFloors: terrainLevelForCell(cell), kind: incomingPrimary, floors: 1, extras: carriedExtras, rotationY: gtd.rotationY, offsetX: gtd.offsetX, offsetZ: gtd.offsetZ });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       if (cell.kind && cell.kind !== incomingPrimary && incomingPrimary === 'rock') {
         squashExistingObject(x, z);
       }
+      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       const gtf = consumeGhostTransform();
       setCell(x, z, { terrain: newTerrain, terrainFloors: terrainLevelForCell(cell), kind: incomingPrimary, floors: 1, rotationY: gtf.rotationY, offsetX: gtf.offsetX, offsetZ: gtf.offsetZ });
+      playMockResourcePlacementSuccess(selectedTool);
       return;
     }
     if (selectedTool.terrain) {
@@ -16609,6 +16687,7 @@
       const nextTerrainFloors = nextKind
         ? terrainLevelForCell(cell)
         : (sameTerrain ? Math.min(terrainLevelForCell(cell) + 1, MAX_FLOORS) : 1);
+      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       setCell(x, z, {
         terrain: selectedTool.terrain,
         terrainFloors: nextTerrainFloors,
@@ -16616,6 +16695,7 @@
         floors: nextKind ? (cell.floors || 1) : 1,
         buildingType: nextKind === 'house' ? cell.buildingType : null,
       });
+      playMockResourcePlacementSuccess(selectedTool);
     }
   }
 
@@ -19254,15 +19334,28 @@
   // tiles must not produce a machine-gun of identical foley.
   const SFX_MIN_GAP = { rustle: 70, knock: 90, whoosh: 110, ripple: 240, land: 180 };
   const sfxPool = {};
+  const sfxClipPool = {};
   for (const g of Object.keys(SFX_GROUPS)) {
     sfxPool[g] = SFX_GROUPS[g].map(name => {
       const a = new Audio(SOUNDS_BASE + encodeURIComponent(name));
       a.preload = 'auto';
       a.crossOrigin = 'anonymous';
+      sfxClipPool[g + ':' + name] = a;
       return a;
     });
   }
   const sfxLastPlay = { rustle: 0, knock: 0, whoosh: 0, ripple: 0, land: 0 };
+
+  function playSfxNode(group, base, scale) {
+    if (!base) return;
+    // cloneNode keeps the preloaded src reference; cheaper than `new Audio`.
+    const node = base.cloneNode();
+    node.volume = Math.max(0, Math.min(1, audioSfxVolume * (scale || 1)));
+    // Drop the clone after it finishes so we don't leak HTMLAudioElements.
+    node.addEventListener('ended', () => { node.src = ''; }, { once: true });
+    const p = node.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  }
 
   function playSfx(group, scale) {
     if (audioSfxMuted) return;
@@ -19271,14 +19364,15 @@
     sfxLastPlay[group] = now;
     const pool = sfxPool[group];
     if (!pool || !pool.length) return;
-    const base = pool[Math.floor(Math.random() * pool.length)];
-    // cloneNode keeps the preloaded src reference; cheaper than `new Audio`.
-    const node = base.cloneNode();
-    node.volume = Math.max(0, Math.min(1, audioSfxVolume * (scale || 1)));
-    // Drop the clone after it finishes so we don't leak HTMLAudioElements.
-    node.addEventListener('ended', () => { node.src = ''; }, { once: true });
-    const p = node.play();
-    if (p && typeof p.catch === 'function') p.catch(() => {});
+    playSfxNode(group, pool[Math.floor(Math.random() * pool.length)], scale);
+  }
+
+  function playSfxClip(group, name, scale) {
+    if (audioSfxMuted) return;
+    const now = performance.now();
+    if (now - (sfxLastPlay[group] || 0) < (SFX_MIN_GAP[group] || 80)) return;
+    sfxLastPlay[group] = now;
+    playSfxNode(group, sfxClipPool[group + ':' + name], scale);
   }
 
   function playSfxForTool(tool) {
