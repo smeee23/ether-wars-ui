@@ -36,6 +36,7 @@ Use this together with:
 
 - Prefer 2–4 materials per object: body, dark trim, highlight, accent.
 - Never mutate shared `M.*` material colors for one instance; clone or create a new material. The one allowed global exception is `applySeasonFoliage()`, which centrally retints shared foliage/grass materials for season changes.
+- When voxel stamps need to match built-in procedural structures, prefer passing targeted material overrides that reuse shared `M.*` materials instead of copying equivalent hex colors into the voxel palette.
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.
 - If a model comes with a texture atlas, set `texture.encoding = THREE.sRGBEncoding` and check `flipY` for GLTF compatibility.
