@@ -4389,15 +4389,8 @@
               <output id="render-visible-size-value"></output>
             </div>
             <label>Home board size
-              <select id="render-home-grid">
-                <option value="8">8 × 8</option>
-                <option value="12">12 × 12</option>
+              <select id="render-home-grid" disabled>
                 <option value="15">15 × 15</option>
-                <option value="16">16 × 16</option>
-                <option value="20">20 × 20</option>
-                <option value="32">32 × 32</option>
-                <option value="48">48 × 48</option>
-                <option value="50">50 × 50</option>
               </select>
             </label>
             <div class="range-row">
@@ -4628,14 +4621,8 @@
      ===================================================================== */
 
   // -------- constants --------
-  // GRID is the home board edge length. Mutable: the user can resize it
-  // from compact village dioramas up to 50×50 worlds. Tiles outside the current
-  // home grid are still tracked in world[][] (used by ghost boards and
-  // export) but rendered grayscale; growing GRID brings those tiles into
-  // the home area and rebuilds them in full colour.
-  // Mock territory stat. Replace this line with a fixed number while tuning
-  // (for example `let landsConquered = 25;`) or later with indexed game data.
-  let landsConquered = Math.floor(Math.random() * 100) + 1;
+  // GRID is the fixed home board edge length. The playable board is always
+  // 15x15; larger surroundings are visual ghost boards outside the home grid.
   // Temporary mock Resources struct for frontend-only playtesting.
   // TODO(contract/indexer): replace these values with contract, indexer, or S3
   // game-state snapshot data when real game-state integration lands.
@@ -4646,34 +4633,24 @@
     shelter: 50,
     army: 50,
   };
-  const HOME_GRID_MIN = 8;
+  const HOME_GRID_DEFAULT = 15;
+  const HOME_GRID_MIN = HOME_GRID_DEFAULT;
+  // Storage/preview coordinate cap only; it does not resize the playable board.
   const HOME_GRID_MAX = 50;
-
-  function gridSizeForLandsConquered(value) {
-    const lands = Math.max(1, Math.min(100, Math.round(Number(value) || 1)));
-    const span = HOME_GRID_MAX - HOME_GRID_MIN;
-    const curve = (1 - Math.exp(-lands / 38)) / (1 - Math.exp(-100 / 38));
-    // Exponential soft cap: early lands unlock visible growth, then each
-    // additional conquest contributes less as the board approaches 50x50.
-    return Math.max(HOME_GRID_MIN, Math.min(HOME_GRID_MAX, Math.round(HOME_GRID_MIN + span * curve)));
-  }
-
-  const HOME_GRID_DEFAULT = gridSizeForLandsConquered(landsConquered);
   const HOME_GRID_VIEW_BASE = 15;
-  const HOME_GRID_OPTIONS = [8, 12, 15, 16, 20, 32, 48, 50];
+  const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
   const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-15.v1';
   let GRID = HOME_GRID_DEFAULT;
-  let migrateHomeGridDefaultTo15 = false;
 
   function isValidGridSize(n) {
-    return Number.isInteger(n) && n >= HOME_GRID_MIN && n <= HOME_GRID_MAX;
+    return Number.isInteger(n) && n === HOME_GRID_DEFAULT;
   }
 
   function coerceGridSize(value, fallback = HOME_GRID_DEFAULT) {
     const n = parseInt(value, 10);
     if (isValidGridSize(n)) return n;
-    return isValidGridSize(fallback) ? fallback : HOME_GRID_DEFAULT;
+    return HOME_GRID_DEFAULT;
   }
 
   function fillGridSizeSelect(el) {
@@ -4782,14 +4759,8 @@
     window.addEventListener('resize', () => place(active));
   })();
   try {
-    const storedRaw = localStorage.getItem(HOME_GRID_LS);
-    let stored = parseInt(storedRaw || '', 10);
-    if (localStorage.getItem(HOME_GRID_DEFAULT_MIGRATION_LS) !== '1' && (!storedRaw || stored === 8 || stored === 12)) {
-      migrateHomeGridDefaultTo15 = true;
-      stored = HOME_GRID_DEFAULT;
-      localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT));
-    }
-    GRID = coerceGridSize(stored, GRID);
+    localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT));
+    localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
   let currentTodMinutes = 720;
@@ -9385,8 +9356,8 @@
       }
       vbox(g, 0.035, 0.26, 0.035, 0, bodyTopY + 0.62, 0, stoneD);
     } else {
-      const keepFloors = Math.max(4, f);
-      const floorH = 0.24;
+      const keepFloors = f;
+      const floorH = 0.44;
       const h = keepFloors * floorH;
       vbox(g, 0.78, h, 0.78, 0, h / 2, 0, stone);
       for (let i = 1; i < keepFloors; i++) {
@@ -9672,7 +9643,7 @@
       } else if (bType === 'manor') {
         mesh = makeVoxelManor(floors);
       } else if (bType === 'tower') {
-        mesh = makeVoxelTurret(Math.max(floors, 2), true, towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
+        mesh = makeVoxelTurret(floors, true, towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
       } else if (bType === 'turret') {
         mesh = makeVoxelTurret(floors, false);
       } else {
@@ -9970,7 +9941,7 @@
 
   // Keep world sparse. getWorldCell()/ensureWorldCell() provide virtual
   // default grass cells, which avoids allocating HOME_GRID_MAX² default
-  // objects at startup when HOME_GRID_MAX is 512.
+  // objects at startup.
 
   const MAX_FLOORS = 8;
 
@@ -10709,9 +10680,9 @@
   // -------- seeded vehicle demo --------
   const VEHICLE_DEMO_DEFAULT_SEED = 'tide-ridge-428';
   const VEHICLE_DEMO_LARGE_SEED = 'metro-culdesac-48';
-  const VEHICLE_DEMO_LARGE_SIZE_DEFAULT = 48;
-  const VEHICLE_DEMO_LARGE_SIZE_MIN = 12;
-  const VEHICLE_DEMO_LARGE_SIZE_MAX = 48;
+  const VEHICLE_DEMO_LARGE_SIZE_DEFAULT = HOME_GRID_DEFAULT;
+  const VEHICLE_DEMO_LARGE_SIZE_MIN = HOME_GRID_DEFAULT;
+  const VEHICLE_DEMO_LARGE_SIZE_MAX = HOME_GRID_DEFAULT;
   const VEHICLE_DEMO_LARGE_CARS_DEFAULT = 36;
   const VEHICLE_DEMO_LARGE_CARS_MAX = 120;
   const vehicleDemoTimers = [];
@@ -17474,160 +17445,13 @@
     setCameraMode(DEFAULT_CAMERA_MODE);
   }
 
-  // Resize the home board between the allowed sizes (8 through 50).
-  // World data outside the previous board is preserved in world[][] —
-  // growing the grid brings those tiles into the home area (so the
-  // existing 'outside home' grayscale is no longer applied to them).
-  // Shrinking is supported but the now-outside cells aren't re-rendered
-  // in their outside-home form; expansion is the primary path.
-  function setHomeGridSize(n, opts) {
-    const skipRebuild = !!(opts && opts.skipRebuild);
-    n = coerceGridSize(n, GRID);
-    if (n === GRID) return;
-
-    // Backup the full pre-resize state to localStorage so the user can
-    // recover if a resize ever drops something we didn't preserve.
-    // Stored under a dedicated key separate from the live save.
-    try {
-      const backupCells = [];
-      for (const xKey of Object.keys(world)) {
-        const x = parseInt(xKey, 10);
-        if (!Number.isFinite(x)) continue;
-        const row = world[xKey];
-        if (!row) continue;
-        for (const zKey of Object.keys(row)) {
-          const z = parseInt(zKey, 10);
-          if (!Number.isFinite(z)) continue;
-          const c = row[zKey];
-          if (!c) continue;
-          const entry = serializeCell(x, z, c);
-          if (entry) backupCells.push(entry);
-        }
-      }
-      localStorage.setItem('tinyworld:home-grid:backup', JSON.stringify({
-        v: STORAGE_VERSION,
-        savedAt: Date.now(),
-        fromGrid: GRID,
-        toGrid: n,
-        gridSize: GRID,
-        cells: backupCells,
-      }));
-    } catch (_) {}
-
-    GRID = n;
-    // Grid size changed — old index entries may be out of range or stale.
-    // Subsequent setCell / load will repopulate via incremental updates or rebuild.
-    cropPositions.clear();
-    maxPumpkinPositions.clear();
-    carriagePumpkin = null;
-    applyAutoPreviewSettingsForGrid({ explored: hasUserPanned, deferEnsure: true });
-    try { localStorage.setItem(HOME_GRID_LS, String(GRID)); } catch (_) {}
-    updateUnsavedCopyForGrid();
-    if (typeof buildHomeBorder === 'function') buildHomeBorder();
-    if (typeof buildSurroundingLand === 'function') buildSurroundingLand();
-
-    // Drop every ghost board — their world positions are anchored to GRID.
-    for (const [key, board] of ghostBoards) {
-      worldGroup.remove(board);
-      disposeGroup(board);
-    }
-    ghostBoards.clear();
-    ghostBoardCells.clear();
-    clearCheapGhostTerrain();
-
-    // Dispose every existing cell mesh; cellPos depends on GRID so all
-    // tiles need to be re-positioned. setCell will rebuild from
-    // world[x][z] which we never throw away.
-    for (const key of Object.keys(cellMeshes)) {
-      const entry = cellMeshes[key];
-      if (entry.tile)   { worldGroup.remove(entry.tile);   disposeGroup(entry.tile); }
-      if (entry.object) { worldGroup.remove(entry.object); disposeGroup(entry.object); }
-      if (entry.extras) for (const m of entry.extras) { worldGroup.remove(m); disposeGroup(m); }
-      delete cellMeshes[key];
-    }
-    homeRenderQueue = [];
-    homeRenderQueueCursor = 0;
-    homeRenderQueued.clear();
-
-    if (skipRebuild) return;
-
-    if (useWindowedHomeRendering()) {
-      resetCameraDefaults();
-      requestHomeRenderWindowSync({ force: true });
-      if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
-      saveState();
-      return;
-    }
-
-    suppressSave = true;
-    // Rebuild every home cell from the surviving world data.
-    for (let x = 0; x < GRID; x++) {
-      for (let z = 0; z < GRID; z++) {
-        const c = getWorldCell(x, z);
-        setCell(x, z, {
-          terrain: c.terrain || 'grass',
-          terrainFloors: c.terrainFloors || 1,
-          kind: c.kind || null,
-          floors: c.floors || 1,
-          buildingType: c.buildingType || null,
-          fenceSide: c.fenceSide || null,
-          rotationY: c.rotationY || 0,
-          offsetX: c.offsetX || 0,
-          offsetZ: c.offsetZ || 0,
-          animate: false,
-          forceTile: true,
-        });
-        // Re-render extras (tufts/fences) without animating drops.
-        if (Array.isArray(c.extras) && c.extras.length && typeof renderCellExtras === 'function') {
-          renderCellExtras(x, z);
-        }
-      }
-    }
-    // Re-render any user-edited cells that now (or still) live OUTSIDE
-    // the home grid. Without this, shrinking the grid would hide tiles
-    // the user placed at higher indices, and growing wouldn't refresh
-    // the outside cells that still exist past the new edge. The
-    // grayscale 'outside home' look is applied automatically by setCell.
-    for (const xKey of Object.keys(world)) {
-      const x = parseInt(xKey, 10);
-      if (!Number.isFinite(x) || x < 0 || x >= HOME_GRID_MAX) continue;
-      const row = world[xKey];
-      if (!row) continue;
-      for (const zKey of Object.keys(row)) {
-        const z = parseInt(zKey, 10);
-        if (!Number.isFinite(z) || z < 0 || z >= HOME_GRID_MAX) continue;
-        if (x < GRID && z < GRID) continue;
-        const c = row[zKey];
-        if (!c) continue;
-        // Only re-render cells the user actually placed something on —
-        // default-grass cells stay invisible to the cellMeshes layer
-        // (ghost boards handle the procedural fill).
-        if (!serializeCell(x, z, c)) continue;
-        setCell(x, z, {
-          terrain: c.terrain || 'grass',
-          terrainFloors: c.terrainFloors || 1,
-          kind: c.kind || null,
-          floors: c.floors || 1,
-          buildingType: c.buildingType || null,
-          fenceSide: c.fenceSide || null,
-          rotationY: c.rotationY || 0,
-          offsetX: c.offsetX || 0,
-          offsetZ: c.offsetZ || 0,
-          animate: false,
-          forceTile: true,
-        });
-        if (Array.isArray(c.extras) && c.extras.length && typeof renderCellExtras === 'function') {
-          renderCellExtras(x, z);
-        }
-      }
-    }
-    suppressSave = false;
-
-    // Re-create ghost boards around the freshly-sized home.
-    if (typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
-    // Re-frame the camera so the new board centres correctly.
-    resetCameraDefaults();
-    saveState();
+  // Compatibility no-op for older UI/import/demo paths. The playable home
+  // board is intentionally fixed at 15x15; surrounding ghost boards provide
+  // the visually large world beyond the playable area.
+  // TODO: remove this shim after callers no longer expose/restore grid sizes.
+  function setHomeGridSize(_n, _opts) {
+    GRID = HOME_GRID_DEFAULT;
+    try { localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT)); } catch (_) {}
   }
 
   // Keep the unsaved-areas banner + reset confirm copy in sync with
@@ -18109,12 +17933,10 @@
       el.addEventListener('change', applyFromControls);
     }
     // Home grid size — a separate listener because it triggers a full
-    // re-render rather than uniforms/material tweaks.
+    // re-render rather than uniforms/material tweaks. Currently fixed at
+    // 15x15, so the disabled select is display-only.
     if (homeGridEl) {
-      homeGridEl.addEventListener('change', () => {
-        const n = parseInt(homeGridEl.value, 10);
-        setHomeGridSize(n);
-      });
+      homeGridEl.disabled = true;
     }
     resetBtn.addEventListener('click', () => {
       setShadowQuality('balanced');
@@ -21608,7 +21430,11 @@
     if (data.cameraMode === 'soft') data.cameraMode = 'perspective';
     const okCameraMode = new Set(['ortho','topdown','perspective','fp']);
     if (data.cameraMode !== undefined && !okCameraMode.has(data.cameraMode)) return 'cameraMode invalid: ' + data.cameraMode;
-    if (data.gridSize !== undefined && !isValidGridSize(data.gridSize)) return 'gridSize invalid: ' + data.gridSize;
+    if (data.gridSize !== undefined) {
+      const legacyGridSize = parseInt(data.gridSize, 10);
+      if (!Number.isInteger(legacyGridSize) || legacyGridSize < 1 || legacyGridSize > 512) return 'gridSize invalid: ' + data.gridSize;
+      data.gridSize = legacyGridSize;
+    }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
     const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
@@ -22318,6 +22144,7 @@
     if (gridSizeEl) {
       const storedGridSize = parseInt(localStorage.getItem(GEN_LS.gridSize) || '', 10);
       gridSizeEl.value = String(coerceGridSize(storedGridSize, GRID));
+      gridSizeEl.disabled = true;
     }
 
     function selectedGenGridSize() {
@@ -22587,6 +22414,7 @@
       if (gridSizeEl) {
         const storedGridSize = parseInt(localStorage.getItem(GEN_LS.gridSize) || '', 10);
         gridSizeEl.value = String(coerceGridSize(storedGridSize, GRID));
+        gridSizeEl.disabled = true;
       }
       setStatus('');
       openTinyModal(modal, promptEl);
@@ -23940,16 +23768,9 @@
     if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4) return false;
     if (vehicleFleet.size) clearVehicleRuntime();
 
-    // Restore the saved home grid size before painting cells so the new
-    // tiles are framed correctly and ghost boards land in the right
-    // position. Falls back to the current GRID if the save predates the
-    // gridSize field.
-    const restoredGridSize = coerceGridSize(data.gridSize, GRID);
-    if (restoredGridSize !== GRID) {
-      // The cell loop below repaints every tile, so skip the rebuild
-      // step inside setHomeGridSize and just dispose old meshes.
-      setHomeGridSize(restoredGridSize, { skipRebuild: true });
-    }
+    // Saved/imported gridSize is ignored while the playable board is fixed
+    // at 15x15. Cells outside the home grid remain non-playable/outside-home.
+    GRID = HOME_GRID_DEFAULT;
     suppressSave = true;
     const overrides = new Map();
     for (const entry of data.cells) {
@@ -24564,17 +24385,12 @@
       if (!raw) return false;
       data = JSON.parse(raw);
     } catch (_) { return false; }
-    if (migrateHomeGridDefaultTo15 && data && (data.gridSize === 8 || data.gridSize === 12)) {
-      data = Object.assign({}, data, { gridSize: HOME_GRID_DEFAULT });
-    }
     const ok = applyState(data, { keepCamera: true });
     if (ok) {
-      if (migrateHomeGridDefaultTo15) {
-        try {
-          localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT));
-          localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
-        } catch (_) {}
-      }
+      try {
+        localStorage.setItem(HOME_GRID_LS, String(HOME_GRID_DEFAULT));
+        localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
+      } catch (_) {}
       resetCameraDefaults();
     }
     return ok;
