@@ -563,6 +563,49 @@
     font: inherit;
     padding: 4px 6px;
   }
+  .neighbor-action-panel {
+    border-top: 1px solid rgba(80, 70, 54, 0.16);
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .neighbor-action-row {
+    display: grid;
+    grid-template-columns: 58px 1fr 38px;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .neighbor-action-row select,
+  .neighbor-action-row input[type="range"] {
+    width: 100%;
+    min-width: 0;
+  }
+  .neighbor-action-row select {
+    grid-column: 2 / 4;
+    border: 1px solid rgba(120, 130, 150, 0.24);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--ink);
+    font: inherit;
+    padding: 4px 6px;
+  }
+  .neighbor-action-row output {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+  }
+  .neighbor-action-note {
+    font-size: 10.5px;
+    line-height: 1.25;
+    color: var(--muted);
+  }
+  .neighbor-action-note[hidden],
+  .neighbor-action-extra[hidden] {
+    display: none;
+  }
   .crowd-panel .crowd-check {
     display: flex;
     align-items: center;
@@ -2046,6 +2089,7 @@
   .modal-card input[type="range"],
   .settings-panel input[type="range"],
   .range-row input[type="range"],
+  .neighbor-action-row input[type="range"],
   .time-row input[type="range"],
   .gen-slider-row input[type="range"] {
     -webkit-appearance: none;
@@ -2065,6 +2109,7 @@
   .modal-card input[type="range"]::-webkit-slider-runnable-track,
   .settings-panel input[type="range"]::-webkit-slider-runnable-track,
   .range-row input[type="range"]::-webkit-slider-runnable-track,
+  .neighbor-action-row input[type="range"]::-webkit-slider-runnable-track,
   .time-row input[type="range"]::-webkit-slider-runnable-track,
   .gen-slider-row input[type="range"]::-webkit-slider-runnable-track {
     height: 4px;
@@ -2075,6 +2120,7 @@
   .modal-card input[type="range"]::-moz-range-track,
   .settings-panel input[type="range"]::-moz-range-track,
   .range-row input[type="range"]::-moz-range-track,
+  .neighbor-action-row input[type="range"]::-moz-range-track,
   .time-row input[type="range"]::-moz-range-track,
   .gen-slider-row input[type="range"]::-moz-range-track {
     height: 4px;
@@ -2085,6 +2131,7 @@
   .modal-card input[type="range"]::-webkit-slider-thumb,
   .settings-panel input[type="range"]::-webkit-slider-thumb,
   .range-row input[type="range"]::-webkit-slider-thumb,
+  .neighbor-action-row input[type="range"]::-webkit-slider-thumb,
   .time-row input[type="range"]::-webkit-slider-thumb,
   .gen-slider-row input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -2105,6 +2152,7 @@
   .modal-card input[type="range"]::-moz-range-thumb,
   .settings-panel input[type="range"]::-moz-range-thumb,
   .range-row input[type="range"]::-moz-range-thumb,
+  .neighbor-action-row input[type="range"]::-moz-range-thumb,
   .time-row input[type="range"]::-moz-range-thumb,
   .gen-slider-row input[type="range"]::-moz-range-thumb {
     width: 18px;
@@ -3879,6 +3927,25 @@
     <div class="player-stat-total">
       <span>Contract</span>
       <strong id="neighbor-stat-contract-address">-</strong>
+    </div>
+    <div class="neighbor-action-panel" aria-label="Round action controls">
+      <label class="neighbor-action-row">Action
+        <select id="neighbor-round-action">
+          <option value="attack">Attack</option>
+          <option value="defend" selected>Defend</option>
+          <option value="build">Build</option>
+        </select>
+      </label>
+      <div class="neighbor-action-extra" id="neighbor-attack-controls" hidden>
+        <label class="neighbor-action-row">Target
+          <select id="neighbor-attack-target"></select>
+        </label>
+        <label class="neighbor-action-row">Gold
+          <input id="neighbor-wager-gold" type="range" min="0" max="0" step="1" />
+          <output id="neighbor-wager-gold-value">0</output>
+        </label>
+        <div class="neighbor-action-note" id="neighbor-wager-note" hidden>No gold available for an attack wager.</div>
+      </div>
     </div>
   </div>
 
@@ -12191,6 +12258,7 @@
     for (const slot of slots) SURROUNDING_NEIGHBOR_SLOTS.push(slot);
     buildSurroundingLand();
     rebuildNeighborSlotButtons();
+    if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
   }
 
   // -------- neighbor stats panel --------
@@ -12198,8 +12266,23 @@
   const neighborStatsPanelEl = document.getElementById('neighbor-stats-panel');
   const neighborStatsTitleEl = document.getElementById('neighbor-stats-title');
   const neighborStatsCloseEl = document.getElementById('neighbor-stats-close');
+  const neighborRoundActionEl = document.getElementById('neighbor-round-action');
+  const neighborAttackControlsEl = document.getElementById('neighbor-attack-controls');
+  const neighborAttackTargetEl = document.getElementById('neighbor-attack-target');
+  const neighborWagerGoldEl = document.getElementById('neighbor-wager-gold');
+  const neighborWagerGoldValueEl = document.getElementById('neighbor-wager-gold-value');
+  const neighborWagerNoteEl = document.getElementById('neighbor-wager-note');
   const neighborSlotButtonById = new Map();
   let activeNeighborSlotId = null;
+  // Temporary frontend-only round action state.
+  // TODO(contract/indexer): hydrate this from indexed round state later.
+  // TODO(commit/reveal): submit the selected action through commit/reveal once
+  // real round submission exists. Attack wager maps to contract gold wager.
+  const roundActionState = {
+    selectedAction: 'defend',
+    selectedTargetNeighborId: null,
+    wagerAmount: 0,
+  };
 
   function isClickableNeighborSlot(slot) {
     return !!slot && !!slot.occupied;
@@ -12218,6 +12301,80 @@
 
   function statsForNeighborSlot(slot) {
     return Object.assign(defaultNeighborStats(slot), (slot && slot.stats) || {});
+  }
+
+  function activeNeighborSlots() {
+    return SURROUNDING_NEIGHBOR_SLOTS.filter(slot => isClickableNeighborSlot(slot));
+  }
+
+  function currentGoldAmount() {
+    return Math.max(0, Math.round(resources.gold || 0));
+  }
+
+  function ensureRoundActionTarget() {
+    const activeSlots = activeNeighborSlots();
+    if (!activeSlots.length) {
+      roundActionState.selectedTargetNeighborId = null;
+      return null;
+    }
+    const current = activeSlots.find(slot => slot.id === roundActionState.selectedTargetNeighborId);
+    const next = current || activeSlots[0];
+    roundActionState.selectedTargetNeighborId = next.id;
+    return next;
+  }
+
+  function clampRoundActionWager(preferMinimum) {
+    const maxGold = currentGoldAmount();
+    const minGold = roundActionState.selectedAction === 'attack' && maxGold > 0 ? 1 : 0;
+    let wager = Math.round(Number(roundActionState.wagerAmount) || 0);
+    if (preferMinimum && wager < minGold) wager = minGold;
+    if (wager > maxGold) wager = maxGold;
+    if (wager < minGold) wager = minGold;
+    if (maxGold <= 0) wager = 0;
+    roundActionState.wagerAmount = wager;
+    return wager;
+  }
+
+  function populateAttackTargetOptions() {
+    if (!neighborAttackTargetEl) return;
+    const slots = activeNeighborSlots();
+    neighborAttackTargetEl.innerHTML = '';
+    if (!slots.length) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No active neighbors';
+      neighborAttackTargetEl.appendChild(opt);
+      neighborAttackTargetEl.disabled = true;
+      roundActionState.selectedTargetNeighborId = null;
+      return;
+    }
+    const selected = ensureRoundActionTarget();
+    for (const slot of slots) {
+      const opt = document.createElement('option');
+      opt.value = slot.id;
+      opt.textContent = slot.label || slot.id;
+      neighborAttackTargetEl.appendChild(opt);
+    }
+    neighborAttackTargetEl.disabled = false;
+    neighborAttackTargetEl.value = selected ? selected.id : slots[0].id;
+  }
+
+  function syncRoundActionControls(preferMinimumWager = false) {
+    if (neighborRoundActionEl) neighborRoundActionEl.value = roundActionState.selectedAction;
+    const attacking = roundActionState.selectedAction === 'attack';
+    if (neighborAttackControlsEl) neighborAttackControlsEl.hidden = !attacking;
+    if (attacking) populateAttackTargetOptions();
+
+    const gold = currentGoldAmount();
+    const wager = clampRoundActionWager(preferMinimumWager || attacking);
+    if (neighborWagerGoldEl) {
+      neighborWagerGoldEl.min = gold > 0 ? '1' : '0';
+      neighborWagerGoldEl.max = String(gold);
+      neighborWagerGoldEl.value = String(wager);
+      neighborWagerGoldEl.disabled = !attacking || gold <= 0;
+    }
+    if (neighborWagerGoldValueEl) neighborWagerGoldValueEl.textContent = String(wager);
+    if (neighborWagerNoteEl) neighborWagerNoteEl.hidden = !(attacking && gold <= 0);
   }
 
   function setNeighborStat(id, value, percent) {
@@ -12249,6 +12406,7 @@
     if (neighborEl) neighborEl.textContent = stats.neighbor || '-';
     if (contractEl) contractEl.textContent = stats.contractAddress || '-';
     neighborStatsPanelEl.hidden = false;
+    syncRoundActionControls(true);
     updateNeighborSlotActiveButtons();
   }
 
@@ -12266,7 +12424,26 @@
   }
 
   if (neighborStatsCloseEl) neighborStatsCloseEl.addEventListener('click', closeNeighborStats);
+  if (neighborRoundActionEl) {
+    neighborRoundActionEl.addEventListener('change', () => {
+      roundActionState.selectedAction = neighborRoundActionEl.value || 'defend';
+      syncRoundActionControls(true);
+    });
+  }
+  if (neighborAttackTargetEl) {
+    neighborAttackTargetEl.addEventListener('change', () => {
+      roundActionState.selectedTargetNeighborId = neighborAttackTargetEl.value || null;
+      syncRoundActionControls(false);
+    });
+  }
+  if (neighborWagerGoldEl) {
+    neighborWagerGoldEl.addEventListener('input', () => {
+      roundActionState.wagerAmount = Math.round(Number(neighborWagerGoldEl.value) || 0);
+      syncRoundActionControls(false);
+    });
+  }
   window.__tinyworldNeighborSlots = SURROUNDING_NEIGHBOR_SLOTS;
+  window.__tinyworldRoundActionState = roundActionState;
   window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
   buildSurroundingLand();
   rebuildNeighborSlotButtons();
@@ -14761,6 +14938,7 @@
     for (const key of RESOURCE_KEYS) {
       setPlayerStat(key, resources[key] || 0, clampStatPercent(resources[key] || 0, 100));
     }
+    if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
   }
 
   function schedulePlayerStatsUpdate() {

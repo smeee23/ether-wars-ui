@@ -13,6 +13,7 @@ Use this while the Resources model is frontend/mock-state only.
 - If a placement cannot afford its gold cost, return without calling `setCell()` or `addCellExtra()`.
 - Resource placement audio should use the existing SFX helpers. Spend failures play the rejection clip in the spend helper; successes play after `setCell()` / `addCellExtra()` mutates the world.
 - Update the User Stats panel through `RESOURCE_KEYS`, `setPlayerStat()`, and `updatePlayerStatsPanel()`.
+- Mock round-action UI can read `resources.gold` for attack wagers, but must remain frontend-only until commit/reveal and contract/indexer state are explicitly added.
 - Leave contract, wallet, indexer, and elimination behavior out until explicitly requested.
 
 Validation:
