@@ -360,8 +360,10 @@
   }
   .crowd-panel {
     position: fixed;
-    top: 396px;
-    right: 14px;
+    top: auto;
+    right: auto;
+    bottom: 72px;
+    left: 74px;
     z-index: 42;
     width: 248px;
     max-height: calc(100vh - 190px);
@@ -379,13 +381,16 @@
     backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
-  .player-stats-panel,
-  .neighbor-stats-panel {
+  .player-stats-panel {
     position: fixed;
-    top: 396px;
-    right: 276px;
+    top: auto;
+    right: 14px;
+    top: 324px;
     z-index: 42;
-    width: 220px;
+    width: 300px;
+    max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 132px);
+    overflow: auto;
     background: rgba(255, 255, 255, 0.76);
     border: 1px solid rgba(80, 70, 54, 0.22);
     border-radius: 16px;
@@ -400,27 +405,12 @@
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
   .neighbor-stats-panel {
-    top: auto;
-    bottom: 72px;
-    left: 74px;
-    right: auto;
-  }
-  .player-stats-panel {
-    top: auto;
-    right: auto;
-    bottom: 198px;
-    left: 50%;
-    width: 520px;
-    max-width: calc(100vw - 32px);
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    column-gap: 14px;
-    row-gap: 8px;
-    transform: translateX(-50%);
-  }
-  .player-stats-panel h3 {
-    grid-column: 1 / -1;
+    border-top: 1px solid rgba(80, 70, 54, 0.16);
+    margin-top: 2px;
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
   }
   .neighbor-stats-panel[hidden] {
     display: none;
@@ -445,20 +435,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-  }
-  .neighbor-stats-close {
-    width: 22px;
-    height: 22px;
-    border: 1px solid rgba(80, 70, 54, 0.22);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.64);
-    color: var(--ink);
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .neighbor-stats-close:hover {
-    background: rgba(255, 255, 255, 0.9);
   }
   .neighbor-slot-buttons {
     position: fixed;
@@ -617,39 +593,34 @@
     display: flex;
     gap: 6px;
   }
-  .crowd-actions .btn { flex: 1; padding: 7px 8px; font-size: 11px; }
+  .neighbor-action-buttons {
+    display: flex;
+    gap: 6px;
+  }
+  .crowd-actions .btn,
+  .neighbor-action-buttons .btn { flex: 1; padding: 7px 8px; font-size: 11px; }
   @media (max-width: 900px) {
     .crowd-panel {
       top: auto;
-      bottom: 220px;
-      right: 8px;
-      width: 210px;
-      max-height: 42vh;
-    }
-    .player-stats-panel {
-      top: auto;
       right: auto;
-      bottom: 90px;
-      left: 50%;
-      width: min(520px, calc(100vw - 24px));
-      max-height: 42vh;
-      transform: translateX(-50%);
-    }
-    .neighbor-stats-panel {
-      top: auto;
       bottom: 72px;
       left: 8px;
       width: 210px;
       max-height: 42vh;
     }
+    .player-stats-panel {
+      top: auto;
+      right: 8px;
+      bottom: 156px;
+      width: min(300px, calc(100vw - 24px));
+      max-height: 42vh;
+    }
   }
   @media (max-width: 560px) {
     .player-stats-panel {
-      right: auto;
-      bottom: 86px;
-      left: 50%;
+      right: 8px;
+      bottom: 148px;
       width: calc(100vw - 24px);
-      grid-template-columns: 1fr;
       max-height: 30vh;
     }
   }
@@ -3863,7 +3834,7 @@
     </div>
   </div>
 
-  <div class="player-stats-panel" id="player-stats-panel" aria-label="Player stats">
+  <div class="player-stats-panel" id="player-stats-panel" aria-label="Stats and actions">
     <h3>User stats</h3>
     <div class="player-stat">
       <span>Gold</span>
@@ -3890,61 +3861,70 @@
       <span class="player-stat-bar"><span class="player-stat-fill army" id="player-stat-army-bar"></span></span>
       <span class="player-stat-value" id="player-stat-army">0</span>
     </div>
-  </div>
+    <div class="player-stat-total">
+      <span>Round number</span>
+      <strong id="player-stat-round-number">1</strong>
+    </div>
+    <div class="player-stat-total">
+      <span>Population</span>
+      <strong id="player-stat-population">0</strong>
+    </div>
 
-  <div class="neighbor-stats-panel" id="neighbor-stats-panel" aria-label="Neighbor stats" hidden>
-    <div class="stats-panel-header">
-      <h3 id="neighbor-stats-title">Neighbor</h3>
-      <button class="neighbor-stats-close" id="neighbor-stats-close" type="button" aria-label="Close neighbor stats">X</button>
-    </div>
-    <div class="player-stat">
-      <span>Army</span>
-      <span class="player-stat-bar"><span class="player-stat-fill army" id="neighbor-stat-army-bar"></span></span>
-      <span class="player-stat-value" id="neighbor-stat-army">0</span>
-    </div>
-    <div class="player-stat">
-      <span>Food</span>
-      <span class="player-stat-bar"><span class="player-stat-fill food" id="neighbor-stat-food-bar"></span></span>
-      <span class="player-stat-value" id="neighbor-stat-food">0</span>
-    </div>
-    <div class="player-stat">
-      <span>Trade</span>
-      <span class="player-stat-bar"><span class="player-stat-fill trade" id="neighbor-stat-trade-bar"></span></span>
-      <span class="player-stat-value" id="neighbor-stat-trade">0</span>
-    </div>
-    <div class="player-stat-total">
-      <span>Lands conquered</span>
-      <strong id="neighbor-stat-land-conquered">0</strong>
-    </div>
-    <div class="player-stat-total">
-      <span>Last action</span>
-      <strong id="neighbor-stat-neighbor">-</strong>
-    </div>
-    <div class="player-stat-total">
-      <span>Last action against</span>
-      <strong id="neighbor-stat-neighbor">-</strong>
-    </div>
-    <div class="player-stat-total">
-      <span>Contract</span>
-      <strong id="neighbor-stat-contract-address">-</strong>
-    </div>
-    <div class="neighbor-action-panel" aria-label="Round action controls">
-      <label class="neighbor-action-row">Action
-        <select id="neighbor-round-action">
-          <option value="attack">Attack</option>
-          <option value="defend" selected>Defend</option>
-          <option value="build">Build</option>
-        </select>
-      </label>
-      <div class="neighbor-action-extra" id="neighbor-attack-controls" hidden>
-        <label class="neighbor-action-row">Target
-          <select id="neighbor-attack-target"></select>
+    <div class="neighbor-stats-panel" id="neighbor-stats-panel" aria-label="Neighbor stats">
+      <div class="stats-panel-header">
+        <h3 id="neighbor-stats-title">Neighbor</h3>
+      </div>
+      <div class="player-stat">
+        <span>Gold</span>
+        <span class="player-stat-bar"><span class="player-stat-fill gold" id="neighbor-stat-gold-bar"></span></span>
+        <span class="player-stat-value" id="neighbor-stat-gold">0</span>
+      </div>
+      <div class="player-stat">
+        <span>Food</span>
+        <span class="player-stat-bar"><span class="player-stat-fill food" id="neighbor-stat-food-bar"></span></span>
+        <span class="player-stat-value" id="neighbor-stat-food">0</span>
+      </div>
+      <div class="player-stat">
+        <span>Water</span>
+        <span class="player-stat-bar"><span class="player-stat-fill water" id="neighbor-stat-water-bar"></span></span>
+        <span class="player-stat-value" id="neighbor-stat-water">0</span>
+      </div>
+      <div class="player-stat">
+        <span>Shelter</span>
+        <span class="player-stat-bar"><span class="player-stat-fill shelter" id="neighbor-stat-shelter-bar"></span></span>
+        <span class="player-stat-value" id="neighbor-stat-shelter">0</span>
+      </div>
+      <div class="player-stat">
+        <span>Army</span>
+        <span class="player-stat-bar"><span class="player-stat-fill army" id="neighbor-stat-army-bar"></span></span>
+        <span class="player-stat-value" id="neighbor-stat-army">0</span>
+      </div>
+      <div class="player-stat-total">
+        <span>Last action</span>
+        <strong id="neighbor-stat-neighbor">-</strong>
+      </div>
+      <div class="neighbor-action-panel" aria-label="Round action controls">
+        <label class="neighbor-action-row">Action
+          <select id="neighbor-round-action">
+            <option value="attack">Attack</option>
+            <option value="defend" selected>Defend</option>
+            <option value="build">Build</option>
+          </select>
         </label>
-        <label class="neighbor-action-row">Gold
-          <input id="neighbor-wager-gold" type="range" min="0" max="0" step="1" />
-          <output id="neighbor-wager-gold-value">0</output>
-        </label>
-        <div class="neighbor-action-note" id="neighbor-wager-note" hidden>No gold available for an attack wager.</div>
+        <div class="neighbor-action-extra" id="neighbor-attack-controls" hidden>
+          <label class="neighbor-action-row">Target
+            <select id="neighbor-attack-target"></select>
+          </label>
+          <label class="neighbor-action-row">Gold
+            <input id="neighbor-wager-gold" type="range" min="0" max="0" step="1" />
+            <output id="neighbor-wager-gold-value">0</output>
+          </label>
+          <div class="neighbor-action-note" id="neighbor-wager-note" hidden>No gold available for an attack wager.</div>
+        </div>
+        <div class="neighbor-action-buttons">
+          <button class="btn" id="neighbor-commit-action" type="button">Commit</button>
+          <button class="btn" id="neighbor-reveal-action" type="button">Reveal</button>
+        </div>
       </div>
     </div>
   </div>
@@ -12247,7 +12227,7 @@
       if (!slot || !['north', 'east', 'south', 'west'].includes(slot.edge)) continue;
       neighborSlotById.set(slot.id, slot);
       surroundingLandGroup.add(makeSurroundingLandSlot(slot));
-      if (isClickableNeighborSlot(slot)) neighborHitGroup.add(makeNeighborHitSlot(slot));
+      neighborHitGroup.add(makeNeighborHitSlot(slot));
     }
     updateNeighborSlotHighlights();
   }
@@ -12258,6 +12238,7 @@
     for (const slot of slots) SURROUNDING_NEIGHBOR_SLOTS.push(slot);
     buildSurroundingLand();
     rebuildNeighborSlotButtons();
+    ensureSelectedNeighborStats();
     if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
   }
 
@@ -12265,7 +12246,6 @@
   const neighborSlotButtonsEl = document.getElementById('neighbor-slot-buttons');
   const neighborStatsPanelEl = document.getElementById('neighbor-stats-panel');
   const neighborStatsTitleEl = document.getElementById('neighbor-stats-title');
-  const neighborStatsCloseEl = document.getElementById('neighbor-stats-close');
   const neighborRoundActionEl = document.getElementById('neighbor-round-action');
   const neighborAttackControlsEl = document.getElementById('neighbor-attack-controls');
   const neighborAttackTargetEl = document.getElementById('neighbor-attack-target');
@@ -12290,12 +12270,12 @@
 
   function defaultNeighborStats(slot) {
     return {
+      gold: slot && slot.occupied ? 10 : 0,
       army: slot && slot.occupied ? 10 : 0,
       food: slot && slot.occupied ? 10 : 0,
-      trade: slot && slot.occupied ? 10 : 0,
-      landConquered: slot && slot.occupied ? 1 : 0,
+      water: slot && slot.occupied ? 10 : 0,
+      shelter: slot && slot.occupied ? 10 : 0,
       neighbor: slot && slot.occupied ? 'Occupied' : 'Open land',
-      contractAddress: '0x2fe5b...67e4c',
     };
   }
 
@@ -12305,6 +12285,10 @@
 
   function activeNeighborSlots() {
     return SURROUNDING_NEIGHBOR_SLOTS.filter(slot => isClickableNeighborSlot(slot));
+  }
+
+  function defaultSelectedNeighborSlot() {
+    return activeNeighborSlots()[0] || SURROUNDING_NEIGHBOR_SLOTS.find(Boolean) || null;
   }
 
   function currentGoldAmount() {
@@ -12396,24 +12380,20 @@
     const stats = statsForNeighborSlot(slot);
     activeNeighborSlotId = slot.id;
     if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = slot.label || 'Neighbor';
+    setNeighborStat('gold', stats.gold, stats.gold);
     setNeighborStat('army', stats.army, stats.army);
     setNeighborStat('food', stats.food, stats.food);
-    setNeighborStat('trade', stats.trade, stats.trade);
-    const landEl = document.getElementById('neighbor-stat-land-conquered');
+    setNeighborStat('water', stats.water, stats.water);
+    setNeighborStat('shelter', stats.shelter, stats.shelter);
     const neighborEl = document.getElementById('neighbor-stat-neighbor');
-    const contractEl = document.getElementById('neighbor-stat-contract-address');
-    if (landEl) landEl.textContent = String(Math.round(stats.landConquered || 0));
     if (neighborEl) neighborEl.textContent = stats.neighbor || '-';
-    if (contractEl) contractEl.textContent = stats.contractAddress || '-';
-    neighborStatsPanelEl.hidden = false;
     syncRoundActionControls(true);
     updateNeighborSlotActiveButtons();
   }
 
-  function closeNeighborStats() {
-    activeNeighborSlotId = null;
-    if (neighborStatsPanelEl) neighborStatsPanelEl.hidden = true;
-    updateNeighborSlotActiveButtons();
+  function ensureSelectedNeighborStats() {
+    const current = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
+    openNeighborStats(current || defaultSelectedNeighborSlot());
   }
 
   function rebuildNeighborSlotButtons() {
@@ -12423,7 +12403,6 @@
     updateNeighborSlotActiveButtons();
   }
 
-  if (neighborStatsCloseEl) neighborStatsCloseEl.addEventListener('click', closeNeighborStats);
   if (neighborRoundActionEl) {
     neighborRoundActionEl.addEventListener('change', () => {
       roundActionState.selectedAction = neighborRoundActionEl.value || 'defend';
@@ -12447,6 +12426,7 @@
   window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
   buildSurroundingLand();
   rebuildNeighborSlotButtons();
+  ensureSelectedNeighborStats();
 
   // -------- home board border --------
   // No visible board marker. The old dark rectangle/outline under the start
@@ -14993,6 +14973,11 @@
     for (const key of RESOURCE_KEYS) {
       setPlayerStat(key, resources[key] || 0, clampStatPercent(resources[key] || 0, 100));
     }
+    const stats = collectPlayerStats();
+    const roundEl = document.getElementById('player-stat-round-number');
+    const populationEl = document.getElementById('player-stat-population');
+    if (roundEl) roundEl.textContent = String(stats.roundNumber);
+    if (populationEl) populationEl.textContent = String(Math.round(stats.population || 0));
     if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
   }
 
@@ -15534,7 +15519,7 @@
       while (n && !(n.userData && n.userData.neighborHitArea)) n = n.parent;
       if (!n || !n.visible || !n.userData) continue;
       const slot = neighborSlotById.get(n.userData.neighborId);
-      if (isClickableNeighborSlot(slot)) return slot;
+      if (slot) return slot;
     }
     return null;
   }
