@@ -4863,9 +4863,9 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
-  let currentTodMinutes = 0;
+  let currentTodMinutes = 900;
   const TOP_H = 0.18;     // grass slab thickness
-  const WEATHER_SURFACE_PAD = 0.14;
+  const WEATHER_SURFACE_PAD = 0.84;
   const WEATHER_DECAL_LIFT = 0.09;
   const WEATHER_RIPPLE_LIFT = 0.10;
   const DIRT_H = 0.55;    // dirt block height (visible side)
@@ -10139,70 +10139,123 @@
   function makeHomeAsteroidUnderside() {
     const group = new THREE.Group();
     group.name = 'homeAsteroidUnderside';
-    group.userData = { visualOnly: true };
+    group.userData = { visualOnly: true, nonInteractive: true };
 
     const half = GRID * TILE * 0.5;
-    const segmentsPerSide = 6;
-    const edge = [];
-    function addEdgePoint(x, z) {
-      edge.push({ x, z });
-    }
-    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(-half + (GRID * TILE * i) / segmentsPerSide, -half);
-    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(half, -half + (GRID * TILE * i) / segmentsPerSide);
-    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(half - (GRID * TILE * i) / segmentsPerSide, half);
-    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(-half, half - (GRID * TILE * i) / segmentsPerSide);
-
-    const rings = [
-      { y: TOP_H + 0.02, scale: 1.035, wobble: 0.12 },
-      { y: -DIRT_H - 0.02, scale: 1.18, wobble: 0.30 },
-      { y: -DIRT_H - 0.95, scale: 0.98, wobble: 0.50 },
-      { y: -DIRT_H - 1.95, scale: 0.70, wobble: 0.60 },
-      { y: -DIRT_H - 3.05, scale: 0.42, wobble: 0.50 },
-      { y: -DIRT_H - 4.20, scale: 0.18, wobble: 0.24 },
+    const HORIZON_SEGMENTS = 32;
+    const UNDERSIDE_LEVELS = 9;
+    const UNDERSIDE_DEPTH = 5.8;
+    const TAPER_AMOUNT = 0.82;
+    const RIM_PAD = 0.82;
+    const RIM_COLLAR_OVERLAP = 0.16;
+    const IRREGULARITY = 0.42;
+    const CRATER_COUNT = 18;
+    const litMat = terrainRiserMaterial(BASE_TERRAIN);
+    const midMat = M.stoneDk || litMat;
+    const shadowMat = M.rockDk || midMat;
+    const materialBuckets = [
+      { mat: litMat, positions: [] },
+      { mat: midMat, positions: [] },
+      { mat: shadowMat, positions: [] },
     ];
-    const ringPts = rings.map((ring, ri) => edge.map((p, i) => {
-      const a = Math.atan2(p.z, p.x);
-      const wobble = (cellRand(i, ri, 402) - 0.5) * ring.wobble;
-      return {
-        x: p.x * ring.scale + Math.cos(a) * wobble,
-        y: ring.y + (cellRand(i, ri, 403) - 0.5) * 0.10,
-        z: p.z * ring.scale + Math.sin(a) * wobble,
-      };
-    }));
 
-    const positions = [];
-    function pushTri(a, b, c) {
-      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    function rimNoise(i, level, salt) {
+      return cellRand(i, level, 620 + salt) - 0.5;
     }
-    for (let r = 0; r < ringPts.length - 1; r++) {
-      const upper = ringPts[r];
-      const lower = ringPts[r + 1];
-      for (let i = 0; i < upper.length; i++) {
-        const j = (i + 1) % upper.length;
-        pushTri(upper[i], upper[j], lower[j]);
-        pushTri(upper[i], lower[j], lower[i]);
+    function ringPoint(i, level) {
+      const t = level / (UNDERSIDE_LEVELS - 1);
+      const a = (i / HORIZON_SEGMENTS) * Math.PI * 2;
+      const curve = t * t;
+      const wobble = IRREGULARITY * (1 - t * 0.38);
+      const rx = half + RIM_PAD - (half * TAPER_AMOUNT * curve);
+      const rz = half + RIM_PAD * 0.55 - (half * (TAPER_AMOUNT * 0.92) * curve);
+      const radial = 1 + rimNoise(i, level, 1) * 0.075 + Math.sin(a * 3 + level * 1.7) * 0.025;
+      const ledge = Math.floor(t * 5) * 0.09;
+      return {
+        x: Math.cos(a) * (rx * radial) + rimNoise(i, level, 2) * wobble,
+        y: -DIRT_H - UNDERSIDE_DEPTH * (0.18 * t + 0.82 * curve) - ledge + rimNoise(i, level, 3) * 0.10,
+        z: Math.sin(a) * (rz * radial) + rimNoise(i, level, 4) * wobble,
+      };
+    }
+    function squareCollarPoint(i) {
+      const a = (i / HORIZON_SEGMENTS) * Math.PI * 2;
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      const reach = (half + RIM_COLLAR_OVERLAP) / Math.max(Math.abs(ca), Math.abs(sa));
+      return {
+        x: ca * reach + rimNoise(i, 0, 5) * 0.035,
+        y: -DIRT_H + 0.075 + rimNoise(i, 0, 6) * 0.025,
+        z: sa * reach + rimNoise(i, 0, 7) * 0.035,
+      };
+    }
+    function pushTri(bucket, a, b, c) {
+      bucket.positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    }
+
+    const rings = [];
+    for (let level = 0; level < UNDERSIDE_LEVELS; level++) {
+      const ring = [];
+      for (let i = 0; i < HORIZON_SEGMENTS; i++) ring.push(ringPoint(i, level));
+      rings.push(ring);
+    }
+
+    const collar = [];
+    for (let i = 0; i < HORIZON_SEGMENTS; i++) collar.push(squareCollarPoint(i));
+    const collarBucket = materialBuckets[0];
+    for (let i = 0; i < HORIZON_SEGMENTS; i++) {
+      const j = (i + 1) % HORIZON_SEGMENTS;
+      pushTri(collarBucket, collar[i], rings[0][j], rings[0][i]);
+      pushTri(collarBucket, collar[i], collar[j], rings[0][j]);
+    }
+
+    for (let level = 0; level < rings.length - 1; level++) {
+      const bucket = materialBuckets[level < 2 ? 0 : level < 5 ? 1 : 2];
+      const upper = rings[level];
+      const lower = rings[level + 1];
+      for (let i = 0; i < HORIZON_SEGMENTS; i++) {
+        const j = (i + 1) % HORIZON_SEGMENTS;
+        pushTri(bucket, upper[i], lower[j], lower[i]);
+        pushTri(bucket, upper[i], upper[j], lower[j]);
       }
     }
 
-    const bottom = { x: 0.18, y: -DIRT_H - 5.45, z: -0.12 };
-    const last = ringPts[ringPts.length - 1];
-    for (let i = 0; i < last.length; i++) {
-      const j = (i + 1) % last.length;
-      pushTri(last[i], last[j], bottom);
+    const bottom = { x: 0.14, y: -DIRT_H - UNDERSIDE_DEPTH - 0.72, z: -0.22 };
+    const bottomBucket = materialBuckets[2];
+    const last = rings[rings.length - 1];
+    for (let i = 0; i < HORIZON_SEGMENTS; i++) {
+      const j = (i + 1) % HORIZON_SEGMENTS;
+      pushTri(bottomBucket, last[i], last[j], bottom);
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
-    geo.computeVertexNormals();
-
-    const asteroidMat = new THREE.MeshLambertMaterial({
-      color: 0x5f5b52,
-      flatShading: true,
-      side: THREE.DoubleSide,
+    materialBuckets.forEach((bucket, bi) => {
+      if (!bucket.positions.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(bucket.positions), 3));
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, bucket.mat);
+      mesh.name = bi === 0 ? 'asteroidLitCrescent' : bi === 1 ? 'asteroidMidRock' : 'asteroidShadowBody';
+      mesh.userData = { visualOnly: true, nonInteractive: true };
+      group.add(mesh);
     });
-    const body = new THREE.Mesh(geo, asteroidMat);
-    body.userData = { visualOnly: true };
-    group.add(body);
+
+    const craterGeo = new THREE.DodecahedronGeometry(1, 0);
+    for (let c = 0; c < CRATER_COUNT; c++) {
+      const level = 1 + Math.floor(cellRand(c, 0, 650) * 4);
+      const i = Math.floor(cellRand(c, 0, 651) * HORIZON_SEGMENTS);
+      const p = rings[level][i];
+      const size = 0.14 + cellRand(c, 0, 652) * 0.28;
+      const crater = new THREE.Mesh(craterGeo, shadowMat);
+      crater.name = 'asteroidCraterFacet';
+      crater.position.set(p.x * 1.006, p.y + 0.03, p.z * 1.006);
+      crater.scale.set(size * (1.15 + cellRand(c, 0, 653) * 0.65), size * 0.10, size * (0.75 + cellRand(c, 0, 654) * 0.55));
+      crater.rotation.set(
+        cellRand(c, 0, 655) * Math.PI,
+        cellRand(c, 0, 656) * Math.PI,
+        cellRand(c, 0, 657) * Math.PI,
+      );
+      crater.userData = { visualOnly: true, nonInteractive: true };
+      group.add(crater);
+    }
 
     return castReceive(group);
   }
@@ -21298,6 +21351,8 @@
           "bush",
           "cow",
           "sheep",
+          "watch-tower",
+          "temple",
           "voxel-build"
         ]
       },
@@ -24165,6 +24220,95 @@
     if (total > 0) console.info('[stilts-migration] flattened houses-on-stilts in saved state');
   })();
 
+  // One-shot cleanup for autosaves produced while applyState filled every
+  // omitted/default home cell with grass instead of BASE_TERRAIN. Those
+  // restores could then re-save a dense carpet of plain empty grass cells.
+  (function migrateGrassRestoreFiller() {
+    const FLAG = 'tinyworld:migration:grass-filler.v1';
+    try {
+      if (localStorage.getItem(FLAG) === '1') return;
+    } catch (_) { return; }
+    function isPlainEmptyGrassCell(c) {
+      if (Array.isArray(c)) {
+        const terrain = c[2];
+        const kind = c[3];
+        const floors = c[4] || 1;
+        const buildingType = c[5] || null;
+        const terrainFloors = c[6] || 1;
+        const fenceSide = c[7] || null;
+        const extras = c[8];
+        const transform = c[9];
+        const appearance = c[10];
+        return terrain === 'grass' && !kind && floors === 1 && !buildingType &&
+          terrainFloors === 1 && !fenceSide &&
+          !(Array.isArray(extras) && extras.length) && !transform && !appearance;
+      }
+      if (c && typeof c === 'object') {
+        return c.terrain === 'grass' && !c.kind && (c.floors || 1) === 1 &&
+          !c.buildingType && (c.terrainFloors || 1) === 1 && !c.fenceSide &&
+          !(Array.isArray(c.extras) && c.extras.length) && !c.transform &&
+          !c.appearance && !c.rotationY && !c.offsetX && !c.offsetZ;
+      }
+      return false;
+    }
+    function cellCoords(c) {
+      if (Array.isArray(c)) return { x: c[0], z: c[1] };
+      if (c && typeof c === 'object') return { x: c.x, z: c.z };
+      return { x: NaN, z: NaN };
+    }
+    function fixState(data) {
+      if (!data || !Array.isArray(data.cells)) return 0;
+      let homeCells = 0;
+      let plainGrass = 0;
+      for (const c of data.cells) {
+        const { x, z } = cellCoords(c);
+        if (!Number.isInteger(x) || !Number.isInteger(z) || x < 0 || x >= HOME_GRID_DEFAULT || z < 0 || z >= HOME_GRID_DEFAULT) continue;
+        homeCells++;
+        if (isPlainEmptyGrassCell(c)) plainGrass++;
+      }
+      const denseHomeSave = homeCells >= Math.floor(HOME_GRID_DEFAULT * HOME_GRID_DEFAULT * 0.8);
+      const densePlainGrass = plainGrass >= Math.floor(HOME_GRID_DEFAULT * HOME_GRID_DEFAULT * 0.35);
+      if (!denseHomeSave || !densePlainGrass) return 0;
+      const before = data.cells.length;
+      data.cells = data.cells.filter(c => {
+        const { x, z } = cellCoords(c);
+        if (!Number.isInteger(x) || !Number.isInteger(z) || x < 0 || x >= HOME_GRID_DEFAULT || z < 0 || z >= HOME_GRID_DEFAULT) return true;
+        return !isPlainEmptyGrassCell(c);
+      });
+      return before - data.cells.length;
+    }
+    function fixStateBlob(raw) {
+      if (!raw) return null;
+      try {
+        const data = JSON.parse(raw);
+        const t = fixState(data);
+        return t > 0 ? JSON.stringify(data) : null;
+      } catch (_) { return null; }
+    }
+    let total = 0;
+    try {
+      const live = localStorage.getItem(STORAGE_KEY);
+      const fixed = fixStateBlob(live);
+      if (fixed) { localStorage.setItem(STORAGE_KEY, fixed); total += 1; }
+    } catch (_) {}
+    try {
+      const raw = localStorage.getItem('tinyworld:worlds.v1');
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          let any = false;
+          for (const slot of list) {
+            if (!slot || !slot.state) continue;
+            if (fixState(slot.state) > 0) any = true;
+          }
+          if (any) { localStorage.setItem('tinyworld:worlds.v1', JSON.stringify(list)); total += 1; }
+        }
+      }
+    } catch (_) {}
+    try { localStorage.setItem(FLAG, '1'); } catch (_) {}
+    if (total > 0) console.info('[grass-filler-migration] removed empty grass filler from saved state');
+  })();
+
   function saveState() {
     if (typeof window.__requestMinimapRepaint === 'function') window.__requestMinimapRepaint();
     if (typeof schedulePlayerStatsUpdate === 'function') schedulePlayerStatsUpdate();
@@ -24372,7 +24516,7 @@
       const x = item.x, z = item.z;
       const o = overrides.get(x + ',' + z);
       const base = {
-        terrain: o ? o.terrain : 'grass',
+        terrain: o ? o.terrain : BASE_TERRAIN,
         terrainFloors: o ? o.terrainFloors : 1,
         tileDelay: (itemIndex % CHUNK) * TILE_STAGGER,
         objectDelay: (itemIndex % CHUNK) * TILE_STAGGER + 0.04,
