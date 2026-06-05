@@ -29,6 +29,7 @@ Use this together with:
 - Small props should fit comfortably inside a tile: ~0.2–0.8 units wide.
 - Houses can occupy one or multiple tiles, but doors/windows must remain readable from the default camera.
 - Flying ambient objects should be scaled to feel like toys above the board, not real-world aircraft; crop duster wingspan target is around 1–1.5 tiles.
+- Board-level decorative landforms, such as a floating asteroid underside, should live as standalone `worldGroup` children with `userData.visualOnly`, no `gx/gz` raycast metadata, and no writes to `world`, `cellMeshes`, `setCell`, `tilePos`, or `makeTile`.
 - Always normalize imported model scale with `Box3` bounds, then apply a target span.
 - Apply orientation fixes once at model root or a named wrapper; do not keep stacking ad-hoc rotations in the animation loop.
 

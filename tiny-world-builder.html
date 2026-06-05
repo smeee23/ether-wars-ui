@@ -599,6 +599,30 @@
   }
   .crowd-actions .btn,
   .neighbor-action-buttons .btn { flex: 1; padding: 7px 8px; font-size: 11px; }
+
+  /* Keep panel chrome on the original ink palette even when the scene flips
+     root --ink/--muted for dark time-of-day backdrops. */
+  .controls,
+  .toolbar,
+  .audio-panel,
+  .crowd-panel,
+  .player-stats-panel,
+  .neighbor-stats-panel,
+  .neighbor-action-panel,
+  .agent-input,
+  .agent-panel,
+  .agent-panel-handle,
+  .xr-panel,
+  .minimap-card,
+  .flyout,
+  .topbar-popup,
+  .world-menu,
+  .modal-card,
+  .settings-panel {
+    --ink: #2a2722;
+    --muted: #6f695f;
+  }
+
   @media (max-width: 900px) {
     .crowd-panel {
       top: auto;
@@ -4057,7 +4081,7 @@
       <button class="world-menu-item" data-action="new" role="menuitem">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
         <span class="world-menu-label">New world</span>
-        <span class="world-menu-hint">clear to grass</span>
+        <span class="world-menu-hint">clear to rock</span>
       </button>
       <button class="world-menu-item" data-action="duplicate" role="menuitem">
         <span class="world-menu-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
@@ -4145,7 +4169,7 @@
     <button class="btn icon" id="stamp-builder" data-tooltip="Stamp builder" aria-label="Open stamp builder">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7l9 5 9-5-9-5Z"/><path d="m3 7 9 5v10l-9-5V7Z"/><path d="m21 7-9 5v10l9-5V7Z"/></svg>
     </button>
-    <button class="btn icon" id="clear" data-tooltip="Clear to grass" aria-label="Clear world to grass">
+    <button class="btn icon" id="clear" data-tooltip="Clear to rock" aria-label="Clear world to rock">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
     </button>
     <button class="btn icon" id="render-settings" data-tooltip="Settings" aria-label="Settings">
@@ -4716,6 +4740,7 @@
   const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
   const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-15.v1';
+  const BASE_TERRAIN = 'stone';
   let GRID = HOME_GRID_DEFAULT;
 
   function isValidGridSize(n) {
@@ -6527,7 +6552,7 @@
     const oz = c.offsetZ || 0;
     const hasTransform = ry || ox || oz;
     const appearance = normalizeAppearance(c.appearance);
-    if (c.terrain !== 'grass' || c.kind || f !== 1 || tf !== 1 || bt || fs || extras || hasTransform || appearance) {
+    if (c.terrain !== BASE_TERRAIN || c.kind || f !== 1 || tf !== 1 || bt || fs || extras || hasTransform || appearance) {
       const out = [x, z, c.terrain, c.kind, f, bt, tf, fs];
       // Always push extras (or null) before the transform / appearance so
       // tuple positions stay stable. Transform is [ry, ox, oz].
@@ -6545,7 +6570,7 @@
 
   function isBorderCellOccupied(cell) {
     if (!cell) return false;
-    return !!(cell.userEdited || cell.kind || (cell.extras && cell.extras.length) || cell.terrain !== 'grass' || terrainLevelForCell(cell) > 1);
+    return !!(cell.userEdited || cell.kind || (cell.extras && cell.extras.length) || cell.terrain !== BASE_TERRAIN || terrainLevelForCell(cell) > 1);
   }
 
   function borderOverlayState(cell, x, z) {
@@ -10106,13 +10131,85 @@
   }
 
   // Keep world sparse. getWorldCell()/ensureWorldCell() provide virtual
-  // default grass cells, which avoids allocating HOME_GRID_MAX² default
+  // default base-terrain cells, which avoids allocating HOME_GRID_MAX² default
   // objects at startup.
 
   const MAX_FLOORS = 8;
 
+  function makeHomeAsteroidUnderside() {
+    const group = new THREE.Group();
+    group.name = 'homeAsteroidUnderside';
+    group.userData = { visualOnly: true };
+
+    const half = GRID * TILE * 0.5;
+    const segmentsPerSide = 6;
+    const edge = [];
+    function addEdgePoint(x, z) {
+      edge.push({ x, z });
+    }
+    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(-half + (GRID * TILE * i) / segmentsPerSide, -half);
+    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(half, -half + (GRID * TILE * i) / segmentsPerSide);
+    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(half - (GRID * TILE * i) / segmentsPerSide, half);
+    for (let i = 0; i < segmentsPerSide; i++) addEdgePoint(-half, half - (GRID * TILE * i) / segmentsPerSide);
+
+    const rings = [
+      { y: TOP_H + 0.02, scale: 1.035, wobble: 0.12 },
+      { y: -DIRT_H - 0.02, scale: 1.18, wobble: 0.30 },
+      { y: -DIRT_H - 0.95, scale: 0.98, wobble: 0.50 },
+      { y: -DIRT_H - 1.95, scale: 0.70, wobble: 0.60 },
+      { y: -DIRT_H - 3.05, scale: 0.42, wobble: 0.50 },
+      { y: -DIRT_H - 4.20, scale: 0.18, wobble: 0.24 },
+    ];
+    const ringPts = rings.map((ring, ri) => edge.map((p, i) => {
+      const a = Math.atan2(p.z, p.x);
+      const wobble = (cellRand(i, ri, 402) - 0.5) * ring.wobble;
+      return {
+        x: p.x * ring.scale + Math.cos(a) * wobble,
+        y: ring.y + (cellRand(i, ri, 403) - 0.5) * 0.10,
+        z: p.z * ring.scale + Math.sin(a) * wobble,
+      };
+    }));
+
+    const positions = [];
+    function pushTri(a, b, c) {
+      positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    }
+    for (let r = 0; r < ringPts.length - 1; r++) {
+      const upper = ringPts[r];
+      const lower = ringPts[r + 1];
+      for (let i = 0; i < upper.length; i++) {
+        const j = (i + 1) % upper.length;
+        pushTri(upper[i], upper[j], lower[j]);
+        pushTri(upper[i], lower[j], lower[i]);
+      }
+    }
+
+    const bottom = { x: 0.18, y: -DIRT_H - 5.45, z: -0.12 };
+    const last = ringPts[ringPts.length - 1];
+    for (let i = 0; i < last.length; i++) {
+      const j = (i + 1) % last.length;
+      pushTri(last[i], last[j], bottom);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geo.computeVertexNormals();
+
+    const asteroidMat = new THREE.MeshLambertMaterial({
+      color: 0x5f5b52,
+      flatShading: true,
+      side: THREE.DoubleSide,
+    });
+    const body = new THREE.Mesh(geo, asteroidMat);
+    body.userData = { visualOnly: true };
+    group.add(body);
+
+    return castReceive(group);
+  }
+
   const worldGroup = new THREE.Group();
   xrWorldRoot.add(worldGroup);
+  worldGroup.add(makeHomeAsteroidUnderside());
 
   const VEHICLE_BASE_WHEEL_RADIUS = 0.13;
   const VEHICLE_BODY_Y_GAP = 0.035;
@@ -11826,7 +11923,7 @@
   };
 
   function defaultCell() {
-    return { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [], appearance: null };
+    return { terrain: BASE_TERRAIN, terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [], appearance: null };
   }
 
   function cloneExtras(extras) {
@@ -11840,7 +11937,7 @@
   function writeWorldIntentCell(x, z, src, userEdited = false) {
     if (!world[x]) world[x] = [];
     const cell = {
-      terrain: (src && src.terrain) || 'grass',
+      terrain: (src && src.terrain) || BASE_TERRAIN,
       terrainFloors: (src && src.terrainFloors) || 1,
       kind: (src && src.kind) || null,
       floors: (src && src.floors) || 1,
@@ -12232,12 +12329,17 @@
     return surroundingLandTintMaterials.get(key);
   }
 
-  function slotCenter(edge, index, slotLen, outsideDepth, insideTint) {
+  function neighborSlotGap() {
+    return Math.max(8, GRID * 0.75) * TILE;
+  }
+
+  function slotCenter(edge, index, slotLen, outsideDepth, outsideGap) {
     const along = -GRID / 2 + slotLen * (index + 0.5);
-    if (edge === 'north') return { landX: along, landZ: -GRID / 2 - outsideDepth / 2, tintX: along, tintZ: -GRID / 2 - outsideDepth / 2 };
-    if (edge === 'south') return { landX: along, landZ:  GRID / 2 + outsideDepth / 2, tintX: along, tintZ:  GRID / 2 + outsideDepth / 2 };
-    if (edge === 'east')  return { landX:  GRID / 2 + outsideDepth / 2, landZ: along, tintX:  GRID / 2 + outsideDepth / 2, tintZ: along };
-    return { landX: -GRID / 2 - outsideDepth / 2, landZ: along, tintX: -GRID / 2 - outsideDepth / 2, tintZ: along };
+    const offset = outsideDepth / 2 + outsideGap;
+    if (edge === 'north') return { landX: along, landZ: -GRID / 2 - offset, tintX: along, tintZ: -GRID / 2 - offset };
+    if (edge === 'south') return { landX: along, landZ:  GRID / 2 + offset, tintX: along, tintZ:  GRID / 2 + offset };
+    if (edge === 'east')  return { landX:  GRID / 2 + offset, landZ: along, tintX:  GRID / 2 + offset, tintZ: along };
+    return { landX: -GRID / 2 - offset, landZ: along, tintX: -GRID / 2 - offset, tintZ: along };
   }
 
   function makeSurroundingLandSlot(slot) {
@@ -12245,13 +12347,13 @@
     const index = slot.index === 1 ? 1 : 0;
     const slotLen = GRID * 0.5 * TILE;
     const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
-    const insideTint = Math.min(0.9, Math.max(0.55, GRID * 0.055)) * TILE;
+    const outsideGap = neighborSlotGap();
     const isHorizontal = edge === 'north' || edge === 'south';
     const landW = isHorizontal ? slotLen : outsideDepth;
     const landD = isHorizontal ? outsideDepth : slotLen;
     const tintW = isHorizontal ? slotLen : outsideDepth;
     const tintD = isHorizontal ? outsideDepth : slotLen;
-    const pos = slotCenter(edge, index, slotLen, outsideDepth, insideTint);
+    const pos = slotCenter(edge, index, slotLen, outsideDepth, outsideGap);
     const group = new THREE.Group();
     group.name = 'surrounding-land-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
@@ -12281,11 +12383,11 @@
     const index = slot.index === 1 ? 1 : 0;
     const slotLen = GRID * 0.5 * TILE;
     const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
-    const insideTint = Math.min(0.9, Math.max(0.55, GRID * 0.055)) * TILE;
+    const outsideGap = neighborSlotGap();
     const isHorizontal = edge === 'north' || edge === 'south';
     const hitW = isHorizontal ? slotLen : outsideDepth;
     const hitD = isHorizontal ? outsideDepth : slotLen;
-    const pos = slotCenter(edge, index, slotLen, outsideDepth, insideTint);
+    const pos = slotCenter(edge, index, slotLen, outsideDepth, outsideGap);
     const group = new THREE.Group();
     group.name = 'neighbor-hit-' + slot.id;
     group.userData = {
@@ -12590,7 +12692,7 @@
     for (let x = 0; x < GRID; x++) {
       cells[x] = [];
       for (let z = 0; z < GRID; z++) {
-        cells[x][z] = { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
+        cells[x][z] = { terrain: BASE_TERRAIN, terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
       }
     }
     return cells;
@@ -12730,11 +12832,11 @@
     for (let i = 0; i < 14; i++) {
       const x = Math.floor(cellRand(boardX * 11 + i, boardZ * 13, 0xa1) * GRID);
       const z = Math.floor(cellRand(boardX * 17, boardZ * 19 + i, 0xa2) * GRID);
-      if (cells[x][z].kind || cells[x][z].terrain !== 'grass') continue;
+      if (cells[x][z].kind || cells[x][z].terrain !== BASE_TERRAIN) continue;
       const gx = boardX * GRID + x, gz = boardZ * GRID + z;
       const r = cellRand(gx, gz, 0xa3);
       cells[x][z] = {
-        terrain: 'grass',
+        terrain: BASE_TERRAIN,
         kind: r < 0.55 ? 'tree' : (r < 0.80 ? 'tuft' : 'rock'),
         floors: 1 + Math.floor(cellRand(gx, gz, 0xa4) * 3),
         buildingType: null,
@@ -13559,7 +13661,7 @@
       for (let z = 0; z < GRID; z++) {
         // Only skip cells the user has explicitly edited (userEdited
         // flag). The pre-allocated world[0..HOME_GRID_MAX) rows are full
-        // of default grass that must NOT mask the ghost board — they're
+        // of default base terrain that must NOT mask the ghost board — they're
         // future home cells, not overrides.
         const gx = x + boardX * GRID;
         const gz = z + boardZ * GRID;
@@ -15009,7 +15111,7 @@
 
   function cellCountsAsConquered(cell) {
     if (!cell) return false;
-    return !!(cell.userEdited || cell.kind || cell.terrain !== 'grass' || terrainLevelForCell(cell) > 1);
+    return !!(cell.userEdited || cell.kind || cell.terrain !== BASE_TERRAIN || terrainLevelForCell(cell) > 1);
   }
 
   function collectPlayerStats() {
@@ -15111,11 +15213,11 @@
     const { terrain, terrainFloors, kind = null, floors, buildingType, fenceSide, tileDelay = 0, objectDelay = 0, animate = true, impactDust = true, forceTile = false, rotationY, offsetX, offsetZ, appearance } = opts;
     const prev = ensureWorldCell(x, z);
     const prevVehicleDrivable = isVehicleDrivableCell(prev);
-    let nextTerrain = terrain || 'grass';
+    let nextTerrain = terrain || BASE_TERRAIN;
     let nextKind = kind || null;
     if (nextKind === 'bridge') nextTerrain = 'water';
     else if (CROP_KINDS.has(nextKind)) nextTerrain = 'dirt';
-    else if (nextKind === 'house' && (nextTerrain === 'water' || nextTerrain === 'path' || nextTerrain === 'lava')) nextTerrain = 'grass';
+    else if (nextKind === 'house' && (nextTerrain === 'water' || nextTerrain === 'path' || nextTerrain === 'lava')) nextTerrain = BASE_TERRAIN;
     else if (nextTerrain === 'water' && nextKind !== 'house' && nextKind !== 'rock' && nextKind !== 'ripple' && nextKind !== 'bridge' && nextKind !== 'bridge-rail' && nextKind !== 'voxel-build') nextKind = null;
     else if (nextTerrain === 'lava' && nextKind !== 'rock') nextKind = null;
 
@@ -15363,15 +15465,15 @@
     for (let x = 1; x <= 6; x++) layout[x + ',5'] = { terrain: 'path', kind: null };
     layout['3,2'] = { terrain: 'water', kind: 'bridge', floors: 3 };
 
-    layout['1,4'] = { terrain: 'grass', kind: 'house' };
-    layout['2,4'] = { terrain: 'grass', kind: 'house' };
-    layout['5,4'] = { terrain: 'grass', kind: 'house', buildingType: 'manor', floors: 2 };
-    layout['6,3'] = { terrain: 'grass', kind: 'house', buildingType: 'tower', floors: 3 };
+    layout['1,4'] = { terrain: BASE_TERRAIN, kind: 'house' };
+    layout['2,4'] = { terrain: BASE_TERRAIN, kind: 'house' };
+    layout['5,4'] = { terrain: BASE_TERRAIN, kind: 'house', buildingType: 'manor', floors: 2 };
+    layout['6,3'] = { terrain: BASE_TERRAIN, kind: 'house', buildingType: 'tower', floors: 3 };
 
-    layout['0,0'] = { terrain: 'grass', kind: 'house', floors: 2 };
-    layout['0,1'] = { terrain: 'grass', kind: 'fence' };
-    layout['1,0'] = { terrain: 'grass', kind: 'fence' };
-    layout['1,1'] = { terrain: 'grass', kind: 'fence' };
+    layout['0,0'] = { terrain: BASE_TERRAIN, kind: 'house', floors: 2 };
+    layout['0,1'] = { terrain: BASE_TERRAIN, kind: 'fence' };
+    layout['1,0'] = { terrain: BASE_TERRAIN, kind: 'fence' };
+    layout['1,1'] = { terrain: BASE_TERRAIN, kind: 'fence' };
 
     layout['5,6'] = { terrain: 'dirt', kind: 'wheat' };
     layout['6,6'] = { terrain: 'dirt', kind: 'corn' };
@@ -15380,17 +15482,17 @@
     layout['6,7'] = { terrain: 'dirt', kind: 'pumpkin' };
     layout['7,7'] = { terrain: 'dirt', kind: 'crop' };
 
-    layout['0,6'] = { terrain: 'grass', kind: 'tree' };
-    layout['1,7'] = { terrain: 'grass', kind: 'tree' };
-    layout['5,0'] = { terrain: 'grass', kind: 'rock' };
-    layout['5,1'] = { terrain: 'grass', kind: 'tree' };
-    layout['6,1'] = { terrain: 'grass', kind: 'tree' };
-    layout['7,0'] = { terrain: 'grass', kind: 'rock', floors: 3 };
-    layout['7,1'] = { terrain: 'grass', kind: 'tree', floors: 2 };
-    layout['6,0'] = { terrain: 'grass', kind: 'rock', floors: 2 };
-    layout['0,3'] = { terrain: 'grass', kind: 'tuft' };
-    layout['4,1'] = { terrain: 'grass', kind: 'tuft' };
-    layout['7,3'] = { terrain: 'grass', kind: 'tuft' };
+    layout['0,6'] = { terrain: BASE_TERRAIN, kind: 'tree' };
+    layout['1,7'] = { terrain: BASE_TERRAIN, kind: 'tree' };
+    layout['5,0'] = { terrain: BASE_TERRAIN, kind: 'rock' };
+    layout['5,1'] = { terrain: BASE_TERRAIN, kind: 'tree' };
+    layout['6,1'] = { terrain: BASE_TERRAIN, kind: 'tree' };
+    layout['7,0'] = { terrain: BASE_TERRAIN, kind: 'rock', floors: 3 };
+    layout['7,1'] = { terrain: BASE_TERRAIN, kind: 'tree', floors: 2 };
+    layout['6,0'] = { terrain: BASE_TERRAIN, kind: 'rock', floors: 2 };
+    layout['0,3'] = { terrain: BASE_TERRAIN, kind: 'tuft' };
+    layout['4,1'] = { terrain: BASE_TERRAIN, kind: 'tuft' };
+    layout['7,3'] = { terrain: BASE_TERRAIN, kind: 'tuft' };
 
     // Board tiles are the stage: render them immediately. Props/buildings
     // still land in a diagonal sweep so initial load has motion without the
@@ -15401,7 +15503,7 @@
         const cell = layout[x + ',' + z];
         if (!cell) continue;
         if (!world[x]) world[x] = [];
-        let terrain = cell.terrain || 'grass';
+        let terrain = cell.terrain || BASE_TERRAIN;
         let kind = cell.kind || null;
         if (kind === 'bridge') terrain = 'water';
         else if (CROP_KINDS.has(kind)) terrain = 'dirt';
@@ -16810,7 +16912,7 @@
 
   function eraseCellWithMockResourceRefund(x, z) {
     if (!world[x]) world[x] = [];
-    const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
+    const cell = world[x][z] || { terrain: BASE_TERRAIN, terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
     // Peel decorations off first — tufts / fences sitting alongside
     // the main kind go before the main kind itself goes.
     if (cell.extras && cell.extras.length) {
@@ -16823,9 +16925,9 @@
       setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       return true;
     }
-    if (cell.terrain !== 'grass') {
+    if (cell.terrain !== BASE_TERRAIN) {
       refundMockResourcesForErase({ terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null });
-      setCell(x, z, { terrain: 'grass', terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
+      setCell(x, z, { terrain: BASE_TERRAIN, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       return true;
     }
     return false;
@@ -16856,7 +16958,7 @@
         } else if (selectedTool.kind) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
             const current = getWorldCell(sx, sz);
-            const terrainForKind = selectedTool.terrainOverride || current.terrain || 'grass';
+            const terrainForKind = selectedTool.terrainOverride || current.terrain || BASE_TERRAIN;
             if (!trySpendMockResourcesForPlacement(selectedTool)) return;
             setCell(sx, sz, { kind: selectedTool.kind, terrain: terrainForKind });
             playMockResourcePlacementSuccess(selectedTool);
@@ -16877,7 +16979,7 @@
     if (!resourceRuleForTool(selectedTool) && typeof playSfxForTool === 'function') playSfxForTool(selectedTool);
     // Ensure world row exists
     if (!world[x]) world[x] = [];
-    const cell = world[x][z] || { terrain: 'grass', terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
+    const cell = world[x][z] || { terrain: BASE_TERRAIN, terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [] };
     if (selectedTool.erase) {
       eraseCellWithMockResourceRefund(x, z);
       return;
@@ -16896,7 +16998,7 @@
       // Fresh placement — read buildingType from the active fly-out variant.
       const variant = selectedTool.activeVariant;
       const bType = (variant && variant.buildingType) || null;
-      const terrainForHouse = cell.terrain || 'grass';
+      const terrainForHouse = cell.terrain || BASE_TERRAIN;
       if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       const gt = consumeGhostTransform();
       setCell(x, z, { terrain: terrainForHouse, terrainFloors: terrainLevelForCell(cell), kind: 'house', buildingType: bType, rotationY: gt.rotationY, offsetX: gt.offsetX, offsetZ: gt.offsetZ });
@@ -16907,8 +17009,8 @@
       const stampId = selectedTool.voxelBuildId;
       if (!getVoxelBuildStamp(stampId)) return;
       const gt = consumeGhostTransform();
-      let newTerrain = cell.terrain || 'grass';
-      if (newTerrain === 'water' || newTerrain === 'lava') newTerrain = 'grass';
+      let newTerrain = cell.terrain || BASE_TERRAIN;
+      if (newTerrain === 'water' || newTerrain === 'lava') newTerrain = BASE_TERRAIN;
       setCell(x, z, {
         terrain: newTerrain,
         terrainFloors: terrainLevelForCell(cell),
@@ -17404,7 +17506,7 @@
   function cloneCellIntent(cell) {
     if (!cell) return null;
     return {
-      terrain: cell.terrain || 'grass',
+      terrain: cell.terrain || BASE_TERRAIN,
       terrainFloors: terrainLevelForCell(cell),
       kind: cell.kind || null,
       floors: cell.floors || 1,
@@ -17432,7 +17534,7 @@
     if (next.kind) {
       next.terrain = next.kind === 'bridge' ? 'water'
         : CROP_KINDS.has(next.kind) ? 'dirt'
-        : (current && current.terrain) || next.terrain || 'grass';
+        : (current && current.terrain) || next.terrain || BASE_TERRAIN;
       next.terrainFloors = terrainLevelForCell(current);
     }
     setCell(target.x, target.z, Object.assign({}, next, {
@@ -17959,7 +18061,7 @@
     for (let x = 0; x < GRID; x++)
       for (let z = 0; z < GRID; z++)
         setCell(x, z, {
-          terrain: 'grass',
+          terrain: BASE_TERRAIN,
           terrainFloors: 1,
           kind: null,
           floors: 1,
@@ -22121,7 +22223,7 @@
     function pushCell(x, z, terrain, kind, floors, terrainFloors, buildingType, fenceSide) {
       out.cells.push({
         x, z,
-        terrain: terrain || 'grass',
+        terrain: terrain || BASE_TERRAIN,
         kind: kind || null,
         floors: floors || 1,
         terrainFloors: terrainFloors || 1,
@@ -24155,7 +24257,7 @@
         'chimney','shrub','stone','pebble','bridge-rail','voxel-build',
       ]);
       if (normalizedKind === 'house' && (terrain === 'water' || terrain === 'path' || terrain === 'lava')) {
-        terrain = 'grass';
+        terrain = BASE_TERRAIN;
       }
       if (normalizedKind && FLAT_REQUIRED.has(normalizedKind) && normalizedTerrainFloors > 1) {
         normalizedTerrainFloors = 1;
@@ -24183,7 +24285,7 @@
         offsetZ   = +transform.offsetZ   || 0;
       }
       overrides.set(x + ',' + z, {
-        terrain: terrain || 'grass',
+        terrain: terrain || BASE_TERRAIN,
         terrainFloors: normalizedTerrainFloors,
         kind: normalizedKind,
         floors: normalizedFloors,
@@ -24328,7 +24430,7 @@
 
     function finishApplyState() {
       // Final pass: settle only adjacency-aware terrain. On 32/48 boards,
-      // rebuilding every default grass tile doubled generation cost even
+      // rebuilding every default base terrain tile doubled generation cost even
       // though most cells cannot gain path trims, shore lips, or bridge
       // re-orientation.
       const settle = new Set();
@@ -24451,7 +24553,7 @@
     }
     return {
       x, z,
-      terrain: terrain || 'grass',
+      terrain: terrain || BASE_TERRAIN,
       terrainFloors: terrainFloors || 1,
       kind: kind || null,
       floors: floors || 1,
@@ -24619,7 +24721,7 @@
       if (x < 0 || x >= GRID || z < 0 || z >= GRID) return;
       const cell = getWorldCell(x, z);
       setCell(x, z, {
-        terrain: terrain || cell.terrain || 'grass',
+        terrain: terrain || cell.terrain || BASE_TERRAIN,
         terrainFloors: terrainLevelForCell(cell),
         kind: kind || null,
         floors: floors || 1,
@@ -26499,7 +26601,7 @@
       items.push({ group: 'Scene', label: 'Time & weather…', hint: 'tint, season, weather', run: topBtnAction('time-weather') });
       items.push({ group: 'Scene', label: 'Toggle developer overlay', hint: 'FPS / draws / tris', kbd: '`', run: topBtnAction('dev-mode') });
       items.push({ group: 'World', label: 'Reset world', hint: 'back to the starter scene', run: topBtnAction('reset') });
-      items.push({ group: 'World', label: 'Clear to grass', hint: 'wipe to empty grass', run: topBtnAction('clear') });
+      items.push({ group: 'World', label: 'Clear to rock', hint: 'wipe to empty rock', run: topBtnAction('clear') });
       items.push({ group: 'World', label: 'Run vehicle seed demo', hint: 'map + cars + targets from ' + VEHICLE_DEMO_DEFAULT_SEED, run: () => {
         runSeededVehicleDemo(VEHICLE_DEMO_DEFAULT_SEED);
       } });
