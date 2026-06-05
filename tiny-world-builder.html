@@ -70,7 +70,7 @@
     inset: 0;
     pointer-events: none;
     z-index: 8;
-    opacity: var(--backdrop-strength, 0.78);
+    opacity: var(--backdrop-strength, 0.8);
     background:
       radial-gradient(circle at 14% 18%, rgba(88, 151, 255, 0.28), transparent 28%),
       radial-gradient(circle at 86% 18%, rgba(255, 168, 94, 0.24), transparent 30%),
@@ -3551,6 +3551,33 @@
     to { transform: translate3d(4%, 2%, 0); }
   }
 
+  #space-star-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.95;
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(255,255,255,0.95) 0 1.3px, transparent 1.9px),
+      radial-gradient(circle at 24% 22%, rgba(226,238,255,0.86) 0 1px, transparent 1.7px),
+      radial-gradient(circle at 38% 9%, rgba(255,248,224,0.82) 0 1.2px, transparent 1.9px),
+      radial-gradient(circle at 58% 18%, rgba(255,255,255,0.92) 0 1.4px, transparent 2px),
+      radial-gradient(circle at 78% 8%, rgba(220,234,255,0.84) 0 1px, transparent 1.7px),
+      radial-gradient(circle at 92% 24%, rgba(255,246,220,0.82) 0 1.2px, transparent 1.9px),
+      radial-gradient(circle at 13% 74%, rgba(255,255,255,0.82) 0 1px, transparent 1.8px),
+      radial-gradient(circle at 31% 88%, rgba(224,236,255,0.78) 0 1.2px, transparent 1.9px),
+      radial-gradient(circle at 68% 82%, rgba(255,255,255,0.84) 0 1.1px, transparent 1.8px),
+      radial-gradient(circle at 88% 70%, rgba(255,248,225,0.78) 0 1px, transparent 1.8px);
+    background-size:
+      420px 340px, 360px 310px, 510px 390px, 460px 360px, 390px 330px,
+      540px 420px, 440px 380px, 370px 320px, 500px 400px, 430px 350px;
+    background-position:
+      0 0, 90px 40px, 130px 20px, 30px 120px, 220px 70px,
+      60px 180px, 20px 260px, 180px 230px, 260px 210px, 310px 150px;
+    mask-image: radial-gradient(ellipse at center, transparent 0 30%, rgba(0,0,0,0.22) 44%, #000 62%);
+    -webkit-mask-image: radial-gradient(ellipse at center, transparent 0 30%, rgba(0,0,0,0.22) 44%, #000 62%);
+  }
+
   /* -------- profile / saves -------- */
   .saves-list { list-style: none; padding: 0; margin: 10px 0 0; max-height: 300px; overflow-y: auto; }
   .saves-list li {
@@ -3781,6 +3808,7 @@
 <body>
   <div id="app"></div>
   <div id="root" style="position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;"></div>
+  <div id="space-star-layer" aria-hidden="true"></div>
   <div id="cloud-layer"></div>
   <div id="tod-tint" aria-hidden="true"></div>
 
@@ -4810,7 +4838,7 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
-  let currentTodMinutes = 720;
+  let currentTodMinutes = 0;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.14;
   const WEATHER_DECAL_LIFT = 0.09;
@@ -5029,8 +5057,8 @@
   // Cloud shadow strength — controls per-puff alphaTest so only the
   // denser parts of each cloud cast on the world below.
   let renderCloudShadow = storedNumber(RENDER_LS.cloudShadow, 0.5, 0, 1);
-  let renderDistanceMist = storedNumber(RENDER_LS.distanceMist, 0.28, 0, 1);
-  let renderBackdrop = storedNumber(RENDER_LS.backdrop, 0.78, 0, 1);
+  let renderDistanceMist = storedNumber(RENDER_LS.distanceMist, 0.008, 0, 1);
+  let renderBackdrop = 0;//storedNumber(RENDER_LS.backdrop, 0.008, 0, 1);
   // Pixelation post-process. pixelSize 1 = bypass (no post pass). 2-12 chunkier.
   let renderPixelSize = Math.round(storedNumber(RENDER_LS.pixelSize, 1, 1, 12));
   let renderPixelDepthEdge = storedNumber(RENDER_LS.pixelDepthEdge, 0, 0, 1);
@@ -5068,8 +5096,9 @@
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf4ede0);
-  const defaultSceneBackground = scene.background.clone();
+  scene.background = null;
+  const defaultSceneBackground = new THREE.Color(0xd8d4d3);
+  let currentSkyBgHex = defaultSceneBackground.getHex();
   const xrWorldRoot = new THREE.Group();
   xrWorldRoot.name = 'xr-world-root';
   scene.add(xrWorldRoot);
@@ -5080,13 +5109,13 @@
     // Atmospheric perspective: fade distant scenery toward the live sky
     // colour. This is a colour fade, not per-object opacity or ground mist.
     // AR needs transparent passthrough, not opaque scene fog.
-    if (amount <= 0 || !scene.background) {
+    if (amount <= 0) {
       scene.fog = null;
       return;
     }
     const bgHex = Number.isFinite(colorHex)
       ? colorHex
-      : (scene.background && scene.background.isColor ? scene.background.getHex() : 0xf4ede0);
+      : (scene.background && scene.background.isColor ? scene.background.getHex() : currentSkyBgHex);
     const camDistance = (typeof camera !== 'undefined' && camera && typeof target !== 'undefined')
       ? camera.position.distanceTo(target)
       : 48;
@@ -5480,6 +5509,7 @@
   const target = DEFAULT_TARGET.clone();
   const panRight = new THREE.Vector3();
   const panForward = new THREE.Vector3();
+  var updateSpaceBackground = null;
 
   function maxViewSize() {
     return Math.max(MAX_VIEW_SIZE_BASE, DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE) * 1.35);
@@ -5503,6 +5533,7 @@
     }
     camera.lookAt(target);
     if (typeof updateSunFollow === 'function') updateSunFollow();
+    if (typeof updateSpaceBackground === 'function') updateSpaceBackground();
     applyDistanceMistSettings();
   }
   function clampTargetToHomeBoard() {
@@ -5611,6 +5642,94 @@
     sun.target.updateMatrixWorld();
     sun.shadow.camera.updateProjectionMatrix();
   };
+
+  // -------- space background --------
+  const starsGroup = new THREE.Group();
+  starsGroup.name = 'space-background-stars';
+  starsGroup.userData.nonInteractive = true;
+  xrWorldRoot.add(starsGroup);
+
+  function seededRandom(seed) {
+    let s = seed >>> 0;
+    return function () {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      return s / 4294967296;
+    };
+  }
+
+  function createStarField() {
+    const STAR_COUNT = 260;
+    const STAR_RADIUS_MIN = 72;
+    const STAR_RADIUS_MAX = 124;
+    const STAR_PLANE_CLEARANCE = 34;
+    const STAR_BOARD_CLEARANCE = 34;
+    const rand = seededRandom(93217);
+    const positions = new Float32Array(STAR_COUNT * 3);
+    const colors = new Float32Array(STAR_COUNT * 3);
+    const sunDir = SUN_OFFSET.clone().normalize();
+    const dir = new THREE.Vector3();
+    const color = new THREE.Color();
+    let i = 0;
+    let guard = 0;
+
+    while (i < STAR_COUNT && guard < STAR_COUNT * 80) {
+      guard++;
+      dir.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
+      if (dir.lengthSq() < 0.001) continue;
+      dir.normalize();
+
+      const sunAlignment = dir.dot(sunDir);
+      const shadeBias = 0.18 + (1 - Math.max(-1, Math.min(1, sunAlignment))) * 0.42;
+      if (rand() > shadeBias) continue;
+
+      const radius = STAR_RADIUS_MIN + rand() * (STAR_RADIUS_MAX - STAR_RADIUS_MIN);
+      const y = dir.y * radius;
+      if (Math.abs(y) < STAR_PLANE_CLEARANCE) continue;
+      const x = dir.x * radius;
+      const z = dir.z * radius;
+      if (Math.hypot(x, z) < STAR_BOARD_CLEARANCE) continue;
+      const ix = i * 3;
+      positions[ix] = x;
+      positions[ix + 1] = y;
+      positions[ix + 2] = z;
+
+      const warmth = 0.82 + rand() * 0.18;
+      const brightness = 0.96 + rand() * 0.22;
+      color.setRGB(brightness, brightness * (0.92 + warmth * 0.08), brightness * warmth);
+      colors[ix] = color.r;
+      colors[ix + 1] = color.g;
+      colors[ix + 2] = color.b;
+      i++;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const material = new THREE.PointsMaterial({
+      size: 2.15,
+      sizeAttenuation: false,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.96,
+      depthWrite: false,
+      fog: false,
+    });
+    const stars = new THREE.Points(geometry, material);
+    stars.name = 'star-field';
+    stars.frustumCulled = false;
+    stars.castShadow = false;
+    stars.receiveShadow = false;
+    stars.userData.nonInteractive = true;
+    stars.userData.starCount = STAR_COUNT;
+    starsGroup.add(stars);
+  }
+
+  createStarField();
+  starsGroup.visible = false;
+  updateSpaceBackground = function () {
+    starsGroup.position.set(target.x, target.y, target.z);
+  };
+  updateSpaceBackground();
 
   function applyLightingSettings() {
     // Keep the default flatter and less blown-out now that the post pass is
@@ -25205,7 +25324,7 @@
   function bootApp() {
     if (appBooted) return;
     appBooted = true;
-    initWelcomeDialog();
+    //initWelcomeDialog();
     buildToolbar();
     selectTool(DEFAULT_TOOL);
     if (!loadState()) {
@@ -25822,9 +25941,9 @@
     function bgColorForTod(min) {
       const ANCHORS = [
         { t: 0,    c: 0x0c1226 }, // deep night
-        { t: 420,  c: 0xf2c2a0 }, // dawn
-        { t: 780,  c: 0xc7e1f4 }, // bright day
-        { t: 1170, c: 0xd9784a }, // dusk
+        { t: 420,  c: 0xd2a187 }, // dawn
+        { t: 780,  c: 0x9fbfdd }, // bright day
+        { t: 1170, c: 0xb4573b }, // dusk
         { t: 1380, c: 0x0e1330 },
         { t: 1440, c: 0x0c1226 },
       ];
@@ -25837,6 +25956,11 @@
       }
       return ANCHORS[0].c;
     }
+    function darkenSkyHex(bgHex) {
+      // Early planetary/space palette: darken the final runtime sky after
+      // time-of-day and weather tinting so fog, clear colour, and CSS stay synced.
+      return lerpColor(bgHex, 0x111827, 0.34);
+    }
     function applyLights() {
       captureLightBase();
       if (!lightBase) { console.warn('[lights] no baseline captured'); return; }
@@ -25845,7 +25969,7 @@
       const seasonGround = seasonHemiGround(season);
       try {
         sun.intensity = Math.max(0, lightBase.sunI * (tod.sunI / 1.35) * wx.mul);
-        const sc = wx.tint != null ? lerpColor(tod.sunC, wx.tint, 0.35) : tod.sunC;
+        const sc = wx.tint != null ? lerpColor(tod.sunC, wx.tint, 1.35) : tod.sunC;
         sun.color.setHex(sc);
         hemi.intensity = Math.max(0, lightBase.hemiI * (tod.hemiI / 0.90) * wx.hemiMul);
         if (hemi.intensity > 0.75) hemi.intensity = 0.75;
@@ -25858,8 +25982,10 @@
         // just the canvas darkening behind a static cream backdrop.
         let bgHex = bgColorForTod(todMinutes);
         if (wx.tint != null) bgHex = lerpColor(bgHex, wx.tint, 0.30);
-        if (scene && scene.background) scene.background.setHex(bgHex);
-        if (renderer && renderer.setClearColor) renderer.setClearColor(bgHex, 1);
+        bgHex = darkenSkyHex(bgHex);
+        currentSkyBgHex = bgHex;
+        if (scene) scene.background = null;
+        if (renderer && renderer.setClearColor) renderer.setClearColor(bgHex, 0);
         if (typeof applyDistanceMistSettings === 'function') applyDistanceMistSettings(bgHex);
         // Drive the CSS --bg variable so the page chrome around the
         // canvas (vignette, body backdrop) follows the same colour.
