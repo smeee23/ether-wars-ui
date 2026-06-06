@@ -4863,7 +4863,7 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
-  let currentTodMinutes = 900;
+  let currentTodMinutes = 0;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.84;
   const WEATHER_DECAL_LIFT = 0.09;
@@ -10146,7 +10146,7 @@
     const UNDERSIDE_LEVELS = 10;
     const UNDERSIDE_DEPTH = 5.55;
     const TAPER_AMOUNT = 0.74;
-    const RIM_PAD = 1.52;
+    const RIM_PAD = 7.52;
     const RIM_LIP_INSET = -0.10;
     const RIM_LIP_OUTSET = 1.04;
     const RIM_DROP_OUTSET = 1.34;
@@ -10188,7 +10188,9 @@
       const a = (i / HORIZON_SEGMENTS) * Math.PI * 2;
       const ca = Math.cos(a);
       const sa = Math.sin(a);
-      const reach = (half + outset) / Math.max(Math.abs(ca), Math.abs(sa));
+      const rimPower = 4.8;
+      const rimDenom = Math.pow(Math.pow(Math.abs(ca), rimPower) + Math.pow(Math.abs(sa), rimPower), 1 / rimPower);
+      const reach = (half + outset) / rimDenom;
       const jitter = 0.03 + Math.max(0, outset) * 0.025;
       return {
         x: ca * reach + rimNoise(i, 0, salt) * jitter,
@@ -26276,7 +26278,7 @@
         if (hemi.intensity > 0.75) hemi.intensity = 0.75;
         hemi.color.setHex(tod.hemiSky);
         hemi.groundColor.setHex(lerpColor(tod.hemiGround, seasonGround, 0.45));
-        const ambBoost = (tod.sunI < 0.5) ? 1.6 : 1.0;
+        const ambBoost = (tod.sunI < 0.5) ? 3.0 : 1.0;
         ambient.intensity = Math.max(0, lightBase.ambI * ambBoost);
         // 3D scene background — drives the colour visible past the world
         // edge.  This is what makes 'night' actually look dark instead of
