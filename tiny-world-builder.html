@@ -4384,7 +4384,7 @@
         <strong id="confirm-reset-title">Reset to the starter world?</strong>
         <button class="modal-close" id="confirm-reset-close" title="Close" aria-label="Close">×</button>
       </div>
-      <p class="confirm-copy" id="confirm-reset-copy">This replaces your current build with the preset village. You'll lose anything you've placed on the home grid.</p>
+      <p class="confirm-copy" id="confirm-reset-copy">This clears your current build back to an empty home grid. You'll lose anything you've placed on the home grid.</p>
       <div class="modal-foot confirm-actions">
         <button class="btn confirm-cancel" id="confirm-reset-cancel" type="button">Cancel</button>
         <button class="btn confirm-destructive" id="confirm-reset-ok" type="button">Reset world</button>
@@ -4423,7 +4423,7 @@
         <!-- Farm - Primary / Default -->
         <button class="welcome-option primary" id="welcome-farm" type="button">
           <div class="option-title">Start with the Farm</div>
-          <div class="option-desc">Classic village with houses, crops, river &amp; bridge</div>
+          <div class="option-desc">Empty home grid ready to build on</div>
         </button>
 
         <!-- Vehicle Demo -->
@@ -4434,7 +4434,7 @@
       </div>
 
       <div class="welcome-footer">
-        The Farm is the default starting world. Use <strong>Reset</strong> anytime to return to it.
+        The Farm starts as an empty grid. Use <strong>Reset</strong> anytime to clear back to it.
       </div>
     </form>
   </div>
@@ -15543,7 +15543,7 @@
     });
   }
 
-  // -------- initial scene (matches the reference image) --------
+  // -------- initial scene --------
   function loadInitialScene() {
     // Wipe any existing meshes + animation state so a Reset re-plays the drop.
     for (const key in cellMeshes) {
@@ -15562,77 +15562,8 @@
     maxPumpkinPositions.clear();
     carriagePumpkin = null;
 
-    // Build the layout in one shot so each cell only animates once.
-    const layout = {};
-
-    // Build a richer starter diorama: river + bridge, cottage lane, tiny
-    // turret-wall, farm plots, and landmark rocks. It exercises the adjacency
-    // systems instead of hiding most tools in the palette.
-    for (let x = 0; x < GRID; x++) layout[x + ',2'] = { terrain: 'water', kind: null };
-    for (let z = 0; z < GRID; z++) {
-      if (z !== 2) layout['3,' + z] = { terrain: 'path', kind: null };
-    }
-    for (let x = 1; x <= 6; x++) layout[x + ',5'] = { terrain: 'path', kind: null };
-    layout['3,2'] = { terrain: 'water', kind: 'bridge', floors: 3 };
-
-    layout['1,4'] = { terrain: BASE_TERRAIN, kind: 'house' };
-    layout['2,4'] = { terrain: BASE_TERRAIN, kind: 'house' };
-    layout['5,4'] = { terrain: BASE_TERRAIN, kind: 'house', buildingType: 'manor', floors: 2 };
-    layout['6,3'] = { terrain: BASE_TERRAIN, kind: 'house', buildingType: 'tower', floors: 3 };
-
-    layout['0,0'] = { terrain: BASE_TERRAIN, kind: 'house', floors: 2 };
-    layout['0,1'] = { terrain: BASE_TERRAIN, kind: 'fence' };
-    layout['1,0'] = { terrain: BASE_TERRAIN, kind: 'fence' };
-    layout['1,1'] = { terrain: BASE_TERRAIN, kind: 'fence' };
-
-    layout['5,6'] = { terrain: 'dirt', kind: 'wheat' };
-    layout['6,6'] = { terrain: 'dirt', kind: 'corn' };
-    layout['7,6'] = { terrain: 'dirt', kind: 'sunflower' };
-    layout['5,7'] = { terrain: 'dirt', kind: 'carrot' };
-    layout['6,7'] = { terrain: 'dirt', kind: 'pumpkin' };
-    layout['7,7'] = { terrain: 'dirt', kind: 'crop' };
-
-    layout['0,6'] = { terrain: BASE_TERRAIN, kind: 'tree' };
-    layout['1,7'] = { terrain: BASE_TERRAIN, kind: 'tree' };
-    layout['5,0'] = { terrain: BASE_TERRAIN, kind: 'rock' };
-    layout['5,1'] = { terrain: BASE_TERRAIN, kind: 'tree' };
-    layout['6,1'] = { terrain: BASE_TERRAIN, kind: 'tree' };
-    layout['7,0'] = { terrain: BASE_TERRAIN, kind: 'rock', floors: 3 };
-    layout['7,1'] = { terrain: BASE_TERRAIN, kind: 'tree', floors: 2 };
-    layout['6,0'] = { terrain: BASE_TERRAIN, kind: 'rock', floors: 2 };
-    layout['0,3'] = { terrain: BASE_TERRAIN, kind: 'tuft' };
-    layout['4,1'] = { terrain: BASE_TERRAIN, kind: 'tuft' };
-    layout['7,3'] = { terrain: BASE_TERRAIN, kind: 'tuft' };
-
-    // Board tiles are the stage: render them immediately. Props/buildings
-    // still land in a diagonal sweep so initial load has motion without the
-    // ground itself popping in cell by cell.
-    const OBJECT_STAGGER = 0.035;
-    for (let x = 0; x < GRID; x++) {
-      for (let z = 0; z < GRID; z++) {
-        const cell = layout[x + ',' + z];
-        if (!cell) continue;
-        if (!world[x]) world[x] = [];
-        let terrain = cell.terrain || BASE_TERRAIN;
-        let kind = cell.kind || null;
-        if (kind === 'bridge') terrain = 'water';
-        else if (CROP_KINDS.has(kind)) terrain = 'dirt';
-        else if (terrain === 'water') kind = null;
-        let buildingType = cell.buildingType || null;
-        if (kind !== 'house') buildingType = null;
-        const fenceSide = kind === 'fence' ? normalizeFenceSide(cell.fenceSide) : null;
-        world[x][z] = {
-          terrain,
-          terrainFloors: cell.terrainFloors || 1,
-          kind,
-          floors: cell.floors || 1,
-          buildingType,
-          fenceSide,
-        };
-      }
-    }
-
-    // Rebuild live index sets after the direct world write (bypasses setCell).
+    // Empty starter world: sparse default terrain only. User builds and
+    // imports still populate cells through setCell/applyState.
     rebuildCropPositions();
     rebuildMaxPumpkinCache();
     invalidateHomeFade();
@@ -15653,10 +15584,8 @@
     }
     for (let x = 0; x < GRID; x++) {
       for (let z = 0; z < GRID; z++) {
-        const baseDelay = (x + z) * OBJECT_STAGGER;
         renderCellObject(x, z, {
-          animate: true,
-          delay: baseDelay,
+          animate: false,
           impactDust: false,
         });
       }
@@ -18024,7 +17953,7 @@
     const bannerText = document.getElementById('unsaved-banner-text');
     if (bannerText) bannerText.textContent = `Areas outside your ${GRID}×${GRID} grid aren't saved`;
     const confirmCopy = document.getElementById('confirm-reset-copy');
-    if (confirmCopy) confirmCopy.textContent = `This replaces your current build with the preset village. You'll lose anything you've placed on the ${GRID}×${GRID} grid.`;
+    if (confirmCopy) confirmCopy.textContent = `This clears your current build back to an empty ${GRID}×${GRID} grid. You'll lose anything you've placed there.`;
     const homeBtn = document.getElementById('home');
     if (homeBtn) homeBtn.setAttribute('aria-label', `Center on your ${GRID} by ${GRID} grid`);
   }

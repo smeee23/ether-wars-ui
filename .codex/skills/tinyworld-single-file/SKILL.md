@@ -20,6 +20,7 @@ Core rules:
 - Keep Three.js pinned to r128 and self-hosted under `vendor/three/`; do not reintroduce CDN runtime scripts.
 - Cluso is local feedback tooling only: it may be dynamically loaded on localhost/file URLs, but production `dist/` must not include `dist/cluso/` or static Cluso `<script>/<link>` tags.
 - Shared materials in `M.*` must not be mutated per instance; clone first for unique opacity/material behavior and dispose cloned materials in `disposeGroup`.
+- Persistence is sparse: omitted/default cells must restore through `BASE_TERRAIN`, not hardcoded terrain literals such as `'grass'`, or autosaves can repopulate blank cells with the wrong terrain.
 
 Validation:
 

@@ -30,6 +30,7 @@ Use this together with:
 - Houses can occupy one or multiple tiles, but doors/windows must remain readable from the default camera.
 - Flying ambient objects should be scaled to feel like toys above the board, not real-world aircraft; crop duster wingspan target is around 1–1.5 tiles.
 - Board-level decorative landforms, such as a floating asteroid underside, should live as standalone `worldGroup` children with `userData.visualOnly`, no `gx/gz` raycast metadata, and no writes to `world`, `cellMeshes`, `setCell`, `tilePos`, or `makeTile`.
+- Curved decorative landforms should reuse the existing terrain-side material palette when possible, and can be split into static low-poly material bands for lit rim, mid rock, and shadow body instead of adding lights or post-processing.
 - Always normalize imported model scale with `Box3` bounds, then apply a target span.
 - Apply orientation fixes once at model root or a named wrapper; do not keep stacking ad-hoc rotations in the animation loop.
 
