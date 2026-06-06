@@ -481,6 +481,24 @@
     text-align: right;
     color: var(--ink);
   }
+  .player-stat.resource-feedback-positive,
+  .player-stat.resource-feedback-positive .player-stat-value {
+    color: #16834d;
+    animation: resourceStatJiggle 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .player-stat.resource-feedback-negative,
+  .player-stat.resource-feedback-negative .player-stat-value {
+    color: #b9332b;
+    animation: resourceStatJiggle 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes resourceStatJiggle {
+    0%   { transform: translateX(0) rotate(0deg); }
+    18%  { transform: translateX(-3px) rotate(-2deg); }
+    36%  { transform: translateX(3px) rotate(2deg); }
+    54%  { transform: translateX(-2px) rotate(-1deg); }
+    72%  { transform: translateX(2px) rotate(1deg); }
+    100% { transform: translateX(0) rotate(0deg); }
+  }
   .player-stat-bar {
     height: 8px;
     overflow: hidden;
@@ -4863,7 +4881,7 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
-  let currentTodMinutes = 0;
+  let currentTodMinutes = 500;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.84;
   const WEATHER_DECAL_LIFT = 0.09;
@@ -15164,6 +15182,30 @@
     return Math.max(1, getCellBuildLevel(cell));
   }
 
+  function flashPlayerResourceStats(ids, tone) {
+    const cls = tone === 'negative' ? 'resource-feedback-negative' : 'resource-feedback-positive';
+    for (const id of ids) {
+      if (!RESOURCE_KEYS.includes(id)) continue;
+      const valueEl = document.getElementById('player-stat-' + id);
+      const rowEl = valueEl && valueEl.closest ? valueEl.closest('.player-stat') : null;
+      if (!rowEl) continue;
+      rowEl.classList.remove('resource-feedback-positive', 'resource-feedback-negative');
+      void rowEl.offsetWidth;
+      rowEl.classList.add(cls);
+      window.setTimeout(() => {
+        rowEl.classList.remove(cls);
+      }, 460);
+    }
+  }
+
+  function rejectMockResourceBuildAction(tool) {
+    if (!resourceRuleForTool(tool)) return false;
+    if (typeof playSfxClip === 'function') playSfxClip('knock', 'foley-knock-jingle-2.mp3');
+    flashPlayerResourceStats(['gold'], 'negative');
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
   function trySpendMockResourcesForPlacement(tool) {
     const rule = resourceRuleForTool(tool);
     if (!rule) return true;
@@ -15171,16 +15213,18 @@
     if (resources.gold < goldCost) {
       console.warn('Not enough gold to place ' + rule.label + ': need ' + goldCost + ', have ' + resources.gold + '.');
       // Insufficient-gold placement rejection sound.
-      if (typeof playSfxClip === 'function') playSfxClip('knock', 'foley-knock-jingle-2.mp3');
-      schedulePlayerStatsUpdate();
+      rejectMockResourceBuildAction(tool);
       return false;
     }
     resources.gold = Math.max(0, resources.gold - goldCost);
     const effect = rule.effect || {};
+    const feedbackIds = ['gold'];
     for (const key of Object.keys(effect)) {
       if (!RESOURCE_KEYS.includes(key) || key === 'gold') continue;
       resources[key] = Math.max(0, Math.round((resources[key] || 0) + effect[key]));
+      feedbackIds.push(key);
     }
+    flashPlayerResourceStats(feedbackIds, 'positive');
     schedulePlayerStatsUpdate();
     return true;
   }
@@ -15196,10 +15240,13 @@
     const goldRefund = Math.max(0, Math.round(((rule.cost && rule.cost.gold) || 0) * multiplier));
     resources.gold = Math.max(0, Math.round((resources.gold || 0) + goldRefund));
     const effect = rule.effect || {};
+    const feedbackIds = ['gold'];
     for (const key of Object.keys(effect)) {
       if (!RESOURCE_KEYS.includes(key) || key === 'gold') continue;
       resources[key] = Math.max(0, Math.round((resources[key] || 0) - (effect[key] * multiplier)));
+      feedbackIds.push(key);
     }
+    flashPlayerResourceStats(feedbackIds, 'positive');
     schedulePlayerStatsUpdate();
     return true;
   }
@@ -17027,7 +17074,7 @@
       if (cell.kind === 'house') {
         // Stack: clicking the house tool on an existing house adds a floor.
         const newFloors = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
-        if (newFloors === (cell.floors || 1)) return;
+        if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
         // Floor stack preserves the existing buildingType (passing undefined).
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'house', floors: newFloors });
@@ -17067,7 +17114,7 @@
       // Same-side fence on a fence cell → level it up in place.
       if (cell.kind === 'fence' && normalizeFenceSide(cell.fenceSide) === side) {
         const newLevel = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
-        if (newLevel === (cell.floors || 1)) return;
+        if (newLevel === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: newLevel, fenceSide: side });
         playMockResourcePlacementSuccess(selectedTool);
@@ -17101,7 +17148,7 @@
         // so cap their stacking there instead of running up to MAX_FLOORS.
         const stackMax = selectedTool.kind === 'bridge' ? 4 : MAX_FLOORS;
         const newLevel = Math.min((cell.floors || 1) + 1, stackMax);
-        if (newLevel === (cell.floors || 1)) return;
+        if (newLevel === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: newLevel });
         playMockResourcePlacementSuccess(selectedTool);
@@ -17151,6 +17198,10 @@
       const nextTerrainFloors = nextKind
         ? terrainLevelForCell(cell)
         : (sameTerrain ? Math.min(terrainLevelForCell(cell) + 1, MAX_FLOORS) : 1);
+      if (!nextKind && sameTerrain && nextTerrainFloors === terrainLevelForCell(cell)) {
+        rejectMockResourceBuildAction(selectedTool);
+        return;
+      }
       if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       setCell(x, z, {
         terrain: selectedTool.terrain,
