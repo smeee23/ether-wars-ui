@@ -6018,6 +6018,12 @@
     skyGlass:  new THREE.MeshLambertMaterial({ color: 0x6db8e0 }),
     skyFrame:  new THREE.MeshLambertMaterial({ color: 0x2a3a4c }),
     skyRoof:   new THREE.MeshLambertMaterial({ color: 0x3a4a5c }),
+    habitatShell:  new THREE.MeshLambertMaterial({ color: 0xd8d9d2 }),
+    habitatBand:   new THREE.MeshLambertMaterial({ color: 0x4d5b66 }),
+    habitatTrim:   new THREE.MeshLambertMaterial({ color: 0x8f979d }),
+    habitatWindow: new THREE.MeshLambertMaterial({ color: 0x83d8f0 }),
+    habitatPanel:  new THREE.MeshLambertMaterial({ color: 0x2d4f7a }),
+    habitatLight:  new THREE.MeshLambertMaterial({ color: 0xffd86b, emissive: 0xffb84a, emissiveIntensity: 0.65 }),
 
     // Manor — Georgian brick + slate. Solo cluster-bypass (variant 'manor').
     manorBrick:    new THREE.MeshLambertMaterial({ color: 0xa84a3a }),
@@ -6136,10 +6142,10 @@
   function applyAppearanceToObject(root, kind, appearance) {
     const a = normalizeAppearance(appearance);
     if (!root || !a) return root;
-    const topBase = new Set([M.roofBlue, M.manorRoof, M.towerRoof, M.castleRoof, M.skyRoof, M.leaves]);
+    const topBase = new Set([M.roofBlue, M.manorRoof, M.towerRoof, M.castleRoof, M.skyRoof, M.habitatPanel, M.leaves]);
     const topDark = new Set([M.roofBlueD, M.manorRoofD, M.towerRoofD, M.castleRoofD, M.leavesDk]);
-    const bodyBase = new Set([M.wallCream, M.manorBrick, M.towerStone, M.castleStone, M.skyBody, M.trunk]);
-    const bodyDark = new Set([M.wallTrim, M.manorBrickD, M.towerStoneD, M.castleStoneD]);
+    const bodyBase = new Set([M.wallCream, M.manorBrick, M.towerStone, M.castleStone, M.skyBody, M.habitatShell, M.trunk]);
+    const bodyDark = new Set([M.wallTrim, M.manorBrickD, M.towerStoneD, M.castleStoneD, M.habitatBand]);
     function remap(mat) {
       if (!mat) return mat;
       if (a.topColor && topBase.has(mat)) return customMaterial(mat, a.topColor);
@@ -7904,6 +7910,104 @@
     const door = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.32, 0.04), M.door);
     door.position.set(0, 0.16, D / 2 + 0.01);
     g.add(door);
+
+    g.userData = { kind: 'house', chimneyTops: [] };
+    castReceive(g);
+    return g;
+  }
+
+  // Space habitat — compact sci-fi base module inspired by cylindrical
+  // off-world habitats, but scaled and simplified for one Tiny World tile.
+  function makeSpaceHabitat(floors = 1) {
+    const g = new THREE.Group();
+    const f = Math.max(1, floors);
+    const extraH = Math.min(0.22, (f - 1) * 0.045);
+    const bodyLen = 0.98;
+    const bodyR = 0.31 + extraH;
+    const bodyY = 0.40 + extraH;
+
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(bodyR, bodyR, bodyLen, 14), M.habitatShell);
+    body.rotation.z = Math.PI / 2;
+    body.position.y = bodyY;
+    g.add(body);
+
+    [-0.53, 0.53].forEach(x => {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(bodyR * 1.04, bodyR * 1.04, 0.08, 14), M.habitatTrim);
+      cap.rotation.z = Math.PI / 2;
+      cap.position.set(x, bodyY, 0);
+      g.add(cap);
+    });
+
+    [-0.26, 0.26].forEach(x => {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(bodyR * 1.025, bodyR * 1.025, 0.055, 14), M.habitatBand);
+      band.rotation.z = Math.PI / 2;
+      band.position.set(x, bodyY, 0);
+      g.add(band);
+    });
+
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), M.habitatWindow);
+    dome.scale.set(1, 0.62, 1);
+    dome.position.set(-0.10, bodyY + bodyR * 0.78, -0.06);
+    g.add(dome);
+
+    const hatch = new THREE.Mesh(getBoxGeometry(0.20, 0.24, 0.035), M.habitatBand);
+    hatch.position.set(0.54, bodyY, 0.12);
+    hatch.rotation.y = Math.PI / 2;
+    g.add(hatch);
+    const hatchWindow = new THREE.Mesh(getBoxGeometry(0.09, 0.07, 0.018), M.habitatWindow);
+    hatchWindow.position.set(0.56, bodyY + 0.05, 0.12);
+    hatchWindow.rotation.y = Math.PI / 2;
+    g.add(hatchWindow);
+    const step = new THREE.Mesh(getBoxGeometry(0.24, 0.05, 0.16), M.step);
+    step.position.set(0.60, 0.03, 0.18);
+    g.add(step);
+
+    const panelGeo = getBoxGeometry(0.34, 0.045, 0.18);
+    [-1, 1].forEach(side => {
+      const strut = new THREE.Mesh(getBoxGeometry(0.08, 0.035, 0.22), M.habitatTrim);
+      strut.position.set(-0.16, 0.31, side * 0.46);
+      g.add(strut);
+      const panel = new THREE.Mesh(panelGeo, M.habitatPanel);
+      panel.position.set(-0.16, 0.30, side * 0.62);
+      g.add(panel);
+      const stripe = new THREE.Mesh(getBoxGeometry(0.035, 0.048, 0.19), M.habitatWindow);
+      stripe.position.set(-0.16, 0.304, side * 0.62);
+      g.add(stripe);
+    });
+
+    [-0.42, 0.42].forEach(x => {
+      [-0.22, 0.22].forEach(z => {
+        const leg = new THREE.Mesh(getBoxGeometry(0.045, 0.30, 0.045), M.habitatTrim);
+        leg.position.set(x, 0.15, z);
+        leg.rotation.z = x < 0 ? -0.18 : 0.18;
+        g.add(leg);
+        const foot = new THREE.Mesh(getBoxGeometry(0.15, 0.035, 0.09), M.habitatTrim);
+        foot.position.set(x + (x < 0 ? -0.04 : 0.04), 0.025, z);
+        g.add(foot);
+      });
+    });
+
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.48, 8), M.habitatTrim);
+    pipe.rotation.x = Math.PI / 2;
+    pipe.position.set(0.22, bodyY - 0.03, -0.32);
+    g.add(pipe);
+    const vent = new THREE.Mesh(getBoxGeometry(0.18, 0.10, 0.06), M.habitatBand);
+    vent.position.set(-0.36, bodyY + 0.05, -bodyR - 0.01);
+    g.add(vent);
+
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.34, 6), M.habitatTrim);
+    mast.position.set(0.34, bodyY + bodyR + 0.16, -0.12);
+    g.add(mast);
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.05, 0.035, 10), M.habitatWindow);
+    dish.position.set(0.34, bodyY + bodyR + 0.34, -0.12);
+    dish.rotation.x = Math.PI / 2.8;
+    g.add(dish);
+
+    [-0.18, 0.16].forEach(x => {
+      const light = new THREE.Mesh(getBoxGeometry(0.07, 0.045, 0.025), M.habitatLight);
+      light.position.set(x, bodyY - 0.02, bodyR + 0.012);
+      g.add(light);
+    });
 
     g.userData = { kind: 'house', chimneyTops: [] };
     castReceive(g);
@@ -9849,6 +9953,8 @@
       const bType = cell.buildingType || null;
       if (bType === 'skyscraper') {
         mesh = makeVoxelSkyscraper(Math.max(floors, 4));
+      } else if (bType === 'habitat') {
+        mesh = makeSpaceHabitat(floors);
       } else if (bType === 'manor') {
         mesh = makeVoxelManor(floors);
       } else if (bType === 'tower') {
@@ -10027,7 +10133,7 @@
   const animatedCellObjects = new Set();
   const smokeHouseObjects = new Set();
   const buildingWindowObjects = new Set();
-  const buildingWindowBaseMaterials = new Set([M.windowB, M.manorWindow, M.skyGlass, M.castleSlit]);
+  const buildingWindowBaseMaterials = new Set([M.windowB, M.manorWindow, M.skyGlass, M.castleSlit, M.habitatWindow]);
   const cropPositions = new Set();        // 'x,z' strings for home-grid cells whose kind is in CROP_KINDS
   let carriagePumpkin = null;             // {x, z} | null — current lowest-index max-floor pumpkin (Cinderella rule)
   const maxPumpkinPositions = new Set();  // 'x,z' of all pumpkins with floors >= MAX_FLOORS (home grid)
@@ -13342,6 +13448,7 @@
       else if (cell.buildingType === 'tower') mesh = makeVoxelTurret(Math.max(level, 2), true);
       else if (cell.buildingType === 'turret') mesh = makeVoxelTurret(level, false);
       else if (cell.buildingType === 'skyscraper') mesh = makeVoxelSkyscraper(Math.max(level, 4));
+      else if (cell.buildingType === 'habitat') mesh = makeSpaceHabitat(level);
       else mesh = makeVoxelLinearHouse(1, 'z', level);
     }
     return mesh;
@@ -14917,6 +15024,8 @@
       // forced-variant houses stay independent (no merging).
       if (bType === 'skyscraper') {
         mesh = makeSkyscraper(Math.max(floors, 4));
+      } else if (bType === 'habitat') {
+        mesh = makeSpaceHabitat(floors);
       } else if (bType === 'manor') {
         mesh = makeManor(floors);
       } else if (bType === 'tower') {
@@ -15119,6 +15228,8 @@
     cottage: { label: 'Cottage', cost: { gold: 18 }, effect: { shelter: 14 } },
     manor: { label: 'Housing', cost: { gold: 26 }, effect: { shelter: 20 } },
     highrise: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
+    skyscraper: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
+    habitat: { label: 'Habitat', cost: { gold: 24 }, effect: { shelter: 18 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
     tower: { label: 'Tower', cost: { gold: 25 }, effect: { army: 16 } },
     turret: { label: 'Tower', cost: { gold: 28 }, effect: { army: 18 } },
@@ -15710,6 +15821,7 @@
       else if (bt === 'tower')      mesh = makeVoxelTurret(2, true);
       else if (bt === 'turret')     mesh = makeVoxelTurret(1, false);
       else if (bt === 'skyscraper') mesh = makeVoxelSkyscraper(4);
+      else if (bt === 'habitat')    mesh = makeSpaceHabitat(1);
       else                          mesh = makeVoxelLinearHouse(1, 'z', 1);
     } else if (tool.terrain) {
       // For pure terrain tools, show a thin coloured swatch hovering
@@ -16235,6 +16347,7 @@
         { id: 'tower',      label: 'Tower',     buildingType: 'tower',      hint: 'stone tower w/ conical roof' },
         { id: 'turret',     label: 'Castle',    buildingType: 'turret',     hint: 'castle turret / keep' },
         { id: 'highrise',   label: 'High-rise', buildingType: 'skyscraper', hint: 'glass tower' },
+        { id: 'habitat',    label: 'Habitat',   buildingType: 'habitat',    hint: 'space base module' },
       ],
     },
     { id: 'tree',   label: 'Tree',   kind: 'tree',  color: '#6fb442', shortcut: '6', group: 'nature' },
@@ -16339,6 +16452,7 @@
       if (bType === 'tower')      return makeVoxelTurret(2, true);
       if (bType === 'turret')     return makeVoxelTurret(2, false);
       if (bType === 'skyscraper') return makeVoxelSkyscraper(4);
+      if (bType === 'habitat')    return makeSpaceHabitat(1);
       return makeVoxelLinearHouse(1, 'z', 2);
     }
     return null;
@@ -16386,6 +16500,8 @@
     if (tool.kind === 'house') {
       if (houseType === 'skyscraper') {
         thumbFrame = { left: -1.7, right: 1.7, top: 2.6, bottom: -1.0, lookAtY: 1.0 };
+      } else if (houseType === 'habitat') {
+        thumbFrame = { left: -1.45, right: 1.45, top: 1.55, bottom: -0.95, lookAtY: 0.48 };
       } else if (houseType === 'tower' || houseType === 'turret') {
         thumbFrame = { left: -1.58, right: 1.58, top: 2.15, bottom: -0.95, lookAtY: 0.85 };
       } else if (houseType === 'manor') {
@@ -18660,7 +18776,7 @@
     }
     let seedId = 'machiya-house';
     if (cell.kind === 'house') {
-      if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper') seedId = 'watchtower';
+      if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper' || cell.buildingType === 'habitat') seedId = 'watchtower';
       else if (cell.buildingType === 'turret') seedId = 'watchtower';
       else seedId = 'machiya-house';
     } else if (cell.kind === 'tree' || cell.kind === 'flower' || cell.kind === 'bush') {
@@ -18684,7 +18800,7 @@
 
   function selectedBuildingStampId(cell) {
     if (!cell || cell.kind !== 'house') return null;
-    if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper') return 'tower';
+    if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper' || cell.buildingType === 'habitat') return 'tower';
     if (cell.buildingType === 'manor') return 'manor';
     if (cell.buildingType === 'turret') return 'tower';
     return 'house';
@@ -21404,7 +21520,8 @@
           "manor",
           "tower",
           "turret",
-          "skyscraper"
+          "skyscraper",
+          "habitat"
         ]
       },
       "fenceSide": {
@@ -21750,7 +21867,7 @@
       },
       buildingType: {
         type: ['string', 'null'],
-        enum: [null, 'cottage', 'manor', 'tower', 'skyscraper'],
+        enum: [null, 'cottage', 'manor', 'tower', 'turret', 'skyscraper', 'habitat'],
       },
     },
   };
@@ -21802,7 +21919,7 @@
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
     '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, road gates, and castle-wall components. Set fenceSide deliberately.',
     '- Use rocks as sparse sculptural props only: boulders, monuments, rubble, stepping stones, and focal landmarks. Do not use rock props to represent broad hills or mountains.',
-    '- Use houses and variants as massing primitives: cottages for small buildings, manors for civic buildings, towers/turrets for vertical landmarks, high-rise for modern tall structures. Adjacent null-buildingType houses assemble into larger footprints.',
+    '- Use houses and variants as massing primitives: cottages for small buildings, manors for civic buildings, towers/turrets for vertical landmarks, high-rise for modern tall structures, and habitats for compact sci-fi bases. Adjacent null-buildingType houses assemble into larger footprints.',
     '- Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
     '- Use crops/tufts/trees as texture primitives: fields, hedges, gardens, park planting, wild edges, orchards, and scale cues.',
     '- Prefer 3–5 clear assembled features over scattering many single unrelated cells. Make the construction legible from the default isometric camera.',
@@ -21817,7 +21934,7 @@
       'Required home board edge length: include "gridSize": ' + size + ' in the JSON object.',
       'Grid coordinates: x in 0..' + maxCoord + ' (left-right), z in 0..' + maxCoord + ' (front-back). Default cell is grass with no object.',
       'Only emit cells that differ from defaults — the renderer fills the rest.',
-      'Houses cluster automatically when buildingType is null: adjacent houses merge into linear, L/T/+, or 2x2 forms. To force a single-cell variant set buildingType to cottage|manor|tower|skyscraper.',
+      'Houses cluster automatically when buildingType is null: adjacent houses merge into linear, L/T/+, or 2x2 forms. To force a single-cell variant set buildingType to cottage|manor|tower|turret|skyscraper|habitat.',
       'Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
       'Repeat-tapping the same object increases floors/intensity: houses grow upward; trees, rocks, bridges, fences, tufts, and crops become larger, denser, or more detailed.',
       'A fence is a single side/leaf, not a full square. Set fenceSide to n|s|e|w for tile edges or center-x|center-z for centre-line walls.',
@@ -21983,7 +22100,7 @@
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
-    const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
+    const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper','habitat']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
     for (let i = 0; i < data.cells.length; i++) {
@@ -22462,7 +22579,7 @@
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
-    const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper']);
+    const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper','habitat']);
     let kind = data.kind === undefined ? null : data.kind;
     let terrain = data.terrain;
     let floors = data.floors === undefined ? 1 : data.floors;
@@ -23270,6 +23387,7 @@
           if (cell.buildingType === 'tower') return materialHex(M.towerRoof) || '#7563c9';
           if (cell.buildingType === 'castle') return materialHex(M.castleRoof) || '#6d5bc7';
           if (cell.buildingType === 'skyhouse') return materialHex(M.skyRoof) || '#70a8df';
+          if (cell.buildingType === 'habitat') return materialHex(M.habitatWindow) || '#83d8f0';
           return materialHex(M.roofBlue) || '#2f8fe6';
         }
         if (cell.kind === 'voxel-build') return '#86d139';
@@ -23609,6 +23727,7 @@
           else if (bt === 'tower') obj = makeStoneTower(Math.max(target.cell.floors || 1, 2));
           else if (bt === 'turret') obj = makeTurret(target.cell.floors || 1);
           else if (bt === 'skyscraper') obj = makeSkyscraper(Math.max(target.cell.floors || 1, 4));
+          else if (bt === 'habitat') obj = makeSpaceHabitat(target.cell.floors || 1);
           else obj = makeHouse(target.cell.floors || 2);
         }
         else if (kind === 'tree') obj = makeTree();
@@ -23872,6 +23991,7 @@
             { label: 'Tower', value: 'tower' },
             { label: 'Castle', value: 'turret' },
             { label: 'High-rise', value: 'skyscraper' },
+            { label: 'Habitat', value: 'habitat' },
           ] },
           );
         }
