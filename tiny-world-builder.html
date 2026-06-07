@@ -6054,6 +6054,8 @@
     sunflowerStalk:  new THREE.MeshLambertMaterial({ color: 0x4d8a2a }),
     sunflowerPetal:  new THREE.MeshLambertMaterial({ color: 0xf2c849 }),
     sunflowerCenter: new THREE.MeshLambertMaterial({ color: 0x5a3a18 }),
+    greenhouseGlass: new THREE.MeshLambertMaterial({ color: 0xbdefff, transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide }),
+    greenhouseFrame: new THREE.MeshLambertMaterial({ color: 0x8f979d }),
 
     cloud:     new THREE.MeshLambertMaterial({ color: 0xfdfcf8 }),
     cloudShade:new THREE.MeshLambertMaterial({ color: 0xdcd9d0 }),
@@ -8535,6 +8537,79 @@
     return g;
   }
 
+  const CROP_DOME_SIZE = 0.86;
+  const CROP_DOME_HEIGHT = 0.56;
+  const CROP_DOME_BASE_Y = 0.045;
+  const CROP_DOME_OPACITY = 0.24;
+  const CROP_DOME_COLOR = 0xbdefff;
+  let cropDomeAssets = null;
+
+  function ensureCropDomeAssets() {
+    if (cropDomeAssets) return cropDomeAssets;
+    M.greenhouseGlass.color.setHex(CROP_DOME_COLOR);
+    M.greenhouseGlass.opacity = CROP_DOME_OPACITY;
+    const glassSideGeo = getBoxGeometry(CROP_DOME_SIZE, CROP_DOME_HEIGHT, 0.018);
+    const glassTopGeo = getBoxGeometry(CROP_DOME_SIZE, 0.018, CROP_DOME_SIZE);
+    const postGeo = getBoxGeometry(0.04, CROP_DOME_HEIGHT, 0.04);
+    const railXGeo = getBoxGeometry(CROP_DOME_SIZE + 0.04, 0.035, 0.045);
+    const railZGeo = getBoxGeometry(0.045, 0.035, CROP_DOME_SIZE + 0.04);
+    cropDomeAssets = { glassSideGeo, glassTopGeo, postGeo, railXGeo, railZGeo };
+    return cropDomeAssets;
+  }
+
+  function addCropGreenhouseDome(g) {
+    const assets = ensureCropDomeAssets();
+    const half = CROP_DOME_SIZE / 2;
+    const midY = CROP_DOME_BASE_Y + CROP_DOME_HEIGHT / 2;
+    const topY = CROP_DOME_BASE_Y + CROP_DOME_HEIGHT;
+
+    [
+      { x: 0, z: -half, rot: 0 },
+      { x: 0, z:  half, rot: 0 },
+      { x: -half, z: 0, rot: Math.PI / 2 },
+      { x:  half, z: 0, rot: Math.PI / 2 },
+    ].forEach(p => {
+      const panel = new THREE.Mesh(assets.glassSideGeo, M.greenhouseGlass);
+      panel.position.set(p.x, midY, p.z);
+      panel.rotation.y = p.rot;
+      panel.userData.noShadow = true;
+      panel.renderOrder = 4;
+      g.add(panel);
+    });
+
+    const roof = new THREE.Mesh(assets.glassTopGeo, M.greenhouseGlass);
+    roof.position.y = topY;
+    roof.userData.noShadow = true;
+    roof.renderOrder = 4;
+    g.add(roof);
+
+    for (const x of [-half, half]) {
+      for (const z of [-half, half]) {
+        const post = new THREE.Mesh(assets.postGeo, M.greenhouseFrame);
+        post.position.set(x, midY, z);
+        g.add(post);
+      }
+    }
+
+    for (const y of [CROP_DOME_BASE_Y + 0.018, topY + 0.018]) {
+      for (const z of [-half, half]) {
+        const rail = new THREE.Mesh(assets.railXGeo, M.greenhouseFrame);
+        rail.position.set(0, y, z);
+        g.add(rail);
+      }
+      for (const x of [-half, half]) {
+        const rail = new THREE.Mesh(assets.railZGeo, M.greenhouseFrame);
+        rail.position.set(x, y, 0);
+        g.add(rail);
+      }
+    }
+    return g;
+  }
+
+  function isGreenhouseCropKind(kind) {
+    return kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'pumpkin' || kind === 'carrot' || kind === 'sunflower';
+  }
+
   function makeCrop() {
     // Leafy "cabbage" crop — the original. Now static (no bob animation).
     const g = new THREE.Group();
@@ -8548,6 +8623,7 @@
       leaf.rotation.y = i * 0.4;
       g.add(leaf);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'crop' };
     castReceive(g);
     return g;
@@ -8573,6 +8649,7 @@
       tip.rotation.y = i * 0.55;
       g.add(tip);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'corn' };
     castReceive(g);
     return g;
@@ -8594,6 +8671,7 @@
       head.position.set(x, h + 0.04, z);
       g.add(head);
     }
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'wheat' };
     castReceive(g);
     return g;
@@ -8623,6 +8701,7 @@
       stem.position.set(p.x, r * 1.2, p.z);
       g.add(stem);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'pumpkin' };
     castReceive(g);
     return g;
@@ -8704,6 +8783,7 @@
     trim.position.y = 0.20;
     g.add(trim);
 
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'pumpkin', carriage: true, swayPhase: Math.random() * Math.PI * 2 };
     castReceive(g);
     return g;
@@ -8730,6 +8810,7 @@
         g.add(blade);
       }
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'carrot' };
     castReceive(g);
     return g;
@@ -8763,6 +8844,7 @@
       center.rotation.x = -0.25;
       g.add(center);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'sunflower' };
     castReceive(g);
     return g;
@@ -9014,6 +9096,17 @@
       fill(out, 0, 0, 22, 24, 0, 0, C.gold);
       return out;
     }
+    function crystalMiningRig() {
+      return watchtower().filter(v => !(v.y === 16 && Math.abs(v.x) <= 5 && Math.abs(v.z) <= 5)
+        && !(v.y === 17 && Math.abs(v.x) === 5 && Math.abs(v.z) === 5)).map(v => {
+        const roofY = (v.y >= 17 && v.y <= 19 && Math.abs(v.x) <= 5 && Math.abs(v.z) <= 5) ? v.y - 1 : v.y;
+        let color = v.color;
+        if (color === C.stone || color === C.wall) color = C.roofEdge;
+        else if (color === C.wood) color = C.roof;
+        else if (color === C.woodD || color === C.wallD) color = C.roofD;
+        return vox(v.x, roofY, v.z, color);
+      });
+    }
     function machiya() {
       const out = [];
       fill(out, -4, 4, 0, 0, -3, 3, C.stone);
@@ -9075,6 +9168,7 @@
       { id: 'pagoda-large', name: 'Voxel Pagoda', voxels: pagoda(), footprint: 2.8 },
       { id: 'temple-gate', name: 'Temple Gate', voxels: gate(), footprint: 2.4 },
       { id: 'watchtower', name: 'Watchtower', voxels: watchtower(), footprint: 1.9 },
+      { id: 'crystal-mining-rig', name: 'Crystal Mining Rig', voxels: crystalMiningRig(), footprint: 1.9 },
       { id: 'machiya-house', name: 'Machiya House', voxels: machiya(), footprint: 2.0 },
       { id: 'cherry-tree-build', name: 'Cherry Build', voxels: cherry(), footprint: 1.45 },
       { id: 'bamboo-garden', name: 'Bamboo Garden', voxels: garden(), footprint: 1.7 },
@@ -9378,10 +9472,13 @@
     const stamp = typeof idOrStamp === 'string' ? getVoxelBuildStamp(idOrStamp) : idOrStamp;
     if (!stamp) return null;
     if (Array.isArray(stamp.customParts) && stamp.customParts.length) return makeCustomPartsStamp(stamp, opts);
-    if (!Array.isArray(stamp.voxels) || !stamp.voxels.length) return null;
+    const sourceVoxels = stamp.id === 'crystal-mining-rig'
+      ? crystalMiningRigVoxelsForLevel(stamp.voxels, opts.level || 1)
+      : stamp.voxels;
+    if (!Array.isArray(sourceVoxels) || !sourceVoxels.length) return null;
     const g = new THREE.Group();
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const v of stamp.voxels) {
+    for (const v of sourceVoxels) {
       minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
       minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
       minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
@@ -9392,16 +9489,72 @@
     const unit = opts.unit || stamp.unit || footprint / Math.max(spanX, spanZ);
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
-    for (const v of stamp.voxels) {
+    for (const v of sourceVoxels) {
       const x = (v.x - centerX) * unit;
       const y = (v.y - minY) * unit + unit / 2;
       const z = (v.z - centerZ) * unit;
       const mat = voxelAppearanceMaterial(voxelBuildMaterial(v.color), voxelAppearanceRoleForColor(v.color), opts.appearance);
       vbox(g, unit, unit, unit, x, y, z, mat);
     }
+    if (stamp.id === 'crystal-mining-rig') {
+      addCrystalMiningRigGlassPanels(g, unit, centerX, centerZ, minY, opts.level || 1);
+    }
     g.userData = { kind: 'voxel-build', voxelBuildId: stamp.id, name: stamp.name, chimneyTops: [] };
     castReceive(g);
     return g;
+  }
+
+  const CRYSTAL_RIG_MAX_LEVEL = 4;
+  const CRYSTAL_RIG_GLASS_THICKNESS = 0.018;
+  const CRYSTAL_RIG_GLASS_BAY_WIDTH = 3;
+  const CRYSTAL_RIG_GLASS_BAYS = [
+    { y: 1, height: 1 },
+    { y: 3.5, height: 2 },
+    { y: 6.5, height: 2 },
+    { y: 9.5, height: 2 },
+  ];
+
+  function crystalMiningRigVoxelsForLevel(voxels, level = 1) {
+    const rigLevel = Math.max(1, Math.min(CRYSTAL_RIG_MAX_LEVEL, level || 1));
+    const topShift = (rigLevel - CRYSTAL_RIG_MAX_LEVEL) * 3;
+    const topBaseY = 11 + topShift;
+    return voxels.reduce((out, v) => {
+      if (v.y >= 1 && v.y <= 10 && v.y >= topBaseY) return out;
+      const y = v.y >= 11 ? v.y + topShift : v.y;
+      out.push(Object.assign({}, v, { y }));
+      return out;
+    }, []);
+  }
+
+  function addCrystalMiningRigGlassPanels(g, unit, centerX, centerZ, minY, level = 1) {
+    ensureCropDomeAssets();
+    const rigLevel = Math.max(1, Math.min(CRYSTAL_RIG_MAX_LEVEL, level || 1));
+    const panelWidth = CRYSTAL_RIG_GLASS_BAY_WIDTH * unit;
+    const thickness = CRYSTAL_RIG_GLASS_THICKNESS;
+    const sideZ = [2, -2].map(z => (z - centerZ) * unit);
+    const sideX = [2, -2].map(x => (x - centerX) * unit);
+    const xCenter = (0 - centerX) * unit;
+    const zCenter = (0 - centerZ) * unit;
+    for (const bay of CRYSTAL_RIG_GLASS_BAYS.slice(0, rigLevel)) {
+      const y = (bay.y - minY) * unit + unit / 2;
+      const h = bay.height * unit;
+      const zPanelGeo = getBoxGeometry(panelWidth, h, thickness);
+      const xPanelGeo = getBoxGeometry(thickness, h, panelWidth);
+      for (const z of sideZ) {
+        const panel = new THREE.Mesh(zPanelGeo, M.greenhouseGlass);
+        panel.position.set(xCenter, y, z);
+        panel.userData.noShadow = true;
+        panel.renderOrder = 4;
+        g.add(panel);
+      }
+      for (const x of sideX) {
+        const panel = new THREE.Mesh(xPanelGeo, M.greenhouseGlass);
+        panel.position.set(x, y, zCenter);
+        panel.userData.noShadow = true;
+        panel.renderOrder = 4;
+        g.add(panel);
+      }
+    }
   }
 
   function vbox(parent, w, h, d, x, y, z, mat, opts = {}) {
@@ -9852,6 +10005,7 @@
         vbox(g, 0.18, 0.16, 0.18, x, 0.17, z, M.cropLeaf);
       }
     }
+    if (isGreenhouseCropKind(kind)) addCropGreenhouseDome(g);
     g.userData = { kind };
     castReceive(g);
     return g;
@@ -9932,7 +10086,7 @@
     let posZ = null;
     let setGridUserData = true;
 
-    if (kind === 'voxel-build') mesh = makeVoxelBuildStamp(cell.appearance && cell.appearance.voxelBuildId, { appearance: cell.appearance });
+    if (kind === 'voxel-build') mesh = makeVoxelBuildStamp(cell.appearance && cell.appearance.voxelBuildId, { appearance: cell.appearance, level });
     else if (kind === 'tree') mesh = makeVoxelTree(level);
     else if (kind === 'rock') mesh = makeVoxelRock(getRockNeighbors(x, z), level, x, z, cell.terrain === 'water');
     else if (kind === 'bridge') mesh = makeVoxelBridge(getBridgeOrientation(x, z), level);
@@ -16364,6 +16518,7 @@
     },
     { id: 'rock',   label: 'Rock',   kind: 'rock',  color: '#9b9a8f', shortcut: '8', group: 'nature' },
     { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: '9', group: 'build' },
+    { id: 'crystal-mining-rig', label: 'Crystal Mining Rig', kind: 'voxel-build', voxelBuildId: 'crystal-mining-rig', color: '#7fe8ff', group: 'build' },
     { id: 'crop',      label: 'Crop',      kind: 'crop',      terrainOverride: 'dirt', color: '#86c544', shortcut: 'g', group: 'crops' },
     { id: 'corn',      label: 'Corn',      kind: 'corn',      terrainOverride: 'dirt', color: '#f2c849', shortcut: 'n', group: 'crops' },
     { id: 'wheat',     label: 'Wheat',     kind: 'wheat',     terrainOverride: 'dirt', color: '#e6c354', shortcut: 'w', group: 'crops' },
@@ -16381,7 +16536,7 @@
   const TOOL_GROUPS = [
     { id: 'terrain', label: 'Terrain', toolIds: ['grass', 'path', 'dirt', 'water', 'stone', 'lava', 'sand', 'snow', 'rock'], iconTool: 'grass' },
     { id: 'plants', label: 'Plants', toolIds: ['tree', 'tuft', 'flower', 'bush'], iconTool: 'tree' },
-    { id: 'build', label: 'Build', toolIds: ['house'], iconTool: 'house' },
+    { id: 'build', label: 'Build', toolIds: ['house', 'crystal-mining-rig'], iconTool: 'house' },
     { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge'], iconTool: 'fence' },
     { id: 'farm', label: 'Farm', toolIds: ['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower'], iconTool: 'wheat' },
     { id: 'life', label: 'Life', toolIds: ['cow', 'sheep'], iconTool: 'cow' },
@@ -17210,6 +17365,19 @@
     if (selectedTool.kind === 'voxel-build') {
       const stampId = selectedTool.voxelBuildId;
       if (!getVoxelBuildStamp(stampId)) return;
+      const existingStampId = cell.appearance && cell.appearance.voxelBuildId;
+      if (cell.kind === 'voxel-build' && existingStampId === stampId && stampId === 'crystal-mining-rig') {
+        const newFloors = Math.min((cell.floors || 1) + 1, CRYSTAL_RIG_MAX_LEVEL);
+        if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
+        setCell(x, z, {
+          terrain: cell.terrain || BASE_TERRAIN,
+          terrainFloors: terrainLevelForCell(cell),
+          kind: 'voxel-build',
+          floors: newFloors,
+          appearance: cell.appearance,
+        });
+        return;
+      }
       const gt = consumeGhostTransform();
       let newTerrain = cell.terrain || BASE_TERRAIN;
       if (newTerrain === 'water' || newTerrain === 'lava') newTerrain = BASE_TERRAIN;
