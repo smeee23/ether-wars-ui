@@ -28,7 +28,11 @@ Use this together with:
 - One grid tile is `1 x 1` world unit.
 - Small props should fit comfortably inside a tile: ~0.2–0.8 units wide.
 - Houses can occupy one or multiple tiles, but doors/windows must remain readable from the default camera.
+- New single-cell building variants should usually be `kind: 'house'` with a `buildingType`, rendered by a shared voxel/procedural factory and added to the House tool variants, schema enums, ghost preview, thumbnails, ghost rendering, and mock resource rules.
 - Flying ambient objects should be scaled to feel like toys above the board, not real-world aircraft; crop duster wingspan target is around 1–1.5 tiles.
+- Rooftop defensive visuals should be separate visual-only factories with named subgroups for future rotation/tracking; do not add firing, damage, projectile, or combat behavior unless explicitly requested.
+- Level-gated rooftop visuals should derive from existing `floors` / build level state and shared helpers, not new saved fields; keep thresholds consistent across detailed, voxel, ghost, and thumbnail render paths.
+- If visual tracking is requested, keep it set-based in the animation loop, rotate only the named yaw/root group, and treat existing flying scene roots as targets without adding combat state.
 - Board-level decorative landforms, such as a floating asteroid underside, should live as standalone `worldGroup` children with `userData.visualOnly`, no `gx/gz` raycast metadata, and no writes to `world`, `cellMeshes`, `setCell`, `tilePos`, or `makeTile`.
 - Curved decorative landforms should reuse the existing terrain-side material palette when possible, and can be split into static low-poly material bands for lit rim, mid rock, and shadow body instead of adding lights or post-processing.
 - Always normalize imported model scale with `Box3` bounds, then apply a target span.
@@ -38,6 +42,7 @@ Use this together with:
 
 - Prefer 2–4 materials per object: body, dark trim, highlight, accent.
 - Never mutate shared `M.*` material colors for one instance; clone or create a new material. The one allowed global exception is `applySeasonFoliage()`, which centrally retints shared foliage/grass materials for season changes.
+- Sci-fi crop/building shields should reuse `M.greenhouseGlass` / `makeForceShieldMaterial()` so pulse, Fresnel rim, opacity, and fade-cache uniform syncing stay shared and cheap.
 - When voxel stamps need to match built-in procedural structures, prefer passing targeted material overrides that reuse shared `M.*` materials instead of copying equivalent hex colors into the voxel palette.
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.

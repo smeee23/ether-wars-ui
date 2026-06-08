@@ -14,6 +14,8 @@ Use this while the Resources model is frontend/mock-state only.
 - Erase refunds should derive from `RESOURCE_BUILD_RULES`, not a duplicated table. Multiply refunds/effect reversals by the stored build level (`floors` for objects, `terrainFloors` for repeated resource terrain), then clamp reversed resource effects at zero.
 - Resource placement audio should use the existing SFX helpers. Spend failures play the rejection clip in the spend helper; successes play after `setCell()` / `addCellExtra()` mutates the world.
 - Update the User Stats panel through `RESOURCE_KEYS`, `setPlayerStat()`, and `updatePlayerStatsPanel()`.
+- Placement feedback should stay in the mock resource layer: use `flashPlayerResourceStats()` from spend/refund helpers rather than scattering DOM animation calls through tool placement branches.
+- Resource-backed blocked actions, including insufficient gold and max-height repeat clicks, should use `rejectMockResourceBuildAction(tool)` so Gold gets the same red jiggle and rejection sound.
 - Mock round-action UI can read `resources.gold` for attack wagers, but must remain frontend-only until commit/reveal and contract/indexer state are explicitly added.
 - Leave contract, wallet, indexer, and elimination behavior out until explicitly requested.
 

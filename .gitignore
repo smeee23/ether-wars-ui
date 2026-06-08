@@ -5,7 +5,7 @@
 node_modules/
 *.log
 /.playwright-mcp
-
+/reference
 dist/
 *.zip
 

@@ -22,8 +22,9 @@ Expected behavior:
 
 Fence levels:
 
-- `1`-`4`: stone/rock wall by default; the saved level still increments for repeat-click behavior.
-- `5+`: steel wall.
+- Normal fences render as two small greenhouse-style posts with a shared
+  `M.greenhouseGlass` force-shield panel between them; the saved level still
+  increments for repeat-click behavior.
 - Fences on path terrain render as road gates. Path axis means travel
   direction (`x` for east/west, `z` for north/south); gate posts and beams
   must span the perpendicular axis so the path passes through the opening.
