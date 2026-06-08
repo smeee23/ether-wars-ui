@@ -6097,6 +6097,7 @@
     habitatWindow: new THREE.MeshLambertMaterial({ color: 0x83d8f0 }),
     habitatPanel:  new THREE.MeshLambertMaterial({ color: 0x2d4f7a }),
     habitatLight:  new THREE.MeshLambertMaterial({ color: 0xffd86b, emissive: 0xffb84a, emissiveIntensity: 0.65 }),
+    plasmaGlow:    new THREE.MeshLambertMaterial({ color: 0x67e8ff, emissive: 0x1fcfff, emissiveIntensity: 0.95 }),
 
     // Manor — Georgian brick + slate. Solo cluster-bypass (variant 'manor').
     manorBrick:    new THREE.MeshLambertMaterial({ color: 0xa84a3a }),
@@ -7938,7 +7939,89 @@
     return g;
   }
 
-  // Modern glass-sided high-rise. Auto-promoted from solo houses with 4+
+  function makePlasmaTurret(scale = 1) {
+    const turret = new THREE.Group();
+    turret.name = 'plasmaTurret';
+    turret.scale.setScalar(scale);
+
+    const base = new THREE.Group();
+    base.name = 'plasmaTurretBase';
+    turret.add(base);
+
+    const baseDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.12, 8), M.habitatTrim);
+    baseDisc.position.y = 0.06;
+    base.add(baseDisc);
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.12, 8), M.habitatTrim);
+    pedestal.position.y = 0.18;
+    base.add(pedestal);
+    const baseRing = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.04, 8), M.habitatBand);
+    baseRing.position.y = 0.26;
+    base.add(baseRing);
+
+    const head = new THREE.Group();
+    head.name = 'plasmaTurretHead';
+    head.position.y = 0.34;
+    turret.add(head);
+
+    const body = new THREE.Mesh(roundedBox(0.32, 0.16, 0.24, 0.025), M.habitatBand);
+    body.position.y = 0;
+    head.add(body);
+    const domeRing = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.035, 10), M.habitatTrim);
+    domeRing.position.y = 0.095;
+    head.add(domeRing);
+    const shieldDome = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), M.greenhouseGlass);
+    shieldDome.scale.y = 0.58;
+    shieldDome.position.y = 0.115;
+    shieldDome.userData.noShadow = true;
+    shieldDome.renderOrder = 4;
+    head.add(shieldDome);
+    const visor = new THREE.Mesh(getBoxGeometry(0.20, 0.055, 0.025), M.plasmaGlow);
+    visor.position.set(0, 0.035, 0.135);
+    visor.userData.noShadow = true;
+    visor.renderOrder = 4;
+    head.add(visor);
+
+    const barrels = new THREE.Group();
+    barrels.name = 'plasmaTurretBarrels';
+    barrels.position.set(0, 0.02, 0.13);
+    head.add(barrels);
+
+    for (const x of [-0.07, 0.07]) {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.34, 8), M.habitatTrim);
+      barrel.rotation.x = Math.PI / 2;
+      barrel.position.set(x, 0, 0.17);
+      barrels.add(barrel);
+
+      for (const z of [0.08, 0.19]) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 12), M.plasmaGlow);
+        coil.position.set(x, 0, z);
+        coil.userData.noShadow = true;
+        coil.renderOrder = 4;
+        barrels.add(coil);
+      }
+
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), M.plasmaGlow);
+      tip.position.set(x, 0, 0.35);
+      tip.userData.noShadow = true;
+      tip.renderOrder = 4;
+      barrels.add(tip);
+    }
+
+    const rearCell = new THREE.Mesh(getBoxGeometry(0.18, 0.08, 0.09), M.habitatPanel);
+    rearCell.position.set(0, -0.01, -0.15);
+    head.add(rearCell);
+
+    // Future tracking can rotate plasmaTurretHead around Y and adjust
+    // plasmaTurretBarrels pitch here; intentionally stationary for now.
+    turret.userData = {
+      visualOnly: true,
+      rotationRootName: 'plasmaTurretHead',
+      barrelRootName: 'plasmaTurretBarrels',
+    };
+    return turret;
+  }
+
+  // Space-themed glass-sided high-rise. Auto-promoted from solo houses with 4+
   // floors, or chosen explicitly via the House fly-out menu (buildingType =
   // 'skyscraper'). Single-cell footprint regardless of clustering. floors
   // scales the height; min 4 floors for the high-rise look.
@@ -7949,42 +8032,48 @@
     const floorH = 0.30;
     const totalH = floorH * f;
 
-    // Body — main steel/concrete column
-    const body = new THREE.Mesh(roundedBox(W, totalH, D, 0.025), M.skyBody);
+    // Body — main habitat-shell column so the high-rise matches the sci-fi set.
+    const body = new THREE.Mesh(roundedBox(W, totalH, D, 0.025), M.habitatShell);
     body.position.y = totalH / 2;
     g.add(body);
 
-    // Glass strips per floor, slightly recessed on each face — read as window bands.
+    // Force-shield strips per floor, slightly recessed on each face — read as window bands.
     for (let i = 0; i < f; i++) {
       const yMid = (i + 0.5) * floorH;
       const glassH = 0.16;
-      const sxe = new THREE.Mesh(getBoxGeometry(0.04, glassH, D - 0.18), M.skyGlass);
+      const sxe = new THREE.Mesh(getBoxGeometry(0.04, glassH, D - 0.18), M.greenhouseGlass);
       sxe.position.set( W / 2 - 0.005, yMid, 0); g.add(sxe);
-      const sxw = new THREE.Mesh(getBoxGeometry(0.04, glassH, D - 0.18), M.skyGlass);
+      sxe.userData.noShadow = true; sxe.renderOrder = 4;
+      const sxw = new THREE.Mesh(getBoxGeometry(0.04, glassH, D - 0.18), M.greenhouseGlass);
       sxw.position.set(-W / 2 + 0.005, yMid, 0); g.add(sxw);
-      const szs = new THREE.Mesh(getBoxGeometry(W - 0.18, glassH, 0.04), M.skyGlass);
+      sxw.userData.noShadow = true; sxw.renderOrder = 4;
+      const szs = new THREE.Mesh(getBoxGeometry(W - 0.18, glassH, 0.04), M.greenhouseGlass);
       szs.position.set(0, yMid,  D / 2 - 0.005); g.add(szs);
-      const szn = new THREE.Mesh(getBoxGeometry(W - 0.18, glassH, 0.04), M.skyGlass);
+      szs.userData.noShadow = true; szs.renderOrder = 4;
+      const szn = new THREE.Mesh(getBoxGeometry(W - 0.18, glassH, 0.04), M.greenhouseGlass);
       szn.position.set(0, yMid, -D / 2 + 0.005); g.add(szn);
+      szn.userData.noShadow = true; szn.renderOrder = 4;
     }
 
     // Roof cap (slightly larger than body)
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.05, D + 0.04), M.skyRoof);
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.05, D + 0.04), M.habitatTrim);
     roof.position.y = totalH + 0.025;
     g.add(roof);
 
-    // Rooftop details — HVAC unit + antenna
-    const hvac = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.10, 0.16), M.castleStoneD);
-    hvac.position.set(-0.18, totalH + 0.10, 0.20);
-    g.add(hvac);
-    const ant = new THREE.Mesh(getBoxGeometry(0.03, 0.36, 0.03), M.skyFrame);
-    ant.position.set(0.20, totalH + 0.23, -0.15);
-    g.add(ant);
+    const plasmaTurret = makePlasmaTurret(0.92);
+    plasmaTurret.position.y = totalH + 0.065;
+    g.add(plasmaTurret);
 
-    // Ground-floor entrance — wood door for some warmth
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.32, 0.04), M.door);
-    door.position.set(0, 0.16, D / 2 + 0.01);
-    g.add(door);
+    // Ground-floor entrance — same hatch proportions/materials as the habitat.
+    const hatch = new THREE.Mesh(getBoxGeometry(0.20, 0.24, 0.035), M.habitatBand);
+    hatch.position.set(0, 0.12, D / 2 + 0.030);
+    g.add(hatch);
+    const hatchWindow = new THREE.Mesh(getBoxGeometry(0.09, 0.07, 0.018), M.habitatWindow);
+    hatchWindow.position.set(0, 0.17, D / 2 + 0.060);
+    g.add(hatchWindow);
+    const step = new THREE.Mesh(getBoxGeometry(0.24, 0.05, 0.16), M.step);
+    step.position.set(0, 0.03, D / 2 + 0.08);
+    g.add(step);
 
     g.userData = { kind: 'house', chimneyTops: [] };
     castReceive(g);
@@ -8508,7 +8597,7 @@
   }
 
   function fenceVisualLevel(level = 1) {
-    return Math.max(4, Math.max(1, Math.min(MAX_FLOORS, level || 1)));
+    return Math.max(1, Math.min(MAX_FLOORS, level || 1));
   }
 
   function makeFence(side = 'n', level = 1) {
@@ -8553,7 +8642,7 @@
     return g;
   }
 
-  const CROP_DOME_SIZE = 0.86;
+  const CROP_DOME_SIZE = 0.96;
   const CROP_DOME_HEIGHT = 0.7;
   const CROP_DOME_BASE_Y = 0.045;
   let cropDomeAssets = null;
@@ -8977,6 +9066,7 @@
       leg.position.set(x, 0.08, z);
       g.add(leg);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'cow' };
     castReceive(g);
     return g;
@@ -9002,6 +9092,7 @@
       leg.position.set(x, 0.07, z);
       g.add(leg);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind: 'sheep' };
     castReceive(g);
     return g;
@@ -9837,19 +9928,23 @@
     const f = Math.max(4, Math.min(16, floors || 4));
     const floorH = 0.24;
     const h = f * floorH;
-    vbox(g, 0.78, h, 0.78, 0, h / 2, 0, M.skyBody);
+    vbox(g, 0.78, h, 0.78, 0, h / 2, 0, M.habitatShell);
     for (let i = 0; i < f; i++) {
       const y = i * floorH + floorH * 0.55;
-      vbox(g, 0.045, 0.11, 0.58, 0.415, y, 0, M.skyGlass);
-      vbox(g, 0.045, 0.11, 0.58, -0.415, y, 0, M.skyGlass);
-      vbox(g, 0.58, 0.11, 0.045, 0, y, 0.415, M.skyGlass);
-      vbox(g, 0.58, 0.11, 0.045, 0, y, -0.415, M.skyGlass);
-      if (i % 2 === 0) vbox(g, 0.84, 0.025, 0.84, 0, i * floorH + 0.02, 0, M.skyFrame);
+      const wx = vbox(g, 0.045, 0.11, 0.58, 0.415, y, 0, M.greenhouseGlass);
+      const ww = vbox(g, 0.045, 0.11, 0.58, -0.415, y, 0, M.greenhouseGlass);
+      const wz = vbox(g, 0.58, 0.11, 0.045, 0, y, 0.415, M.greenhouseGlass);
+      const wn = vbox(g, 0.58, 0.11, 0.045, 0, y, -0.415, M.greenhouseGlass);
+      [wx, ww, wz, wn].forEach(m => { m.userData.noShadow = true; m.renderOrder = 4; });
+      if (i % 2 === 0) vbox(g, 0.84, 0.025, 0.84, 0, i * floorH + 0.02, 0, M.habitatTrim);
     }
-    vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, M.skyRoof);
-    vbox(g, 0.18, 0.12, 0.16, -0.20, h + 0.14, 0.18, M.castleStoneD);
-    vbox(g, 0.035, 0.42, 0.035, 0.20, h + 0.27, -0.16, M.skyFrame);
-    voxelDoor(g, 0, 0.42, 'z', 0.32);
+    vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, M.habitatTrim);
+    const plasmaTurret = makePlasmaTurret(0.84);
+    plasmaTurret.position.y = h + 0.09;
+    g.add(plasmaTurret);
+    vbox(g, 0.20, 0.24, 0.035, 0, 0.12, 0.42, M.habitatBand);
+    vbox(g, 0.09, 0.07, 0.018, 0, 0.17, 0.45, M.habitatWindow);
+    vbox(g, 0.24, 0.05, 0.16, 0, 0.03, 0.47, M.step);
     g.userData = { kind: 'house', chimneyTops: [] };
     castReceive(g);
     return g;
@@ -10068,6 +10163,7 @@
     [[0.13, -0.08], [0.13, 0.08], [-0.13, -0.08], [-0.13, 0.08]].forEach(([x, z]) => {
       vbox(g, 0.06, 0.14, 0.06, x, 0.07, z, M_ANIMAL.hoof);
     });
+    addCropGreenhouseDome(g);
     g.userData = { kind };
     castReceive(g);
     return g;
