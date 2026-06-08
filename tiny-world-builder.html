@@ -9275,7 +9275,8 @@
       return out;
     }
     function crystalMiningRig() {
-      return watchtower().filter(v => !(v.y === 16 && Math.abs(v.x) <= 5 && Math.abs(v.z) <= 5)
+      return watchtower().filter(v => v.color !== C.gold
+        && !(v.y === 16 && Math.abs(v.x) <= 5 && Math.abs(v.z) <= 5)
         && !(v.y === 17 && Math.abs(v.x) === 5 && Math.abs(v.z) === 5)).map(v => {
         const roofY = (v.y >= 17 && v.y <= 19 && Math.abs(v.x) <= 5 && Math.abs(v.z) <= 5) ? v.y - 1 : v.y;
         let color = v.color;
