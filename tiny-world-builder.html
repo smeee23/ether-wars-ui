@@ -8024,6 +8024,10 @@
     return turret;
   }
 
+  function plasmaTurretScaleForLevel(level = 1, largeScale = 0.92) {
+    return (level || 1) > 2 ? largeScale : 0.34;
+  }
+
   // Space-themed glass-sided high-rise. Chosen explicitly via the House
   // fly-out menu (buildingType = 'skyscraper'). Single-cell footprint
   // regardless of clustering. floors scales the height from the first level.
@@ -8062,7 +8066,7 @@
     roof.position.y = totalH + 0.025;
     g.add(roof);
 
-    const plasmaTurret = makePlasmaTurret(0.92);
+    const plasmaTurret = makePlasmaTurret(plasmaTurretScaleForLevel(f, 0.92));
     plasmaTurret.position.y = totalH + 0.065;
     g.add(plasmaTurret);
 
@@ -9676,7 +9680,7 @@
       [-1.80,  1.80, Math.PI * 1.25],
       [ 1.80,  1.80, Math.PI * 1.75],
     ]) {
-      const turret = makePlasmaTurret(0.34);
+      const turret = makePlasmaTurret(plasmaTurretScaleForLevel(rigLevel, 0.92));
       turret.position.set(wx(x), roofY + 0.12 * unit, wz(z));
       turret.rotation.y = rot;
       g.add(turret);
@@ -9918,7 +9922,7 @@
       if (i % 2 === 0) vbox(g, 0.84, 0.025, 0.84, 0, i * floorH + 0.02, 0, M.habitatTrim);
     }
     vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, M.habitatTrim);
-    const plasmaTurret = makePlasmaTurret(0.84);
+    const plasmaTurret = makePlasmaTurret(plasmaTurretScaleForLevel(f, 0.84));
     plasmaTurret.position.y = h + 0.09;
     g.add(plasmaTurret);
     vbox(g, 0.20, 0.24, 0.035, 0, 0.12, 0.42, M.habitatBand);
