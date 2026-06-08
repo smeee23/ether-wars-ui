@@ -8016,6 +8016,7 @@
     turret.userData = {
       visualOnly: true,
       trackingHead: head,
+      trackingPitch: barrels,
       barrelRoot: barrels,
       rotationRootName: 'plasmaTurretHead',
       barrelRootName: 'plasmaTurretBarrels',
@@ -9670,39 +9671,16 @@
     const wx = x => (x - centerX) * unit;
     const wz = z => (z - centerZ) * unit;
 
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.46 * unit, 10, 6), M.habitatWindow);
-    dome.scale.y = 0.58;
-    dome.position.set(wx(-1.45), roofY + 0.12 * unit, wz(-1.05));
-    g.add(dome);
-    const domeRing = new THREE.Mesh(new THREE.CylinderGeometry(0.50 * unit, 0.50 * unit, 0.10 * unit, 12), M.habitatTrim);
-    domeRing.position.set(wx(-1.45), roofY + 0.04 * unit, wz(-1.05));
-    g.add(domeRing);
-
-    const panelGeo = getBoxGeometry(1.05 * unit, 0.08 * unit, 0.46 * unit);
-    for (const z of [-1.55, 1.55]) {
-      const strut = new THREE.Mesh(getBoxGeometry(0.18 * unit, 0.18 * unit, 0.18 * unit), M.habitatTrim);
-      strut.position.set(wx(1.25), roofY + 0.10 * unit, wz(z));
-      g.add(strut);
-      const panel = new THREE.Mesh(panelGeo, M.habitatPanel);
-      panel.position.set(wx(1.25), roofY + 0.20 * unit, wz(z));
-      g.add(panel);
-      const stripe = new THREE.Mesh(getBoxGeometry(0.08 * unit, 0.09 * unit, 0.48 * unit), M.habitatWindow);
-      stripe.position.set(wx(1.25), roofY + 0.245 * unit, wz(z));
-      g.add(stripe);
-    }
-
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * unit, 0.07 * unit, 1.05 * unit, 6), M.habitatTrim);
-    mast.position.set(wx(-1.65), roofY + 0.56 * unit, wz(1.35));
-    g.add(mast);
-    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.34 * unit, 0.16 * unit, 0.11 * unit, 10), M.habitatWindow);
-    dish.position.set(wx(-1.65), roofY + 1.12 * unit, wz(1.35));
-    dish.rotation.x = Math.PI / 2.8;
-    g.add(dish);
-
-    for (const x of [-0.45, 0.45]) {
-      const light = new THREE.Mesh(getBoxGeometry(0.20 * unit, 0.12 * unit, 0.10 * unit), M.habitatLight);
-      light.position.set(wx(x), roofY + 0.10 * unit, wz(-2.05));
-      g.add(light);
+    for (const [x, z, rot] of [
+      [-1.80, -1.80, Math.PI * 0.75],
+      [ 1.80, -1.80, Math.PI * 0.25],
+      [-1.80,  1.80, Math.PI * 1.25],
+      [ 1.80,  1.80, Math.PI * 1.75],
+    ]) {
+      const turret = makePlasmaTurret(0.34);
+      turret.position.set(wx(x), roofY + 0.12 * unit, wz(z));
+      turret.rotation.y = rot;
+      g.add(turret);
     }
   }
 
@@ -10418,13 +10396,13 @@
   function registerRuntimeObject(obj) {
     if (!obj || !obj.userData) return;
     const kind = obj.userData.kind;
+    obj.traverse(o => {
+      if (o.name === 'plasmaTurret' && o.userData && o.userData.trackingHead) plasmaTurretObjects.add(o);
+    });
     if (kind === 'tree' || kind === 'tuft') animatedCellObjects.add(obj);
     if (kind === 'house') {
       smokeHouseObjects.add(obj);
       buildingWindowObjects.add(obj);
-      obj.traverse(o => {
-        if (o.name === 'plasmaTurret' && o.userData && o.userData.trackingHead) plasmaTurretObjects.add(o);
-      });
     }
   }
 
@@ -21594,6 +21572,9 @@
   // -------- plasma turret tracking --------
   const PLASMA_TURRET_TRACK_SPEED = 5.2;
   const PLASMA_TURRET_RETURN_SPEED = 1.7;
+  const PLASMA_TURRET_IDLE_PITCH = THREE.Math.degToRad(8);
+  const PLASMA_TURRET_MIN_PITCH = THREE.Math.degToRad(-10);
+  const PLASMA_TURRET_MAX_PITCH = THREE.Math.degToRad(75);
   const _turretWorldPos = new THREE.Vector3();
   const _turretTargetWorldPos = new THREE.Vector3();
   const _turretTargetLocalPos = new THREE.Vector3();
@@ -21644,7 +21625,20 @@
       }
       const alpha = 1 - Math.exp(-speed * dt);
       head.rotation.y += normalizeTurretYawDelta(desiredYaw - head.rotation.y) * alpha;
-      // Keep barrels level for now; future plane-tracking can pitch plasmaTurretBarrels.
+      const pitchRoot = turret.userData && turret.userData.trackingPitch;
+      if (pitchRoot) {
+        let desiredPitch = PLASMA_TURRET_IDLE_PITCH;
+        if (target) {
+          const dx = _turretTargetLocalPos.x - pitchRoot.position.x;
+          const dy = _turretTargetLocalPos.y - (head.position.y + pitchRoot.position.y);
+          const dz = _turretTargetLocalPos.z - pitchRoot.position.z;
+          const flatDist = Math.max(0.001, Math.hypot(dx, dz));
+          desiredPitch = Math.max(PLASMA_TURRET_MIN_PITCH, Math.min(PLASMA_TURRET_MAX_PITCH, Math.atan2(dy, flatDist)));
+        }
+        pitchRoot.rotation.x += (-desiredPitch - pitchRoot.rotation.x) * alpha;
+        pitchRoot.rotation.y = 0;
+        pitchRoot.rotation.z = 0;
+      }
       head.rotation.x = 0;
       head.rotation.z = 0;
     }
