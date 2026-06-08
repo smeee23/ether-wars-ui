@@ -42,7 +42,7 @@
     },
     "kind": {
       "type": ["string", "null"],
-      "enum": [null, "house", "tree", "fence", "rock", "bridge", "crop", "corn", "wheat", "pumpkin", "carrot", "sunflower", "tuft", "flower", "bush", "cow", "sheep", "watch-tower", "temple", "voxel-build"]
+      "enum": [null, "house", "tree", "fence", "rock", "bridge", "oxygen-plant", "crop", "corn", "wheat", "pumpkin", "carrot", "sunflower", "tuft", "flower", "bush", "cow", "sheep", "watch-tower", "temple", "voxel-build"]
     },
     "buildingType": {
       "type": ["string", "null"],

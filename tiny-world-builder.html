@@ -6079,6 +6079,7 @@
     chimney:   new THREE.MeshLambertMaterial({ color: 0xc9c4ba }),
     step:      new THREE.MeshLambertMaterial({ color: 0xa9a49a }),
     knob:      new THREE.MeshLambertMaterial({ color: 0xe8c050 }),
+    goldBrick: new THREE.MeshLambertMaterial({ color: 0xc7a858 }),
 
     fence:     new THREE.MeshLambertMaterial({ color: 0x7d4519 }),
     fenceWire: new THREE.MeshLambertMaterial({ color: 0x777d7a }),
@@ -8185,6 +8186,74 @@
     return g;
   }
 
+  function makeOxygenGenerationPlant(level = 1) {
+    const g = new THREE.Group();
+    const L = Math.max(1, Math.min(MAX_FLOORS, level || 1));
+    let oxygenPump = null;
+
+    const platform = new THREE.Mesh(roundedBox(0.88, 0.10, 0.72, 0.025), M.habitatTrim);
+    platform.position.y = 0.05;
+    g.add(platform);
+    const inset = new THREE.Mesh(getBoxGeometry(0.72, 0.035, 0.54), M.habitatBand);
+    inset.position.y = 0.125;
+    g.add(inset);
+
+    for (const x of [-0.24, 0.08]) {
+      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.52, 12), M.habitatShell);
+      tank.position.set(x, 0.40, -0.06);
+      g.add(tank);
+      const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.045, 12), M.habitatTrim);
+      capTop.position.set(x, 0.685, -0.06);
+      g.add(capTop);
+      const capBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12), M.habitatTrim);
+      capBottom.position.set(x, 0.135, -0.06);
+      g.add(capBottom);
+      for (const y of [0.28, 0.42, 0.56]) {
+        const band = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.112, 0.018, 12), M.habitatBand);
+        band.position.set(x, y, -0.06);
+        g.add(band);
+      }
+    }
+
+    const rearDome = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.habitatShell);
+    rearDome.position.set(-0.08, 0.16, 0.18);
+    rearDome.scale.set(1.35, 0.78, 0.92);
+    g.add(rearDome);
+
+    const manifold = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.62, 8), M.habitatBand);
+    manifold.rotation.z = Math.PI / 2;
+    manifold.position.set(-0.07, 0.25, -0.26);
+    g.add(manifold);
+    for (const x of [-0.34, 0.20]) {
+      const elbow = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.22, 8), M.habitatBand);
+      elbow.rotation.x = Math.PI / 2;
+      elbow.position.set(x, 0.25, -0.16);
+      g.add(elbow);
+    }
+
+    if (L > 1) {
+      const scrubber = new THREE.Mesh(roundedBox(0.18, 0.50, 0.18, 0.02), M.goldBrick);
+      scrubber.position.set(0.38, 0.31, -0.18);
+      g.add(scrubber);
+      oxygenPump = {
+        scrubber,
+        x: 0.38,
+        z: -0.18,
+        minY: 0.31,
+        maxY: 0.61,
+        phase: Math.random() * Math.PI * 2,
+        speed: Math.PI * 2 / 4.2,
+      };
+      const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.045, 0.15), M.habitatShell);
+      goldCap.position.set(0.38, 0.485, -0.18);
+      g.add(goldCap);
+    }
+
+    g.userData = { kind: 'oxygen-plant', chimneyTops: [], oxygenPump };
+    castReceive(g);
+    return g;
+  }
+
   // Manor — wider brick house with a hipped slate roof, central portico,
   // symmetrical sash windows. Solo cluster-bypass (variant 'manor'). Renders
   // on a single grid cell but visually fills a touch more than a cottage.
@@ -10194,6 +10263,7 @@
     else if (kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'carrot' || kind === 'sunflower') mesh = makeVoxelCropKind(kind, level);
     else if (kind === 'pumpkin') mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makeVoxelPumpkinCarriage() : makeVoxelCropKind('pumpkin', level);
     else if (kind === 'cow' || kind === 'sheep') mesh = makeVoxelAnimal(kind);
+    else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
     else if (kind === 'chimney' || kind === 'ripple' || kind === 'shrub' || kind === 'stone' || kind === 'pebble' || kind === 'bridge-rail') mesh = makeVoxelMicroKind(kind, level, x, z);
     else if (kind === 'fence') {
       if (cell.terrain === 'path') {
@@ -10400,7 +10470,7 @@
     obj.traverse(o => {
       if (o.name === 'plasmaTurret' && o.userData && o.userData.trackingHead) plasmaTurretObjects.add(o);
     });
-    if (kind === 'tree' || kind === 'tuft') animatedCellObjects.add(obj);
+    if (kind === 'tree' || kind === 'tuft' || (kind === 'oxygen-plant' && obj.userData.oxygenPump)) animatedCellObjects.add(obj);
     if (kind === 'house') {
       smokeHouseObjects.add(obj);
       buildingWindowObjects.add(obj);
@@ -13695,6 +13765,7 @@
     else if (cell.kind === 'pumpkin')   mesh = makeVoxelCropKind('pumpkin', level);
     else if (cell.kind === 'carrot')    mesh = makeVoxelCropKind('carrot', level);
     else if (cell.kind === 'sunflower') mesh = makeVoxelCropKind('sunflower', level);
+    else if (cell.kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
     else if (cell.kind === 'chimney' || cell.kind === 'ripple' || cell.kind === 'shrub' || cell.kind === 'stone' || cell.kind === 'pebble' || cell.kind === 'bridge-rail') mesh = makeVoxelMicroKind(cell.kind, level, x + 1000, z + 1000);
     else if (cell.kind === 'fence') {
       if (cell.terrain === 'path') {
@@ -13750,6 +13821,8 @@
       g = makeFence(normalizeFenceSide(cell.fenceSide), level);
     } else if (kind === 'bridge') {
       g = new THREE.Mesh(getBoxGeometry(1.6, 0.3, 0.8), M.dirtRich);
+    } else if (kind === 'oxygen-plant') {
+      g = makeOxygenGenerationPlant(level);
     }
     return g;
   }
@@ -15265,6 +15338,7 @@
     else if (kind === 'pumpkin')   mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makePumpkinCarriage() : makePumpkin();
     else if (kind === 'carrot')    mesh = makeCarrot();
     else if (kind === 'sunflower') mesh = makeSunflower();
+    else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
     else if (kind === 'fence') {
       if (cell.terrain === 'path') {
         // Pick orientation from neighbouring path cells so the gate
@@ -16070,6 +16144,7 @@
     else if (kind === 'carrot')    mesh = makeCarrot();
     else if (kind === 'sunflower') mesh = makeSunflower();
     else if (kind === 'bridge')    mesh = makeBridge('x');
+    else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(1);
     else if (kind === 'fence') {
       const v = tool.activeVariant;
       const side = (v && v.fenceSide && v.fenceSide !== 'auto') ? v.fenceSide : 'n';
@@ -16624,6 +16699,7 @@
     },
     { id: 'rock',   label: 'Rock',   kind: 'rock',  color: '#9b9a8f', shortcut: '8', group: 'nature' },
     { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: '9', group: 'build' },
+    { id: 'oxygen-plant', label: 'Oxygen Generation Plant', kind: 'oxygen-plant', color: '#c7a858', group: 'infra' },
     { id: 'crystal-mining-rig', label: 'Crystal Mining Rig', kind: 'voxel-build', voxelBuildId: 'crystal-mining-rig', color: '#7fe8ff', group: 'build' },
     { id: 'crop',      label: 'Crop',      kind: 'crop',      terrainOverride: 'dirt', color: '#86c544', shortcut: 'g', group: 'crops' },
     { id: 'corn',      label: 'Corn',      kind: 'corn',      terrainOverride: 'dirt', color: '#f2c849', shortcut: 'n', group: 'crops' },
@@ -16643,7 +16719,7 @@
     { id: 'terrain', label: 'Terrain', toolIds: ['grass', 'path', 'dirt', 'water', 'stone', 'lava', 'sand', 'snow', 'rock'], iconTool: 'grass' },
     { id: 'plants', label: 'Plants', toolIds: ['tree', 'tuft', 'flower', 'bush'], iconTool: 'tree' },
     { id: 'build', label: 'Build', toolIds: ['house', 'crystal-mining-rig'], iconTool: 'house' },
-    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge'], iconTool: 'fence' },
+    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'oxygen-plant'], iconTool: 'oxygen-plant' },
     { id: 'farm', label: 'Farm', toolIds: ['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower'], iconTool: 'wheat' },
     { id: 'life', label: 'Life', toolIds: ['cow', 'sheep'], iconTool: 'cow' },
   ];
@@ -16706,6 +16782,7 @@
     if (k === 'cow')       return makeVoxelAnimal('cow');
     if (k === 'sheep')     return makeVoxelAnimal('sheep');
     if (k === 'fence')     return makeVoxelFence('n', 1);
+    if (k === 'oxygen-plant') return makeOxygenGenerationPlant(1);
     if (k === 'house') {
       const v = tool.activeVariant;
       const bType = v && v.buildingType;
@@ -18986,6 +19063,7 @@
       const bt = cell.buildingType || 'cottage';
       return bt.charAt(0).toUpperCase() + bt.slice(1) + ' house';
     }
+    if (cell.kind === 'oxygen-plant') return 'Oxygen Generation Plant';
     return cell.kind.charAt(0).toUpperCase() + cell.kind.slice(1);
   }
 
@@ -21710,6 +21788,13 @@
         obj.rotation.x = Math.cos(t * 0.65 + obj.userData.swayPhase) * 0.012;
       } else if (k === 'tuft') {
         obj.rotation.z = Math.sin(t * 1.2 + (obj.userData.gx + obj.userData.gz)) * 0.05;
+      } else if (k === 'oxygen-plant') {
+        const pump = obj.userData.oxygenPump;
+        const scrubber = pump && pump.scrubber;
+        if (scrubber) {
+          const lift = smoothstep(0.5 - 0.5 * Math.cos(t * pump.speed + pump.phase));
+          scrubber.position.set(pump.x, pump.minY + (pump.maxY - pump.minY) * lift, pump.z);
+        }
       }
     }
 
@@ -21844,6 +21929,7 @@
           "fence",
           "rock",
           "bridge",
+          "oxygen-plant",
           "crop",
           "corn",
           "wheat",
@@ -22450,7 +22536,7 @@
       data.gridSize = legacyGridSize;
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
-    const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
+    const okKind = new Set([null,'house','tree','fence','rock','bridge','oxygen-plant','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
     const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper','habitat']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
@@ -24083,6 +24169,7 @@
         }
         else if (kind === 'tree') obj = makeTree();
         else if (kind === 'fence') obj = makeFence(normalizeFenceSide(target.cell.fenceSide), target.cell.floors || 1);
+        else if (kind === 'oxygen-plant') obj = makeOxygenGenerationPlant(target.cell.floors || 1);
         else if (kind === 'voxel-build') obj = makeVoxelBuild(target.cell);
         else if (kind) obj = makeGenericObject(kind);
       } catch (e) { /* fallback */ }
@@ -24905,7 +24992,7 @@
       const FLAT_REQUIRED = new Set([
         'house','fence','bridge','tree','tuft','flower','bush','cow','sheep',
         'crop','corn','wheat','pumpkin','carrot','sunflower',
-        'chimney','shrub','stone','pebble','bridge-rail','voxel-build',
+        'chimney','shrub','stone','pebble','bridge-rail','oxygen-plant','voxel-build',
       ]);
       if (normalizedKind === 'house' && (terrain === 'water' || terrain === 'path' || terrain === 'lava')) {
         terrain = BASE_TERRAIN;
@@ -26302,6 +26389,14 @@
     } else if (kind === 'bridge') {
       ctx.fillStyle = minimapColor('bridgeWood', '#8b5a32');
       ctx.fillRect(cx - s * 0.40, cy - s * 0.10, s * 0.80, s * 0.20);
+    } else if (kind === 'oxygen-plant') {
+      ctx.fillStyle = minimapColor('habitatTrim', '#8f979d');
+      ctx.fillRect(cx - s * 0.28, cy - s * 0.18, s * 0.56, s * 0.36);
+      ctx.fillStyle = minimapColor('goldBrick', '#c7a858');
+      ctx.beginPath();
+      ctx.arc(cx - s * 0.14, cy, s * 0.12, 0, Math.PI * 2);
+      ctx.arc(cx + s * 0.14, cy, s * 0.12, 0, Math.PI * 2);
+      ctx.fill();
     } else if (kind === 'tuft' || kind === 'flower') {
       ctx.fillStyle = kind === 'flower' ? minimapThemeCss('#d24a4f') : minimapColor('leaves', '#86b53e');
       ctx.beginPath();
