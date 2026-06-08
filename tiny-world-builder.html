@@ -8015,6 +8015,8 @@
     // plasmaTurretBarrels pitch here; intentionally stationary for now.
     turret.userData = {
       visualOnly: true,
+      trackingHead: head,
+      barrelRoot: barrels,
       rotationRootName: 'plasmaTurretHead',
       barrelRootName: 'plasmaTurretBarrels',
     };
@@ -10407,6 +10409,7 @@
   const animatedCellObjects = new Set();
   const smokeHouseObjects = new Set();
   const buildingWindowObjects = new Set();
+  const plasmaTurretObjects = new Set();
   const buildingWindowBaseMaterials = new Set([M.windowB, M.manorWindow, M.skyGlass, M.castleSlit, M.habitatWindow]);
   const cropPositions = new Set();        // 'x,z' strings for home-grid cells whose kind is in CROP_KINDS
   let carriagePumpkin = null;             // {x, z} | null — current lowest-index max-floor pumpkin (Cinderella rule)
@@ -10419,6 +10422,9 @@
     if (kind === 'house') {
       smokeHouseObjects.add(obj);
       buildingWindowObjects.add(obj);
+      obj.traverse(o => {
+        if (o.name === 'plasmaTurret' && o.userData && o.userData.trackingHead) plasmaTurretObjects.add(o);
+      });
     }
   }
 
@@ -10427,11 +10433,13 @@
     animatedCellObjects.delete(root);
     smokeHouseObjects.delete(root);
     buildingWindowObjects.delete(root);
+    plasmaTurretObjects.delete(root);
     if (root.traverse) {
       root.traverse(o => {
         animatedCellObjects.delete(o);
         smokeHouseObjects.delete(o);
         buildingWindowObjects.delete(o);
+        plasmaTurretObjects.delete(o);
       });
     }
   }
@@ -21583,6 +21591,65 @@
 
   loadCropDuster();
 
+  // -------- plasma turret tracking --------
+  const PLASMA_TURRET_TRACK_SPEED = 5.2;
+  const PLASMA_TURRET_RETURN_SPEED = 1.7;
+  const _turretWorldPos = new THREE.Vector3();
+  const _turretTargetWorldPos = new THREE.Vector3();
+  const _turretTargetLocalPos = new THREE.Vector3();
+
+  function normalizeTurretYawDelta(delta) {
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    return delta;
+  }
+
+  function nearestFlyingTargetForTurret(turret) {
+    let best = null;
+    let bestDistSq = Infinity;
+    turret.getWorldPosition(_turretWorldPos);
+    const candidates = [];
+    if (cropDusterRoot && cropDusterRoot.visible && cropDusterModel) candidates.push(cropDusterRoot);
+    for (const candidate of candidates) {
+      if (!candidate || !candidate.parent || !candidate.visible) continue;
+      candidate.getWorldPosition(_turretTargetWorldPos);
+      if (_turretTargetWorldPos.y < 0.9) continue;
+      const distSq = _turretWorldPos.distanceToSquared(_turretTargetWorldPos);
+      if (distSq < bestDistSq) {
+        bestDistSq = distSq;
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  function updatePlasmaTurrets(dt) {
+    if (!plasmaTurretObjects.size) return;
+    for (const turret of plasmaTurretObjects) {
+      if (!runtimeRootVisible(turret)) {
+        if (!turret || !turret.parent) plasmaTurretObjects.delete(turret);
+        continue;
+      }
+      const head = turret.userData && turret.userData.trackingHead;
+      if (!head) continue;
+      const target = nearestFlyingTargetForTurret(turret);
+      let desiredYaw = 0;
+      let speed = PLASMA_TURRET_RETURN_SPEED;
+      if (target) {
+        target.getWorldPosition(_turretTargetWorldPos);
+        _turretTargetLocalPos.copy(_turretTargetWorldPos);
+        turret.worldToLocal(_turretTargetLocalPos);
+        desiredYaw = Math.atan2(_turretTargetLocalPos.x - head.position.x, _turretTargetLocalPos.z - head.position.z);
+        speed = PLASMA_TURRET_TRACK_SPEED;
+      }
+      const alpha = 1 - Math.exp(-speed * dt);
+      head.rotation.y += normalizeTurretYawDelta(desiredYaw - head.rotation.y) * alpha;
+      // Keep barrels level for now; future plane-tracking can pitch plasmaTurretBarrels.
+      head.rotation.x = 0;
+      head.rotation.z = 0;
+    }
+  }
+
   // -------- animation loop --------
   let prevT = 0;
   let smokeTimer = 0;
@@ -21622,6 +21689,7 @@
     tickVehicles(dt);
     if (crowdLayer) crowdLayer.update(dt, camera);
     updateCropDuster(dt);
+    updatePlasmaTurrets(dt);
     if (useWindowedHomeRendering()) {
       requestHomeRenderWindowSync();
       if (homeRenderQueue.length) processHomeRenderQueue(5);
