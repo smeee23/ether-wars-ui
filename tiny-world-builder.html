@@ -8024,13 +8024,12 @@
     return turret;
   }
 
-  // Space-themed glass-sided high-rise. Auto-promoted from solo houses with 4+
-  // floors, or chosen explicitly via the House fly-out menu (buildingType =
-  // 'skyscraper'). Single-cell footprint regardless of clustering. floors
-  // scales the height; min 4 floors for the high-rise look.
-  function makeSkyscraper(floors = 4) {
+  // Space-themed glass-sided high-rise. Chosen explicitly via the House
+  // fly-out menu (buildingType = 'skyscraper'). Single-cell footprint
+  // regardless of clustering. floors scales the height from the first level.
+  function makeSkyscraper(floors = 1) {
     const g = new THREE.Group();
-    const f = Math.max(4, floors);
+    const f = Math.max(1, floors || 1);
     const W = 0.78, D = 0.78;
     const floorH = 0.30;
     const totalH = floorH * f;
@@ -9903,9 +9902,9 @@
     return g;
   }
 
-  function makeVoxelSkyscraper(floors = 4) {
+  function makeVoxelSkyscraper(floors = 1) {
     const g = new THREE.Group();
-    const f = Math.max(4, Math.min(16, floors || 4));
+    const f = Math.max(1, Math.min(16, floors || 1));
     const floorH = 0.24;
     const h = f * floorH;
     vbox(g, 0.78, h, 0.78, 0, h / 2, 0, M.habitatShell);
@@ -10206,7 +10205,7 @@
       const floors = cell.floors || 1;
       const bType = cell.buildingType || null;
       if (bType === 'skyscraper') {
-        mesh = makeVoxelSkyscraper(Math.max(floors, 4));
+        mesh = makeVoxelSkyscraper(floors);
       } else if (bType === 'habitat') {
         mesh = makeSpaceHabitat(floors);
       } else if (bType === 'manor') {
@@ -13708,7 +13707,7 @@
       if (cell.buildingType === 'manor') mesh = makeVoxelManor(level);
       else if (cell.buildingType === 'tower') mesh = makeVoxelTurret(level, true);
       else if (cell.buildingType === 'turret') mesh = makeVoxelTurret(level, false);
-      else if (cell.buildingType === 'skyscraper') mesh = makeVoxelSkyscraper(Math.max(level, 4));
+      else if (cell.buildingType === 'skyscraper') mesh = makeVoxelSkyscraper(level);
       else if (cell.buildingType === 'habitat') mesh = makeSpaceHabitat(level);
       else mesh = makeVoxelLinearHouse(1, 'z', level);
     }
@@ -15282,7 +15281,7 @@
       // Forced single-cell overrides — bypass cluster lookup so adjacent
       // forced-variant houses stay independent (no merging).
       if (bType === 'skyscraper') {
-        mesh = makeSkyscraper(Math.max(floors, 4));
+        mesh = makeSkyscraper(floors);
       } else if (bType === 'habitat') {
         mesh = makeSpaceHabitat(floors);
       } else if (bType === 'manor') {
@@ -16079,7 +16078,7 @@
       if      (bt === 'manor')      mesh = makeVoxelManor(1);
       else if (bt === 'tower')      mesh = makeStoneTower(1);
       else if (bt === 'turret')     mesh = makeVoxelTurret(1, false);
-      else if (bt === 'skyscraper') mesh = makeVoxelSkyscraper(4);
+      else if (bt === 'skyscraper') mesh = makeVoxelSkyscraper(1);
       else if (bt === 'habitat')    mesh = makeSpaceHabitat(1);
       else                          mesh = makeVoxelLinearHouse(1, 'z', 1);
     } else if (tool.terrain) {
@@ -16711,7 +16710,7 @@
       if (bType === 'manor')      return makeVoxelManor(2);
       if (bType === 'tower')      return makeStoneTower(1);
       if (bType === 'turret')     return makeVoxelTurret(2, false);
-      if (bType === 'skyscraper') return makeVoxelSkyscraper(4);
+      if (bType === 'skyscraper') return makeVoxelSkyscraper(1);
       if (bType === 'habitat')    return makeSpaceHabitat(1);
       return makeVoxelLinearHouse(1, 'z', 2);
     }
@@ -24076,7 +24075,7 @@
           if (bt === 'manor') obj = makeManor(target.cell.floors || 1);
           else if (bt === 'tower') obj = makeStoneTower(target.cell.floors || 1);
           else if (bt === 'turret') obj = makeTurret(target.cell.floors || 1);
-          else if (bt === 'skyscraper') obj = makeSkyscraper(Math.max(target.cell.floors || 1, 4));
+          else if (bt === 'skyscraper') obj = makeSkyscraper(target.cell.floors || 1);
           else if (bt === 'habitat') obj = makeSpaceHabitat(target.cell.floors || 1);
           else obj = makeHouse(target.cell.floors || 2);
         }
@@ -24264,7 +24263,6 @@
         } else if (rowKey === 'buildingType') {
           if (cell.kind !== 'house') return;
           const floors = value === 'tower' ? Math.max(cell.floors || 1, 2)
-            : value === 'skyscraper' ? Math.max(cell.floors || 1, 4)
             : (cell.floors || 1);
           setCell(x, z, { ...cell, buildingType: value, floors, animate: false, impactDust: false });
         } else if (rowKey === 'size') {
