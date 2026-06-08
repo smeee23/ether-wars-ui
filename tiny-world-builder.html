@@ -5960,6 +5960,79 @@
   // -------- materials --------
   // Lambert (not Standard): non-PBR diffuse only, much more direct color response.
   // Stylized low-poly looks better with flat shading than physical energy conservation.
+  const forceShieldMaterials = new Set();
+  function makeForceShieldMaterial() {
+    // Force-shield tunables:
+    // baseOpacity keeps crops/buildings readable; edgeGlowStrength drives the
+    // Fresnel rim; pulseSpeed controls shimmer tempo; shieldColor is the cyan
+    // tint shared by crop domes and shield-like building glass.
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+        shieldColor: { value: new THREE.Color(0x72eaff) },
+        baseOpacity: { value: 0.105 },
+        edgeGlowStrength: { value: 0.26 },
+        pulseSpeed: { value: 1.25 },
+        fadeOpacity: { value: 1 },
+      },
+      vertexShader: [
+        'varying vec3 vWorldPos;',
+        'varying vec3 vNormalView;',
+        'varying vec3 vViewDir;',
+        'void main() {',
+        '  vec4 worldPos = modelMatrix * vec4(position, 1.0);',
+        '  vWorldPos = worldPos.xyz;',
+        '  vNormalView = normalize(normalMatrix * normal);',
+        '  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);',
+        '  vViewDir = normalize(-mvPosition.xyz);',
+        '  gl_Position = projectionMatrix * mvPosition;',
+        '}',
+      ].join('\n'),
+      fragmentShader: [
+        'uniform float time;',
+        'uniform vec3 shieldColor;',
+        'uniform float baseOpacity;',
+        'uniform float edgeGlowStrength;',
+        'uniform float pulseSpeed;',
+        'uniform float fadeOpacity;',
+        'varying vec3 vWorldPos;',
+        'varying vec3 vNormalView;',
+        'varying vec3 vViewDir;',
+        'void main() {',
+        '  float rim = pow(1.0 - abs(dot(normalize(vNormalView), normalize(vViewDir))), 2.35);',
+        '  float pulse = 0.5 + 0.5 * sin(time * pulseSpeed + vWorldPos.y * 5.0);',
+        '  float scan = smoothstep(0.965, 1.0, 0.5 + 0.5 * sin((vWorldPos.y + time * 0.10) * 42.0));',
+        '  float drift = smoothstep(0.975, 1.0, 0.5 + 0.5 * sin((vWorldPos.x + vWorldPos.z) * 18.0 - time * 0.75));',
+        '  float shimmer = scan * 0.65 + drift * 0.35;',
+        '  float alpha = baseOpacity + rim * edgeGlowStrength * (0.72 + pulse * 0.34) + shimmer * 0.018;',
+        '  alpha = clamp(alpha * fadeOpacity, 0.0, 0.40);',
+        '  vec3 color = shieldColor * (0.72 + rim * 1.35 + pulse * 0.16 + shimmer * 0.42);',
+        '  gl_FragColor = vec4(color, alpha);',
+        '}',
+      ].join('\n'),
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+    });
+    mat.userData.forceShield = true;
+    forceShieldMaterials.add(mat);
+    return mat;
+  }
+  function setForceShieldFadeOpacity(mat, opacity) {
+    if (mat && mat.userData && mat.userData.forceShield && mat.uniforms && mat.uniforms.fadeOpacity) {
+      mat.uniforms.fadeOpacity.value = opacity;
+      forceShieldMaterials.add(mat);
+    }
+  }
+  function updateForceShieldMaterials(t) {
+    for (const mat of forceShieldMaterials) {
+      if (mat && mat.uniforms && mat.uniforms.time) mat.uniforms.time.value = t;
+    }
+  }
+
   const M = {
     grass:     new THREE.MeshLambertMaterial({ color: 0xb0d949, side: THREE.FrontSide }),
     grassEdge: new THREE.MeshLambertMaterial({ color: 0x95c138, side: THREE.FrontSide }),
@@ -6054,7 +6127,7 @@
     sunflowerStalk:  new THREE.MeshLambertMaterial({ color: 0x4d8a2a }),
     sunflowerPetal:  new THREE.MeshLambertMaterial({ color: 0xf2c849 }),
     sunflowerCenter: new THREE.MeshLambertMaterial({ color: 0x5a3a18 }),
-    greenhouseGlass: new THREE.MeshLambertMaterial({ color: 0xbdefff, transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide }),
+    greenhouseGlass: makeForceShieldMaterial(),
     greenhouseFrame: new THREE.MeshLambertMaterial({ color: 0x8f979d }),
 
     cloud:     new THREE.MeshLambertMaterial({ color: 0xfdfcf8 }),
@@ -7952,12 +8025,13 @@
     dome.position.set(-0.10, bodyY + bodyR * 0.78, -0.06);
     g.add(dome);
 
+    const hatchOuterX = 0.57;
     const hatch = new THREE.Mesh(getBoxGeometry(0.20, 0.24, 0.035), M.habitatBand);
-    hatch.position.set(0.54, bodyY, 0.12);
+    hatch.position.set(hatchOuterX + 0.030, bodyY, 0.12);
     hatch.rotation.y = Math.PI / 2;
     g.add(hatch);
     const hatchWindow = new THREE.Mesh(getBoxGeometry(0.09, 0.07, 0.018), M.habitatWindow);
-    hatchWindow.position.set(0.56, bodyY + 0.05, 0.12);
+    hatchWindow.position.set(hatchOuterX + 0.060, bodyY + 0.05, 0.12);
     hatchWindow.rotation.y = Math.PI / 2;
     g.add(hatchWindow);
     const step = new THREE.Mesh(getBoxGeometry(0.24, 0.05, 0.16), M.step);
@@ -8279,8 +8353,8 @@
     return g;
   }
 
-  // Castle wall segment — replaces a regular fence when isCastleFence(x, z) is
-  // true. Each neighbour value is 'fence' | 'turret' | null. Segments toward a
+  // Castle wall segment — legacy crenellated wall factory retained for older
+  // generated/voxel uses. Each neighbour value is 'fence' | 'turret' | null. Segments toward a
   // turret extend slightly past the cell boundary so the wall visually merges
   // with the turret cylinder (which is recessed inside its own cell with
   // radius 0.42, leaving a gap of ~0.08 to the cell edge if we stopped flush).
@@ -8452,55 +8526,27 @@
         : [[offsetX, -0.50], [offsetX, 0.50]];
     }
 
-    if (visualLevel >= 4) {
-      const stone = visualLevel >= 5 ? M.fenceSteel : M.castleStone;
-      const capMat = visualLevel >= 5 ? M.skyFrame : M.castleStoneD;
-      const wallH = visualLevel >= 5 ? 0.58 : 0.46;
-      const wallT = visualLevel >= 5 ? 0.14 : 0.18;
-      const wall = new THREE.Mesh(
-        new THREE.BoxGeometry(alongX ? 1.08 : wallT, wallH, alongX ? wallT : 1.08),
-        stone
-      );
-      wall.position.set(offsetX, wallH / 2, offsetZ);
-      g.add(wall);
-      const cap = new THREE.Mesh(
-        new THREE.BoxGeometry(alongX ? 1.12 : wallT + 0.04, 0.055, alongX ? wallT + 0.04 : 1.12),
-        capMat
-      );
-      cap.position.set(offsetX, wallH + 0.027, offsetZ);
+    const postH = 0.46 + Math.min(visualLevel - 4, 2) * 0.08;
+    const postGeo = getBoxGeometry(0.055, postH, 0.055);
+    const capGeo = getBoxGeometry(0.085, 0.045, 0.085);
+    for (const [px, pz] of endpointOffsets()) {
+      const post = new THREE.Mesh(postGeo, M.greenhouseFrame);
+      post.position.set(px, postH / 2, pz);
+      g.add(post);
+      const cap = new THREE.Mesh(capGeo, M.habitatLight);
+      cap.position.set(px, postH + 0.022, pz);
       g.add(cap);
-    } else if (visualLevel === 3) {
-      const postGeo = getBoxGeometry(0.07, 0.52, 0.07);
-      for (const [px, pz] of endpointOffsets()) {
-        const post = new THREE.Mesh(postGeo, M.fenceSteel);
-        post.position.set(px, 0.26, pz);
-        g.add(post);
-      }
-      for (const y of [0.15, 0.29, 0.43]) {
-        const wire = new THREE.Mesh(
-          getBoxGeometry(alongX ? 1.08 : 0.025, 0.025, alongX ? 0.025 : 1.08),
-          M.fenceWire
-        );
-        wire.position.set(offsetX, y, offsetZ);
-        g.add(wire);
-      }
-    } else {
-      const fenceScale = visualLevel === 2 ? 1.28 : 1;
-      const postH = 0.32 * fenceScale;
-      const postGeo = getBoxGeometry(0.09, postH, 0.09);
-      for (const [px, pz] of endpointOffsets()) {
-        const post = new THREE.Mesh(postGeo, M.fence);
-        post.position.set(px, 0.16 * fenceScale, pz);
-        g.add(post);
-      }
-      const railH = 0.06;
-      const railGeo = getBoxGeometry(alongX ? 1.08 : railH, railH, alongX ? railH : 1.08);
-      for (const y of [0.08 * fenceScale, 0.24 * fenceScale]) {
-        const rail = new THREE.Mesh(railGeo, M.fence);
-        rail.position.set(offsetX, y, offsetZ);
-        g.add(rail);
-      }
     }
+
+    const shieldH = Math.max(0.30, postH - 0.12);
+    const shield = new THREE.Mesh(
+      getBoxGeometry(alongX ? 1.04 : 0.026, shieldH, alongX ? 0.026 : 1.04),
+      M.greenhouseGlass
+    );
+    shield.position.set(offsetX, 0.08 + shieldH / 2, offsetZ);
+    shield.userData.noShadow = true;
+    shield.renderOrder = 4;
+    g.add(shield);
 
     g.userData = { kind: 'fence', level, side: normalized };
     castReceive(g);
@@ -8508,16 +8554,12 @@
   }
 
   const CROP_DOME_SIZE = 0.86;
-  const CROP_DOME_HEIGHT = 0.56;
+  const CROP_DOME_HEIGHT = 0.7;
   const CROP_DOME_BASE_Y = 0.045;
-  const CROP_DOME_OPACITY = 0.24;
-  const CROP_DOME_COLOR = 0xbdefff;
   let cropDomeAssets = null;
 
   function ensureCropDomeAssets() {
     if (cropDomeAssets) return cropDomeAssets;
-    M.greenhouseGlass.color.setHex(CROP_DOME_COLOR);
-    M.greenhouseGlass.opacity = CROP_DOME_OPACITY;
     const glassSideGeo = getBoxGeometry(CROP_DOME_SIZE, CROP_DOME_HEIGHT, 0.018);
     const glassTopGeo = getBoxGeometry(CROP_DOME_SIZE, 0.018, CROP_DOME_SIZE);
     const postGeo = getBoxGeometry(0.04, CROP_DOME_HEIGHT, 0.04);
@@ -9940,43 +9982,10 @@
   }
 
   function makeVoxelFence(side = 'n', level = 1, castle = false, roadGate = false, pathOrientation = 'x') {
-    const g = new THREE.Group();
-    const lv = Math.max(1, Math.min(MAX_FLOORS, level || 1));
-    const visualLv = fenceVisualLevel(lv);
     const normalized = FENCE_SIDES.has(side) ? side : 'n';
-    const alongX = roadGate ? pathOrientation === 'z' : (normalized === 'n' || normalized === 's' || normalized === 'center-x');
-    const offsetX = normalized === 'w' ? -0.43 : normalized === 'e' ? 0.43 : 0;
-    const offsetZ = normalized === 'n' ? -0.43 : normalized === 's' ? 0.43 : 0;
-    const mat = castle || visualLv >= 4 ? M.castleStone : (visualLv >= 3 ? M.fenceSteel : M.fence);
-    const dark = castle || visualLv >= 4 ? M.castleStoneD : (visualLv >= 3 ? M.fenceWire : M.fence);
-
-    if (roadGate && visualLv === 1) {
-      g.userData = { kind: 'fence', level: lv, side: normalized };
-      return g;
-    }
-    if (castle || visualLv >= 4 || roadGate) {
-      const h = roadGate ? 0.62 + Math.max(0, visualLv - 3) * 0.05 : (castle ? 0.56 : 0.46);
-      if (roadGate) {
-        for (const s of [-1, 1]) vbox(g, 0.14, h, 0.14, alongX ? s * 0.42 : 0, h / 2, alongX ? 0 : s * 0.42, mat);
-        vbox(g, alongX ? 1.02 : 0.16, 0.12, alongX ? 0.16 : 1.02, 0, h + 0.06, 0, dark);
-      } else {
-        vbox(g, alongX ? 1.08 : 0.18, h, alongX ? 0.18 : 1.08, offsetX, h / 2, offsetZ, mat);
-        vbox(g, alongX ? 1.12 : 0.22, 0.06, alongX ? 0.22 : 1.12, offsetX, h + 0.03, offsetZ, dark);
-        for (const a of [-0.35, 0, 0.35]) {
-          vbox(g, 0.11, 0.12, 0.11, alongX ? a : offsetX, h + 0.12, alongX ? offsetZ : a, mat);
-        }
-      }
-    } else {
-      const postH = visualLv === 2 ? 0.40 : 0.32;
-      const ends = alongX ? [[-0.50, offsetZ], [0.50, offsetZ]] : [[offsetX, -0.50], [offsetX, 0.50]];
-      ends.forEach(([x, z]) => vbox(g, 0.09, postH, 0.09, x, postH / 2, z, mat));
-      for (const y of [0.12, 0.26, ...(visualLv >= 3 ? [0.40] : [])]) {
-        vbox(g, alongX ? 1.08 : 0.045, 0.055, alongX ? 0.045 : 1.08, offsetX, y, offsetZ, dark);
-      }
-    }
-    g.userData = { kind: 'fence', level: lv, side: normalized };
-    castReceive(g);
-    return g;
+    return roadGate
+      ? makeRoadGate(normalized, level, pathOrientation)
+      : makeFence(normalized, level);
   }
 
   function makeVoxelCropKind(kind, level = 1) {
@@ -10087,9 +10096,9 @@
     } else if (kind === 'stone') {
       return makeVoxelRock(null, Math.max(1, level), x, z, false);
     } else if (kind === 'bridge-rail') {
-      const rail = makeVoxelFence('center-x', Math.max(1, level), false, false);
-      rail.scale.set(0.80, 0.80, 0.80);
-      return rail;
+      vbox(g, 0.82, 0.055, 0.055, 0, 0.24, 0, M.bridgeWoodD);
+      for (const px of [-0.34, 0.34]) vbox(g, 0.065, 0.28, 0.065, px, 0.14, 0, M.bridgeWoodD);
+      g.userData = { kind: 'bridge-rail' };
     }
     castReceive(g);
     return g;
@@ -10115,7 +10124,7 @@
         const pathAxis = (pn.e || pn.w) ? 'x' : (pn.n || pn.s) ? 'z' : 'x';
         mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, true, pathAxis);
       } else {
-        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, isCastleFence(x, z), false);
+        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, false);
       }
     } else if (kind === 'house') {
       const floors = cell.floors || 1;
@@ -13364,6 +13373,7 @@
     mat.transparent = keepFadeAtOpaque || factor < 1 || baseOp < 1;
     mat.depthWrite = keepFadeAtOpaque ? false : (factor >= 1 && baseOp >= 1);
     mat.userData = mat.userData || {};
+    setForceShieldFadeOpacity(mat, factor);
     mat.userData.cachedFade = true;
     fadeMatCache.set(key, mat);
     return mat;
@@ -13654,7 +13664,7 @@
     } else if (kind === 'cow' || kind === 'sheep') {
       g = new THREE.Mesh(getBoxGeometry(0.6, 0.5, 0.9), M.dirtRich);
     } else if (kind === 'fence') {
-      g = new THREE.Mesh(getBoxGeometry(0.9, 0.7, 0.15), M.castleStone);
+      g = makeFence(normalizeFenceSide(cell.fenceSide), level);
     } else if (kind === 'bridge') {
       g = new THREE.Mesh(getBoxGeometry(1.6, 0.3, 0.8), M.dirtRich);
     }
@@ -15180,9 +15190,7 @@
         const pathAxis = (pn.e || pn.w) ? 'x' : (pn.n || pn.s) ? 'z' : 'x';
         mesh = makeRoadGate(normalizeFenceSide(cell.fenceSide), level, pathAxis);
       } else {
-        mesh = isCastleFence(x, z)
-          ? makeCastleWallSegment(getCastleWallNeighbors(x, z))
-          : makeFence(normalizeFenceSide(cell.fenceSide), level);
+        mesh = makeFence(normalizeFenceSide(cell.fenceSide), level);
       }
     }
     else if (kind === 'house') {
@@ -21514,6 +21522,7 @@
     if (typeof window.__showcaseTick === 'function') window.__showcaseTick(dt);
     tickWeather(dt);
     updateClouds(dt);
+    updateForceShieldMaterials(t);
     tickVehicles(dt);
     if (crowdLayer) crowdLayer.update(dt, camera);
     updateCropDuster(dt);
