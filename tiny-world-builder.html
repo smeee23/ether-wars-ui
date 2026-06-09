@@ -8452,19 +8452,6 @@
         g.add(post);
       }
     }
-
-    for (const y of [CROP_DOME_BASE_Y + 0.009, topY + 0.009]) {
-      for (const z of [-half, half]) {
-        const rail = new THREE.Mesh(assets.railXGeo, M.greenhouseFrame);
-        rail.position.set(0, y, z);
-        g.add(rail);
-      }
-      for (const x of [-half, half]) {
-        const rail = new THREE.Mesh(assets.railZGeo, M.greenhouseFrame);
-        rail.position.set(x, y, 0);
-        g.add(rail);
-      }
-    }
     return g;
   }
 
