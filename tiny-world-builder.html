@@ -5830,7 +5830,7 @@
   // -------- geometry helpers --------
   // roundedSlab / roundedBox are extruded geometries that get built many
   // thousands of times across home + ghost boards (every tile, every leaf,
-  // every cloud puff). Cache them by their numeric args — the geometry has
+  // every ring/cloud fragment). Cache them by their numeric args — the geometry has
   // no per-instance state, so the same VBO can back any number of meshes.
   // safeDisposeGeometry() skips disposal for cached entries, preserving the
   // shared VBO when an individual mesh is torn down.
@@ -6145,8 +6145,8 @@
     greenhouseGlass: makeForceShieldMaterial(),
     greenhouseFrame: new THREE.MeshLambertMaterial({ color: 0x8f979d }),
 
-    cloud:     new THREE.MeshLambertMaterial({ color: 0xfdfcf8 }),
-    cloudShade:new THREE.MeshLambertMaterial({ color: 0xdcd9d0 }),
+    cloud:     new THREE.MeshLambertMaterial({ color: 0xd8c898 }),
+    cloudShade:new THREE.MeshLambertMaterial({ color: 0xb8aa8c }),
 
     surroundingLandTop:  new THREE.MeshLambertMaterial({ color: 0xd9d9d9, side: THREE.FrontSide }),
     surroundingLandSide: new THREE.MeshLambertMaterial({ color: 0xcfcfcf, side: THREE.FrontSide }),
@@ -19991,9 +19991,9 @@
   }
 
   // -------- voxel clouds --------
-  // Chunky clouds that drift slowly across the sky in world space, so they
-  // sit naturally over both the home grid and ghost boards. Count and speed
-  // come from the existing Clouds / Cloud-speed sliders in render settings.
+  // Planetary ring fragments that drift slowly across the sky in world
+  // space, replacing the old fluffy cloud visuals while preserving the
+  // existing cloud settings, population, shadow, and update-loop contracts.
   //
   // These are declared with var so they hoist to script-top as undefined,
   // letting applyCloudSettings() safely no-op when it's called before this
@@ -20007,12 +20007,12 @@
   var CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
   var CLOUD_Z_RANGE = 18;
 
-  // Build a per-puff cloned material so each piece of the cloud can sit
-  // at its own opacity — gives the cloud a wispy, uneven feel instead of
-  // a single solid silhouette. Tagged so syncCloudPopulation can dispose
-  // them when the cloud is recycled.
-  function cloneCloudMat(baseMat, opacity) {
+  // Build a per-fragment cloned material so each ring piece can carry its
+  // own opacity and muted dust colour. Tagged so syncCloudPopulation can
+  // dispose them when the cloud/ring fragment is recycled.
+  function cloneCloudMat(baseMat, opacity, tintHex) {
     const m = baseMat.clone();
+    if (m.color && tintHex !== undefined) m.color.setHex(tintHex);
     m.transparent = true;
     m.opacity = opacity;
     m.depthWrite = false;
@@ -20068,9 +20068,9 @@
     // dodecahedron puffs with wide horizontal spread and mild vertical
     // build-up. These read softer and more natural than the older slab
     // stack while staying cheap at Tiny World's cloud counts.
-    const count = 8 + Math.floor(Math.random() * 5);
+    const count = 3 + Math.floor(Math.random() * 5);
     for (let i = 0; i < count; i++) {
-      const r = 0.25 + Math.random() * 0.35;
+      const r = 0.05 + Math.random() * 0.35;
       const bright = Math.random() < 0.6;
       const opacity = bright ? (0.7 + Math.random() * 0.25) : (0.4 + Math.random() * 0.25);
       const mat = cloneCloudMat(bright ? M.cloud : M.cloudShade, opacity);
@@ -20101,7 +20101,7 @@
   var CLOUD_Y_JITTER = 1.5;
   // Permanent flatten on the Y axis — clouds read more "stretched"
   // and sky-like than puffy at half height.
-  var CLOUD_FLATTEN = 0.5;
+  var CLOUD_FLATTEN = 1;
 
   function spawnCloud(initial) {
     const c = makeCloud();
@@ -20627,8 +20627,8 @@
   // off-screen for a few seconds, then returns. Sometimes the return run
   // skips the dusting and trails a banner instead.
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
-  const FLIGHT_DUST_SPEED = 2.45;       // m/s while spraying
-  const FLIGHT_CRUISE_SPEED = 4.4;      // m/s while transiting / banner pass
+  const FLIGHT_DUST_SPEED = 20.45;       // m/s while spraying
+  const FLIGHT_CRUISE_SPEED = 20.4;      // m/s while transiting / banner pass
   const FLIGHT_DUST_ALT = 2.05;
   const FLIGHT_CRUISE_ALT = 5.6;
   const FLIGHT_REFUEL_MIN = 6.0;
