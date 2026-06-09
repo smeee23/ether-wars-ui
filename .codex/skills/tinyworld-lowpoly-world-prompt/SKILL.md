@@ -19,15 +19,15 @@ Prompt principles:
   explicitly asks to replace/reset/rebuild or starts with `/clear`, preserve the
   existing board and return only complete final-state cells that should be
   added or changed.
-- Start from a readable scene concept: village, farm, canal, ridge, market, castle, garden, or mixed landmark.
+- Start from a readable scene concept: village, farm, canal, ridge, market, garden, tower district, or mixed landmark.
 - Use strong silhouettes: tall/short contrast, clustered houses, towers, hills, trees, walls, and clear negative space.
 - Make terrain do composition work: paths lead the eye, water creates crossings, dirt groups crops, grass gives breathing room.
 - Treat hills and mountains as elevation/height through `terrainFloors`, not
   as a field of rock objects. Rocks are sparse landmarks or boulders only.
-- Use adjacency intentionally: house clusters merge, fences connect, bridges belong on water crossings, crops form fields.
+- Use adjacency intentionally: fences connect, bridges belong on water crossings, crops form fields.
 - Avoid noise: do not fill every board cell; leave open cells and visible paths.
 - Use `floors` as variation/intensity, including terrain stacking and object detail.
-- Use forced `buildingType` only when a distinct one-cell variant is wanted; otherwise leave houses as `buildingType: null` so cluster logic can work.
+- House cells must use an explicit surviving `buildingType` such as `tower`, `skyscraper`, or `habitat`; do not ask models to emit null/default houses.
 - Keep output strictly machine-parseable JSON matching the schema.
 
 Primitive assembly prompting:
@@ -36,7 +36,7 @@ Primitive assembly prompting:
 - Ask them to translate requested objects into available primitives: terrain, raised terrainFloors, houses/building variants, fences/fenceSide, rocks, bridges, crops, tufts, and trees.
 - Include concrete decompositions for non-native requests:
   - skate park = path/dirt plaza + raised terrain ramps + rocks as obstacles + fences as rails/edges + tufts/trees as landscaping.
-  - market = path plaza + cottage/manor stalls + fences as queue rails + crops/pumpkins as goods.
+  - market = path plaza + tower/habitat stalls + fences as queue rails + crops/pumpkins as goods.
   - playground = path/dirt base + rocks as play forms + fences as boundary + trees/tufts for park context.
   - quarry = raised dirt/grass terraces + rocks of varied floors + path access road + sparse tufts.
 - Emphasize legibility from the default isometric camera: 3–5 clear assembled features beats many scattered cells.

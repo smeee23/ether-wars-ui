@@ -46,7 +46,7 @@
     },
     "buildingType": {
       "type": ["string", "null"],
-      "enum": [null, "cottage", "manor", "tower", "turret", "skyscraper", "habitat"]
+      "enum": [null, "tower", "skyscraper", "habitat"]
     },
     "fenceSide": {
       "type": ["string", "null"],

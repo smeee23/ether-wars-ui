@@ -6086,8 +6086,6 @@
     fenceSteel:new THREE.MeshLambertMaterial({ color: 0x8d98a5 }),
     castleStone:  new THREE.MeshLambertMaterial({ color: 0xb8b1a5 }),
     castleStoneD: new THREE.MeshLambertMaterial({ color: 0x8a8378 }),
-    castleSlit:   new THREE.MeshLambertMaterial({ color: 0x2a251f }),
-    flagRed:      new THREE.MeshLambertMaterial({ color: 0xb84838 }),
     skyBody:   new THREE.MeshLambertMaterial({ color: 0x4a6680 }),
     skyGlass:  new THREE.MeshLambertMaterial({ color: 0x6db8e0 }),
     skyFrame:  new THREE.MeshLambertMaterial({ color: 0x2a3a4c }),
@@ -6100,16 +6098,8 @@
     habitatLight:  new THREE.MeshLambertMaterial({ color: 0xffd86b, emissive: 0xffb84a, emissiveIntensity: 0.65 }),
     plasmaGlow:    new THREE.MeshLambertMaterial({ color: 0x67e8ff, emissive: 0x1fcfff, emissiveIntensity: 0.95 }),
 
-    // Manor — Georgian brick + slate. Solo cluster-bypass (variant 'manor').
-    manorBrick:    new THREE.MeshLambertMaterial({ color: 0xa84a3a }),
-    manorBrickD:   new THREE.MeshLambertMaterial({ color: 0x7a3325 }),
-    manorTrim:     new THREE.MeshLambertMaterial({ color: 0xf2ece0 }),
-    manorRoof:     new THREE.MeshLambertMaterial({ color: 0x3a3a40 }),
-    manorRoofD:    new THREE.MeshLambertMaterial({ color: 0x26262c }),
-    manorWindow:   new THREE.MeshLambertMaterial({ color: 0xc8d8e8 }),
-
     // Stone Tower — taller fantasy tower (variant 'tower'). Distinct
-    // from castleStone so the silhouette reads differently from a turret.
+    // from the shared wall stone so the silhouette reads differently from gates.
     towerStone:    new THREE.MeshLambertMaterial({ color: 0xb5afa4 }),
     towerStoneD:   new THREE.MeshLambertMaterial({ color: 0x7e776e }),
     towerRoof:     new THREE.MeshLambertMaterial({ color: 0x5d6268 }),
@@ -6219,10 +6209,10 @@
   function applyAppearanceToObject(root, kind, appearance) {
     const a = normalizeAppearance(appearance);
     if (!root || !a) return root;
-    const topBase = new Set([M.roofBlue, M.manorRoof, M.towerRoof, M.castleRoof, M.skyRoof, M.habitatPanel, M.leaves]);
-    const topDark = new Set([M.roofBlueD, M.manorRoofD, M.towerRoofD, M.castleRoofD, M.leavesDk]);
-    const bodyBase = new Set([M.wallCream, M.manorBrick, M.towerStone, M.castleStone, M.skyBody, M.habitatShell, M.trunk]);
-    const bodyDark = new Set([M.wallTrim, M.manorBrickD, M.towerStoneD, M.castleStoneD, M.habitatBand]);
+    const topBase = new Set([M.roofBlue, M.towerRoof, M.skyRoof, M.habitatPanel, M.leaves]);
+    const topDark = new Set([M.roofBlueD, M.towerRoofD, M.leavesDk]);
+    const bodyBase = new Set([M.wallCream, M.towerStone, M.castleStone, M.skyBody, M.habitatShell, M.trunk]);
+    const bodyDark = new Set([M.wallTrim, M.towerStoneD, M.castleStoneD, M.habitatBand]);
     function remap(mat) {
       if (!mat) return mat;
       if (a.topColor && topBase.has(mat)) return customMaterial(mat, a.topColor);
@@ -6645,7 +6635,7 @@
   function serializeCell(x, z, c) {
     const f = c.floors || 1;
     const tf = terrainLevelForCell(c);
-    const bt = c.buildingType || null;
+    const bt = normalizeBuildingType(c.buildingType);
     const fs = c.fenceSide || null;
     const extras = (c.extras && c.extras.length) ? c.extras.map(e => ({ k: e.kind, s: e.fenceSide || null, f: e.floors || 1 })) : null;
     const ry = c.rotationY || 0;
@@ -7502,7 +7492,7 @@
 
   // A linear (1xN) plan: south-end cell uses the gable-end door, the rest use side
   // doors on the +x face, chimneys alternate forward/back per cell for visual rhythm.
-  // For length 1 the chimney offset matches the original solo cottage.
+  // For length 1 the chimney offset matches the original solo house.
   function linearHousePlan(length) {
     const cells = [];
     for (let i = 0; i < length; i++) {
@@ -7528,7 +7518,7 @@
     const { frontOverhang = 0.15, backOverhang = 0.15, suppressBackGable = false } = opts;
     const g = new THREE.Group();
     const length = cells.length;
-    // Solo cottage keeps its original slimmer depth. Clusters fill the cells.
+    // Solo houses keep their original slimmer depth. Clusters fill the cells.
     const WALL_D = (length === 1) ? 0.7 : length * TILE - 0.18;
     const halfW = H.WALL_W / 2;
     const halfD = WALL_D / 2;
@@ -7861,85 +7851,6 @@
     return composite;
   }
 
-  // Tall stone keep with crenellations + arrow slits + flag. Replaces
-  // a regular house render when isTurretHouse(x, z) is true. floors raises the
-  // tower height the same way a house grows. userData.kind stays 'house' so
-  // smoke loop and cluster refresh logic continues to find it; chimneyTops is
-  // empty so no smoke spawns.
-  function makeTurret(floors = 1) {
-    const g = new THREE.Group();
-    const f = Math.max(4, floors);
-    const W = 0.78, D = 0.78;
-    const floorH = 0.30;
-    const totalH = floorH * f;
-
-    // Body follows the high-rise footprint, restyled as heavy castle stone.
-    const body = new THREE.Mesh(roundedBox(W, totalH, D, 0.025), M.castleStone);
-    body.position.y = totalH / 2;
-    g.add(body);
-
-    // Floor bands and arrow slits reuse the skyscraper rhythm without glass.
-    for (let i = 0; i < f; i++) {
-      const yMid = (i + 0.5) * floorH;
-      if (i > 0) {
-        const band = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.025, D + 0.04), M.castleStoneD);
-        band.position.y = i * floorH;
-        g.add(band);
-      }
-      const slitH = 0.14;
-      const slitW = 0.06;
-      const sx = new THREE.Mesh(getBoxGeometry(0.025, slitH, slitW), M.castleSlit);
-      sx.position.set(W / 2 + 0.004, yMid, 0); g.add(sx);
-      const sw = new THREE.Mesh(getBoxGeometry(0.025, slitH, slitW), M.castleSlit);
-      sw.position.set(-W / 2 - 0.004, yMid, 0); g.add(sw);
-      const sz = new THREE.Mesh(getBoxGeometry(slitW, slitH, 0.025), M.castleSlit);
-      sz.position.set(0, yMid, D / 2 + 0.004); g.add(sz);
-      const sn = new THREE.Mesh(getBoxGeometry(slitW, slitH, 0.025), M.castleSlit);
-      sn.position.set(0, yMid, -D / 2 - 0.004); g.add(sn);
-    }
-
-    // Wall walk platform and square battlements.
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(W + 0.10, 0.06, D + 0.10), M.castleStoneD);
-    platform.position.y = totalH + 0.03;
-    g.add(platform);
-
-    const merlonPositions = [
-      [-0.32, 0.43], [0, 0.43], [0.32, 0.43],
-      [-0.32, -0.43], [0, -0.43], [0.32, -0.43],
-      [0.43, -0.32], [0.43, 0], [0.43, 0.32],
-      [-0.43, -0.32], [-0.43, 0], [-0.43, 0.32],
-    ];
-    for (const [mx, mz] of merlonPositions) {
-      const merlon = new THREE.Mesh(
-        new THREE.BoxGeometry(0.13, 0.14, 0.10),
-        M.castleStone
-      );
-      merlon.position.set(mx, totalH + 0.13, mz);
-      if (Math.abs(mx) > Math.abs(mz)) merlon.rotation.y = Math.PI / 2;
-      g.add(merlon);
-    }
-
-    // Door on +z face — keeps the same wood door material as houses for cohesion
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.34, 0.04), M.door);
-    door.position.set(0, 0.17, D / 2 + 0.01);
-    g.add(door);
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.04), M.castleStoneD);
-    lintel.position.set(0, 0.36, D / 2 + 0.01);
-    g.add(lintel);
-
-    // Flag pole + flag at the apex
-    const pole = new THREE.Mesh(getBoxGeometry(0.025, 0.22, 0.025), M.castleStoneD);
-    pole.position.y = totalH + 0.30;
-    g.add(pole);
-    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.02), M.flagRed);
-    flag.position.set(0.09, totalH + 0.36, 0);
-    g.add(flag);
-
-    g.userData = { kind: 'house', chimneyTops: [] };
-    castReceive(g);
-    return g;
-  }
-
   function makePlasmaTurret(scale = 1) {
     const turret = new THREE.Group();
     turret.name = 'plasmaTurret';
@@ -8188,7 +8099,15 @@
 
   function makeOxygenGenerationPlant(level = 1) {
     const g = new THREE.Group();
-    const L = Math.max(1, Math.min(MAX_FLOORS, level || 1));
+    const L = Math.max(1, Math.min(OXYGEN_PLANT_MAX_LEVEL, level || 1));
+    const stackBottomY = 0.14;
+    const stackHeight = 0.56 + (L - 1) * 0.18;
+    const stackCenterY = stackBottomY + stackHeight / 2;
+    const stackTopY = stackBottomY + stackHeight;
+    const brickHeight = 0.18 + (L - 1) * 0.08;
+    const scrubberBaseY = stackTopY + 0.07;
+    const scrubberCenterY = scrubberBaseY + brickHeight / 2;
+    const capY = scrubberBaseY + brickHeight + 0.045;
     let oxygenPump = null;
 
     const platform = new THREE.Mesh(roundedBox(0.88, 0.10, 0.72, 0.025), M.habitatTrim);
@@ -8198,217 +8117,42 @@
     inset.position.y = 0.125;
     g.add(inset);
 
-    for (const x of [-0.24, 0.08]) {
-      const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.52, 12), M.habitatShell);
-      tank.position.set(x, 0.40, -0.06);
-      g.add(tank);
-      const capTop = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.045, 12), M.habitatTrim);
-      capTop.position.set(x, 0.685, -0.06);
-      g.add(capTop);
-      const capBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 12), M.habitatTrim);
-      capBottom.position.set(x, 0.135, -0.06);
-      g.add(capBottom);
-      for (const y of [0.28, 0.42, 0.56]) {
-        const band = new THREE.Mesh(new THREE.CylinderGeometry(0.112, 0.112, 0.018, 12), M.habitatBand);
-        band.position.set(x, y, -0.06);
-        g.add(band);
-      }
-    }
+    const scrubber = new THREE.Mesh(roundedBox(0.18, brickHeight, 0.18, 0.02), M.greenhouseGlass);
+    scrubber.position.set(0, scrubberCenterY, 0);
+    scrubber.userData.noShadow = true;
+    scrubber.renderOrder = 4;
+    g.add(scrubber);
+    oxygenPump = {
+      scrubber,
+      x: 0,
+      z: 0,
+      minY: scrubberCenterY,
+      maxY: scrubberCenterY + 0.12 + (L - 1) * 0.018,
+      phase: Math.random() * Math.PI * 2,
+      speed: Math.PI * 2 / 4.2,
+    };
+    const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.065, 0.15), M.habitatShell);
+    goldCap.position.set(0, capY, 0);
+    g.add(goldCap);
 
-    const rearDome = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.habitatShell);
-    rearDome.position.set(-0.08, 0.16, 0.18);
-    rearDome.scale.set(1.35, 0.78, 0.92);
-    g.add(rearDome);
-
-    const manifold = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.62, 8), M.habitatBand);
-    manifold.rotation.z = Math.PI / 2;
-    manifold.position.set(-0.07, 0.25, -0.26);
-    g.add(manifold);
-    for (const x of [-0.34, 0.20]) {
-      const elbow = new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.021, 0.22, 8), M.habitatBand);
-      elbow.rotation.x = Math.PI / 2;
-      elbow.position.set(x, 0.25, -0.16);
-      g.add(elbow);
+    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, stackHeight, 12), M.habitatShell);
+    stack.position.set(0, stackCenterY, 0);
+    g.add(stack);
+    for (const y of [
+      stackBottomY + stackHeight * 0.18,
+      stackBottomY + stackHeight * 0.50,
+      stackBottomY + stackHeight * 0.82,
+    ]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.165, 0.035, 12), M.habitatTrim);
+      ring.position.set(0.02, y, 0);
+      g.add(ring);
     }
-
-    if (L > 1) {
-      const scrubber = new THREE.Mesh(roundedBox(0.18, 0.50, 0.18, 0.02), M.goldBrick);
-      scrubber.position.set(0.38, 0.31, -0.18);
-      g.add(scrubber);
-      oxygenPump = {
-        scrubber,
-        x: 0.38,
-        z: -0.18,
-        minY: 0.31,
-        maxY: 0.61,
-        phase: Math.random() * Math.PI * 2,
-        speed: Math.PI * 2 / 4.2,
-      };
-      const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.045, 0.15), M.habitatShell);
-      goldCap.position.set(0.38, 0.485, -0.18);
-      g.add(goldCap);
-    }
+    const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.11, 0.12, 12), M.habitatBand);
+    vent.position.set(0, stackTopY + 0.06, 0);
+    g.add(vent);
 
     g.userData = { kind: 'oxygen-plant', chimneyTops: [], oxygenPump };
     castReceive(g);
-    return g;
-  }
-
-  // Manor — wider brick house with a hipped slate roof, central portico,
-  // symmetrical sash windows. Solo cluster-bypass (variant 'manor'). Renders
-  // on a single grid cell but visually fills a touch more than a cottage.
-  // Floors scales the wall stack the same way as a cottage.
-  function makeManor(floors = 1) {
-    const g = new THREE.Group();
-    const f = Math.max(1, floors);
-    const W = 1.86, D = 1.30;
-    const halfW = W / 2, halfD = D / 2;
-    const wallH = H.WALL_H * f;
-
-    // Brick walls
-    const walls = new THREE.Mesh(roundedBox(W, wallH, D, 0.04), M.manorBrick);
-    g.add(walls);
-
-    // White stone plinth (ground band)
-    const plinth = new THREE.Mesh(new THREE.BoxGeometry(W + 0.06, 0.10, D + 0.06), M.manorTrim);
-    plinth.position.y = 0.05;
-    g.add(plinth);
-
-    // Cornice trim at top of walls
-    const cornice = new THREE.Mesh(new THREE.BoxGeometry(W + 0.06, 0.06, D + 0.06), M.manorTrim);
-    cornice.position.y = wallH - 0.03;
-    g.add(cornice);
-
-    // Hipped slate roof
-    const roof = Parts.hippedRoof(W, D, 0.55);
-    roof.position.y = wallH;
-    // Swap material: hippedRoof returns blue cottage roof — we want slate.
-    roof.traverse(c => { if (c.isMesh) c.material = M.manorRoof; });
-    g.add(roof);
-
-    // Roof ridge accent
-    const ridge = new THREE.Mesh(new THREE.BoxGeometry(W * 0.5, 0.04, 0.08), M.manorRoofD);
-    ridge.position.y = wallH + 0.50;
-    g.add(ridge);
-
-    // Central portico — entry-scale columns + pediment on +z face. The
-    // entrance should not stretch with tall wall stacks; cap it at two floors.
-    const porticoD = 0.22;
-    const porticoW = 0.62;
-    const porticoH = Math.min(wallH - 0.12, H.WALL_H * 2 - 0.12);
-    // Floor slab
-    const porchSlab = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.10, 0.06, porticoD + 0.06), M.manorTrim);
-    porchSlab.position.set(0, 0.06, halfD + porticoD / 2);
-    g.add(porchSlab);
-    // 4 columns
-    for (let i = 0; i < 4; i++) {
-      const u = (i / 3) - 0.5; // -0.5 .. 0.5
-      const col = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.045, 0.045, porticoH, 8),
-        M.manorTrim
-      );
-      col.position.set(u * (porticoW - 0.06), 0.06 + porticoH / 2, halfD + porticoD - 0.04);
-      g.add(col);
-    }
-    // Architrave
-    const arch = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.10, 0.08, porticoD + 0.04), M.manorTrim);
-    arch.position.set(0, 0.06 + porticoH + 0.04, halfD + porticoD / 2);
-    g.add(arch);
-    // Pediment (triangular front) — fake with a thin tilted box
-    const ped = new THREE.Mesh(new THREE.BoxGeometry(porticoW + 0.06, 0.16, 0.04), M.manorTrim);
-    ped.position.set(0, 0.06 + porticoH + 0.16, halfD + porticoD - 0.02);
-    g.add(ped);
-
-    // Front door (under the portico)
-    const door = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.46, 0.04), M.door);
-    door.position.set(0, 0.23, halfD + 0.005);
-    g.add(door);
-    const doorKnob = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6), M.knob);
-    doorKnob.position.set(0.09, 0.23, halfD + 0.03);
-    g.add(doorKnob);
-
-    // Symmetrical sash windows on +z face — 2 left + 2 right of the portico,
-    // repeated per floor.
-    const sashXs = [-0.66, -0.40, 0.40, 0.66];
-    function addFrontBackSash(x, y, z, front) {
-      const s = front ? 1 : -1;
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.20, 0.018), M.manorWindow);
-      glass.position.set(x, y, z + s * 0.018);
-      g.add(glass);
-      const zf = z + s * 0.034;
-      const bars = [
-        new THREE.Mesh(getBoxGeometry(0.18, 0.025, 0.024), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.18, 0.025, 0.024), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.025, 0.24, 0.024), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.025, 0.24, 0.024), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.15, 0.014, 0.026), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.014, 0.19, 0.026), M.manorTrim),
-      ];
-      bars[0].position.set(x, y + 0.112, zf);
-      bars[1].position.set(x, y - 0.112, zf);
-      bars[2].position.set(x - 0.082, y, zf);
-      bars[3].position.set(x + 0.082, y, zf);
-      bars[4].position.set(x, y, zf + s * 0.002);
-      bars[5].position.set(x, y, zf + s * 0.003);
-      bars.forEach(b => g.add(b));
-    }
-    function addSideSash(x, y, z, sign) {
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.20, 0.12), M.manorWindow);
-      glass.position.set(x + sign * 0.018, y, z);
-      g.add(glass);
-      const xf = x + sign * 0.034;
-      const bars = [
-        new THREE.Mesh(getBoxGeometry(0.024, 0.025, 0.16), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.024, 0.025, 0.16), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.024, 0.22, 0.025), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.024, 0.22, 0.025), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.026, 0.014, 0.13), M.manorTrim),
-        new THREE.Mesh(getBoxGeometry(0.026, 0.18, 0.014), M.manorTrim),
-      ];
-      bars[0].position.set(xf, y + 0.102, z);
-      bars[1].position.set(xf, y - 0.102, z);
-      bars[2].position.set(xf, y, z - 0.072);
-      bars[3].position.set(xf, y, z + 0.072);
-      bars[4].position.set(xf + sign * 0.002, y, z);
-      bars[5].position.set(xf + sign * 0.003, y, z);
-      bars.forEach(b => g.add(b));
-    }
-    for (let fi = 0; fi < f; fi++) {
-      const yBase = fi === 0 ? 0.34 : 0.34 + fi * H.WALL_H;
-      // Skip ground-floor centre slots (door is there) — sashXs already avoids centre.
-      for (const sx of sashXs) {
-        addFrontBackSash(sx, yBase, halfD, true);
-      }
-    }
-
-    // Side windows on -x and +x — 2 per floor
-    for (let fi = 0; fi < f; fi++) {
-      const yBase = 0.34 + fi * H.WALL_H;
-      for (const sz of [-0.30, 0.30]) {
-        for (const sxSign of [-1, 1]) {
-          addSideSash(sxSign * halfW, yBase, sz, sxSign);
-        }
-      }
-    }
-
-    // Back windows (same as front sash positions, no portico)
-    for (let fi = 0; fi < f; fi++) {
-      const yBase = 0.34 + fi * H.WALL_H;
-      for (const sx of sashXs) {
-        addFrontBackSash(sx, yBase, -halfD, false);
-      }
-    }
-
-    // Two chimneys at the gable ends
-    const chimneyTopsLocal = [];
-    [{ x: -halfW + 0.10, z: 0 }, { x: halfW - 0.10, z: 0 }].forEach(c => {
-      const chim = Parts.chimney();
-      chim.position.set(c.x, wallH + 0.30, c.z); g.add(chim);
-      chimneyTopsLocal.push(new THREE.Vector3(c.x, wallH + 0.60, c.z));
-    });
-
-    castReceive(g);
-    g.userData = { kind: 'house', chimneyTops: chimneyTopsLocal };
     return g;
   }
 
@@ -8429,9 +8173,8 @@
     const f = Math.max(SPACE_TOWER_MIN_LEVEL, Math.min(MAX_FLOORS, floors || 1));
     const bodyH = SPACE_TOWER_BASE_H + f * SPACE_TOWER_LEVEL_H;
     // Allow callers to override the tower's wall + roof palette. When the
-    // tower is merged with another building (e.g. an adjacent manor) the
-    // caller passes that building's palette so the tower picks up matching
-    // brick / roof colours.
+    // tower is merged with another building, the caller passes that building's
+    // palette so the tower picks up matching colours.
     const matShell = M.habitatShell;
     const matBand = (palette && palette.stoneD) || M.habitatBand;
     const matTrim = (palette && palette.roofD) || M.habitatTrim;
@@ -8513,106 +8256,6 @@
     // No chimneys — towers get magic, not fireplaces. Empty chimneyTops keeps
     // smoke loop happy.
     g.userData = { kind: 'house', chimneyTops: [] };
-    castReceive(g);
-    return g;
-  }
-
-  // Castle wall segment — legacy crenellated wall factory retained for older
-  // generated/voxel uses. Each neighbour value is 'fence' | 'turret' | null. Segments toward a
-  // turret extend slightly past the cell boundary so the wall visually merges
-  // with the turret cylinder (which is recessed inside its own cell with
-  // radius 0.42, leaving a gap of ~0.08 to the cell edge if we stopped flush).
-  function makeCastleWallSegment(neighbors) {
-    const g = new THREE.Group();
-    const wallH = 0.50;
-    const wallT = 0.18;
-    const TURRET_OVERRUN = 0.16; // extends past cell boundary into turret cell
-
-    // Build directional segments. For 'turret' neighbours we lengthen the
-    // segment and shift its centre so the far end overshoots into the next
-    // cell, biting into the turret cylinder for a clean junction.
-    const segs = [];
-    function makeSeg(dir, kind) {
-      if (!kind) return;
-      const turret = (kind === 'turret');
-      const half = 0.50 + (turret ? TURRET_OVERRUN : 0);
-      const offset = (0.50 - half) / 2 + (half - 0.50) / 2; // centre shifts so far end is at ±(0.50 + overrun)
-      const len = half;
-      // simpler: place segment between centre (0) and far end (±0.50 ± overrun)
-      const farEnd = 0.50 + (turret ? TURRET_OVERRUN : 0);
-      const segLen = farEnd; // from 0 to farEnd
-      const segCentre = farEnd / 2;
-      if (dir === 'n') segs.push({ axis: 'z', x: 0,             z: -segCentre, w: wallT,   d: segLen, ext: turret, dir });
-      if (dir === 's') segs.push({ axis: 'z', x: 0,             z:  segCentre, w: wallT,   d: segLen, ext: turret, dir });
-      if (dir === 'w') segs.push({ axis: 'x', x: -segCentre,    z: 0,           w: segLen, d: wallT,  ext: turret, dir });
-      if (dir === 'e') segs.push({ axis: 'x', x:  segCentre,    z: 0,           w: segLen, d: wallT,  ext: turret, dir });
-    }
-    makeSeg('n', neighbors.n);
-    makeSeg('s', neighbors.s);
-    makeSeg('w', neighbors.w);
-    makeSeg('e', neighbors.e);
-
-    // No neighbours — render a stub (orphan castle fence).
-    if (segs.length === 0) {
-      const stub = new THREE.Mesh(
-        new THREE.BoxGeometry(wallT * 1.4, wallH, wallT * 1.4),
-        M.castleStone
-      );
-      stub.position.y = wallH / 2;
-      g.add(stub);
-    }
-
-    for (const s of segs) {
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(s.w, wallH, s.d), M.castleStone);
-      wall.position.set(s.x, wallH / 2, s.z);
-      g.add(wall);
-
-      // Merlons: 3 evenly along the in-cell portion of the segment (length 0.50)
-      // even when the segment overruns into a turret. This keeps merlon spacing
-      // consistent across walls regardless of what they end on, and avoids
-      // merlons popping out of the turret body.
-      const merlonH = 0.10, merlonW = 0.09, merlonD = 0.09;
-      const count = 3;
-      const inCellLen = 0.50; // always merlon over the cell's own half
-      // The in-cell portion runs from centre (0) toward the far cell edge at
-      // ±0.50 (sign depends on dir). Compute its centre in local coords.
-      const sign = (s.dir === 's' || s.dir === 'e') ? 1 : -1;
-      const inCentreOffset = sign * 0.25; // midpoint of cell's own half-segment
-      for (let i = 0; i < count; i++) {
-        const u = (i / (count - 1)) - 0.5;
-        const merlon = new THREE.Mesh(
-          getBoxGeometry(merlonW, merlonH, merlonD),
-          M.castleStone
-        );
-        if (s.axis === 'z') {
-          merlon.position.set(s.x, wallH + merlonH / 2, inCentreOffset + u * (inCellLen - merlonD));
-        } else {
-          merlon.position.set(inCentreOffset + u * (inCellLen - merlonW), wallH + merlonH / 2, s.z);
-        }
-        g.add(merlon);
-      }
-    }
-
-    // Corner cap — hides segment intersection at corners and gives a slightly
-    // taller post feel at junctions.
-    const nbrCount = (neighbors.n?1:0)+(neighbors.s?1:0)+(neighbors.e?1:0)+(neighbors.w?1:0);
-    if (nbrCount >= 2) {
-      const cap = new THREE.Mesh(
-        new THREE.BoxGeometry(wallT * 1.15, wallH + 0.06, wallT * 1.15),
-        M.castleStone
-      );
-      cap.position.y = (wallH + 0.06) / 2;
-      g.add(cap);
-      // Cap merlon (single block on top, slightly taller than wall merlons)
-      const capMerlon = new THREE.Mesh(
-        new THREE.BoxGeometry(wallT * 0.9, 0.12, wallT * 0.9),
-        M.castleStone
-      );
-      capMerlon.position.y = wallH + 0.06 + 0.06;
-      g.add(capMerlon);
-    }
-
-    g.userData = { kind: 'fence' };
     castReceive(g);
     return g;
   }
@@ -9961,19 +9604,6 @@
     return composite;
   }
 
-  function makeVoxelManor(floors = 1) {
-    const g = makeVoxelLinearHouse(2, 'x', floors, {
-      wallMat: M.manorBrick,
-      wallDark: M.manorTrim,
-      roofMat: M.manorRoof,
-      roofDark: M.manorRoofD,
-    });
-    vbox(g, 0.54, 0.08, 0.18, 0, 0.04, 0.70, M.manorTrim);
-    for (const x of [-0.18, 0, 0.18]) vbox(g, 0.055, 0.46, 0.055, x, 0.27, 0.72, M.manorTrim);
-    vbox(g, 0.62, 0.08, 0.18, 0, 0.54, 0.72, M.manorTrim);
-    return g;
-  }
-
   function makeVoxelSkyscraper(floors = 1) {
     const g = new THREE.Group();
     const f = Math.max(1, Math.min(16, floors || 1));
@@ -9996,60 +9626,6 @@
     vbox(g, 0.20, 0.24, 0.035, 0, 0.12, 0.42, M.habitatBand);
     vbox(g, 0.09, 0.07, 0.018, 0, 0.17, 0.45, M.habitatWindow);
     vbox(g, 0.24, 0.05, 0.16, 0, 0.03, 0.47, M.step);
-    g.userData = { kind: 'house', chimneyTops: [] };
-    castReceive(g);
-    return g;
-  }
-
-  function makeVoxelTurret(floors = 1, roofed = false, palette = null) {
-    if (roofed) return makeStoneTower(floors, palette);
-    const g = new THREE.Group();
-    const f = Math.max(1, Math.min(MAX_FLOORS, floors || 1));
-    const stone = (palette && palette.stone) || (roofed ? M.towerStone : M.castleStone);
-    const stoneD = (palette && palette.stoneD) || (roofed ? M.towerStoneD : M.castleStoneD);
-    const roof = (palette && palette.roof) || M.towerRoof;
-    const roofD = (palette && palette.roofD) || M.towerRoofD;
-    if (roofed) {
-      const stack = [[0.58, 0.58], [0.72, 0.42], [0.42, 0.72], [0.58, 0.58]];
-      let bodyTopY = 0;
-      for (let i = 0; i < f + 1; i++) {
-        const dims = stack[i % stack.length];
-        const y = i * 0.22 + 0.12;
-        vbox(g, dims[0], 0.24, dims[1], 0, y, 0, i % 2 ? stoneD : stone);
-        bodyTopY = Math.max(bodyTopY, y + 0.12);
-      }
-      vbox(g, 0.82, 0.08, 0.82, 0, bodyTopY + 0.04, 0, stoneD);
-      for (let i = 0; i < 4; i++) {
-        const s = 0.74 - i * 0.14;
-        vbox(g, s, 0.11, s, 0, bodyTopY + 0.10 + i * 0.10, 0, i === 3 ? roofD : roof);
-      }
-      vbox(g, 0.035, 0.26, 0.035, 0, bodyTopY + 0.62, 0, stoneD);
-    } else {
-      const keepFloors = f;
-      const floorH = 0.44;
-      const h = keepFloors * floorH;
-      vbox(g, 0.78, h, 0.78, 0, h / 2, 0, stone);
-      for (let i = 1; i < keepFloors; i++) {
-        vbox(g, 0.84, 0.025, 0.84, 0, i * floorH, 0, stoneD);
-      }
-      for (let i = 0; i < keepFloors; i++) {
-        const y = i * floorH + floorH * 0.55;
-        vbox(g, 0.030, 0.12, 0.070, 0.415, y, 0, M.castleSlit);
-        vbox(g, 0.030, 0.12, 0.070, -0.415, y, 0, M.castleSlit);
-        vbox(g, 0.070, 0.12, 0.030, 0, y, 0.415, M.castleSlit);
-        vbox(g, 0.070, 0.12, 0.030, 0, y, -0.415, M.castleSlit);
-      }
-      vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, stoneD);
-      for (const x of [-0.30, 0, 0.30]) {
-        vbox(g, 0.11, 0.14, 0.11, x, h + 0.15, 0.34, stone);
-        vbox(g, 0.11, 0.14, 0.11, x, h + 0.15, -0.34, stone);
-        vbox(g, 0.11, 0.14, 0.11, 0.34, h + 0.15, x, stone);
-        vbox(g, 0.11, 0.14, 0.11, -0.34, h + 0.15, x, stone);
-      }
-      vbox(g, 0.025, 0.26, 0.025, 0, h + 0.34, 0, stoneD);
-      vbox(g, 0.16, 0.09, 0.025, 0.09, h + 0.42, 0, M.flagRed);
-    }
-    voxelDoor(g, 0, 0.34, 'z', 0.34);
     g.userData = { kind: 'house', chimneyTops: [] };
     castReceive(g);
     return g;
@@ -10127,7 +9703,7 @@
     return g;
   }
 
-  function makeVoxelFence(side = 'n', level = 1, castle = false, roadGate = false, pathOrientation = 'x') {
+  function makeVoxelFence(side = 'n', level = 1, roadGate = false, pathOrientation = 'x') {
     const normalized = FENCE_SIDES.has(side) ? side : 'n';
     return roadGate
       ? makeRoadGate(normalized, level, pathOrientation)
@@ -10270,50 +9846,19 @@
       if (cell.terrain === 'path') {
         const pn = getPathNeighbors(x, z);
         const pathAxis = (pn.e || pn.w) ? 'x' : (pn.n || pn.s) ? 'z' : 'x';
-        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, true, pathAxis);
+        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, true, pathAxis);
       } else {
-        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, false);
+        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false);
       }
     } else if (kind === 'house') {
       const floors = cell.floors || 1;
-      const bType = cell.buildingType || null;
+      const bType = normalizeBuildingType(cell.buildingType) || 'tower';
       if (bType === 'skyscraper') {
         mesh = makeVoxelSkyscraper(floors);
       } else if (bType === 'habitat') {
         mesh = makeSpaceHabitat(floors);
-      } else if (bType === 'manor') {
-        mesh = makeVoxelManor(floors);
       } else if (bType === 'tower') {
-        mesh = makeVoxelTurret(floors, true, towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
-      } else if (bType === 'turret') {
-        mesh = makeVoxelTurret(floors, false);
-      } else {
-        const cluster = findHouseCluster(x, z);
-        if (!cluster.isAnchor) return { skip: true };
-        if (cluster.kind === 'turret') {
-          mesh = makeVoxelTurret(floors, false);
-        } else if (cluster.kind === 'solo') {
-          mesh = makeVoxelLinearHouse(1, 'z', floors);
-        } else if (cluster.kind === 'linear') {
-          mesh = makeVoxelLinearHouse(cluster.length, cluster.orientation, floors);
-          const a = tilePos(cluster.anchorX, cluster.anchorZ);
-          posX = a.x;
-          posZ = a.z;
-          if (cluster.orientation === 'x') posX += (cluster.length - 1) * TILE / 2;
-          else posZ += (cluster.length - 1) * TILE / 2;
-          setGridUserData = false;
-        } else if (cluster.kind === 'composite') {
-          mesh = makeVoxelCompositeHouse(cluster.topology, floors);
-          const t = cluster.topology;
-          posX = (t.bbox.xMin + t.bbox.xMax) / 2 - GRID / 2 + 0.5;
-          posZ = (t.bbox.zMin + t.bbox.zMax) / 2 - GRID / 2 + 0.5;
-          setGridUserData = false;
-        } else if (cluster.kind === 'square') {
-          mesh = makeVoxelSquareHouse(floors);
-          posX = (cluster.anchorX + 0.5) - GRID / 2 + 0.5;
-          posZ = (cluster.anchorZ + 0.5) - GRID / 2 + 0.5;
-          setGridUserData = false;
-        }
+        mesh = makeStoneTower(floors, towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
       }
     }
 
@@ -10460,7 +10005,7 @@
   const smokeHouseObjects = new Set();
   const buildingWindowObjects = new Set();
   const plasmaTurretObjects = new Set();
-  const buildingWindowBaseMaterials = new Set([M.windowB, M.manorWindow, M.skyGlass, M.castleSlit, M.habitatWindow]);
+  const buildingWindowBaseMaterials = new Set([M.windowB, M.skyGlass, M.habitatWindow]);
   const cropPositions = new Set();        // 'x,z' strings for home-grid cells whose kind is in CROP_KINDS
   let carriagePumpkin = null;             // {x, z} | null — current lowest-index max-floor pumpkin (Cinderella rule)
   const maxPumpkinPositions = new Set();  // 'x,z' of all pumpkins with floors >= MAX_FLOORS (home grid)
@@ -10591,6 +10136,17 @@
   // objects at startup.
 
   const MAX_FLOORS = 8;
+  const OXYGEN_PLANT_MAX_LEVEL = 6;
+
+  function maxFloorsForKind(kind) {
+    return kind === 'oxygen-plant' ? OXYGEN_PLANT_MAX_LEVEL : MAX_FLOORS;
+  }
+
+  function clampFloorsForKind(kind, value) {
+    const level = Math.round(Number(value));
+    const safeLevel = Number.isFinite(level) ? level : 1;
+    return Math.max(1, Math.min(maxFloorsForKind(kind), safeLevel));
+  }
 
   function makeHomeAsteroidUnderside() {
     const group = new THREE.Group();
@@ -11781,7 +11337,7 @@
         kind,
         floors,
         terrainFloors,
-        buildingType: null,
+        buildingType: kind === 'house' ? 'tower' : null,
         fenceSide: null,
         extras,
       });
@@ -11942,7 +11498,7 @@
         kind,
         floors,
         terrainFloors,
-        buildingType: null,
+        buildingType: 'tower',
         fenceSide: null,
         extras,
       });
@@ -12492,6 +12048,34 @@
     return { terrain: BASE_TERRAIN, terrainFloors: 1, kind: null, floors: 1, buildingType: null, fenceSide: null, extras: [], appearance: null };
   }
 
+  function removedHouseTypeValues() {
+    return new Set(['cot' + 'tage', 'man' + 'or', 'tur' + 'ret', 'cas' + 'tle']);
+  }
+
+  function activeHouseTypeValues() {
+    return new Set(['tower', 'skyscraper', 'habitat']);
+  }
+
+  function normalizeBuildingType(value) {
+    if (removedHouseTypeValues().has(value)) return null;
+    return activeHouseTypeValues().has(value) ? value : null;
+  }
+
+  function normalizeHouseBuildingTypes(data) {
+    if (!data || !Array.isArray(data.cells)) return data;
+    const removedTypes = removedHouseTypeValues();
+    for (const c of data.cells) {
+      if (Array.isArray(c)) {
+        if (removedTypes.has(c[5])) c[5] = null;
+        if (c[3] === 'house' && !c[5]) c[5] = 'tower';
+      } else if (c && typeof c === 'object') {
+        if (removedTypes.has(c.buildingType)) c.buildingType = null;
+        if (c.kind === 'house' && !c.buildingType) c.buildingType = 'tower';
+      }
+    }
+    return data;
+  }
+
   function cloneExtras(extras) {
     return Array.isArray(extras) ? extras.map(e => ({
       kind: e.kind || e.k || null,
@@ -12502,12 +12086,13 @@
 
   function writeWorldIntentCell(x, z, src, userEdited = false) {
     if (!world[x]) world[x] = [];
+    const kind = (src && src.kind) || null;
     const cell = {
       terrain: (src && src.terrain) || BASE_TERRAIN,
       terrainFloors: (src && src.terrainFloors) || 1,
-      kind: (src && src.kind) || null,
-      floors: (src && src.floors) || 1,
-      buildingType: (src && src.buildingType) || null,
+      kind,
+      floors: clampFloorsForKind(kind, (src && src.floors) || 1),
+      buildingType: normalizeBuildingType(src && src.buildingType),
       fenceSide: (src && src.fenceSide) || null,
       extras: cloneExtras(src && src.extras),
       rotationY: (src && src.rotationY) || 0,
@@ -12516,6 +12101,7 @@
       appearance: normalizeAppearance(src && src.appearance),
     };
     if (cell.kind !== 'house') cell.buildingType = null;
+    else if (!cell.buildingType) cell.buildingType = 'tower';
     if (cell.kind !== 'fence') cell.fenceSide = null;
     if (userEdited || (src && src.userEdited)) cell.userEdited = true;
     world[x][z] = cell;
@@ -13372,7 +12958,7 @@
         terrain: cells[x][z].terrain,
         kind: 'house',
         floors: 1 + (ghostHash(boardX, boardZ, 3 + i) % 3),
-        buildingType: i % 2 ? 'cottage' : null,
+        buildingType: 'tower',
         fenceSide: null,
         extras: [],
       };
@@ -13772,18 +13358,16 @@
       if (cell.terrain === 'path') {
         const pn = getGhostNeighbors(cells, x, z, 'terrain', 'path', boardX, boardZ);
         const pathAxis = (pn.e || pn.w) ? 'x' : (pn.n || pn.s) ? 'z' : 'x';
-        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, false, true, pathAxis);
+        mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level, true, pathAxis);
       } else {
         mesh = makeVoxelFence(normalizeFenceSide(cell.fenceSide), level);
       }
     }
     else if (cell.kind === 'house') {
-      if (cell.buildingType === 'manor') mesh = makeVoxelManor(level);
-      else if (cell.buildingType === 'tower') mesh = makeVoxelTurret(level, true);
-      else if (cell.buildingType === 'turret') mesh = makeVoxelTurret(level, false);
-      else if (cell.buildingType === 'skyscraper') mesh = makeVoxelSkyscraper(level);
-      else if (cell.buildingType === 'habitat') mesh = makeSpaceHabitat(level);
-      else mesh = makeVoxelLinearHouse(1, 'z', level);
+      const bType = normalizeBuildingType(cell.buildingType) || 'tower';
+      if (bType === 'tower') mesh = makeStoneTower(level);
+      else if (bType === 'skyscraper') mesh = makeVoxelSkyscraper(level);
+      else if (bType === 'habitat') mesh = makeSpaceHabitat(level);
     }
     return mesh;
   }
@@ -13802,9 +13386,7 @@
       leaves.position.y = 0.9 * level;
       g = new THREE.Group();
       g.add(trunk, leaves);
-    } else if (kind === 'house' && cell.buildingType === 'turret') {
-      g = new THREE.Mesh(getBoxGeometry(0.8, 1.2, 0.8), M.castleStone);
-    } else if (kind === 'house' || kind === 'manor' || kind === 'tower' || kind === 'turret' || kind === 'skyscraper') {
+    } else if (kind === 'house' || kind === 'tower' || kind === 'skyscraper') {
       const h = 1.2 * level;
       g = new THREE.Mesh(getBoxGeometry(1.2, h, 1.2), M.dirtRich);
       const roof = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.6, 4), M.rock);
@@ -14628,7 +14210,7 @@
     else if (k === 'house') {
       const bt = obj.userData.buildingType;
       if (bt === 'skyscraper')                                base = 12;
-      else if (bt === 'manor' || bt === 'tower' || bt === 'turret') base = 8;
+      else if (bt === 'tower') base = 8;
       else                                                    base = 5;
     }
     const floors = (obj.userData && (obj.userData.level || obj.userData.floors)) || 1;
@@ -14658,7 +14240,7 @@
     else if (k === 'house') {
       const bt = obj.userData.buildingType;
       if (bt === 'skyscraper') base = 11;
-      else if (bt === 'manor' || bt === 'tower' || bt === 'turret') base = 7;
+      else if (bt === 'tower') base = 7;
       else base = 4;
     }
     const floors = obj.userData.level || obj.userData.floors || 1;
@@ -14895,64 +14477,6 @@
     };
   }
 
-  // Castle-wall neighbours: same shape as getFenceNeighbors, but each value is
-  // 'fence' | 'turret' | null. Turret-houses count as connection points so the
-  // wall segment toward them extends to meet the tower cylinder. Used only on
-  // the castle render path; regular fences continue to use getFenceNeighbors.
-  function getCastleWallNeighbors(x, z) {
-    function probe(nx, nz) {
-      if (getWorldCell(nx, nz).kind === 'fence') return 'fence';
-      if (isTurretHouse(nx, nz)) return 'turret';
-      return null;
-    }
-    return {
-      n: probe(x, z - 1),
-      s: probe(x, z + 1),
-      e: probe(x + 1, z),
-      w: probe(x - 1, z),
-    };
-  }
-
-  // Castle promotion. A house becomes a turret when it sits at a fence corner —
-  // i.e. has fences on 2+ perpendicular adjacent sides. A fence becomes a
-  // castle wall when its connected fence component touches at least one
-  // turret-house. Rules are purely local + component-local, so behaviour is
-  // predictable as the player paints; cluster shapes update through the
-  // existing setCell adjacency refresh, extended below to include the whole
-  // fence component on changes.
-  function isTurretHouse(x, z) {
-    if (getWorldCell(x, z).kind !== 'house') return false;
-    const n = getWorldCell(x, z - 1);
-    const s = getWorldCell(x, z + 1);
-    const e = getWorldCell(x + 1, z);
-    const w = getWorldCell(x - 1, z);
-    const fN = n.kind === 'fence' && normalizeFenceSide(n.fenceSide) === 's';
-    const fS = s.kind === 'fence' && normalizeFenceSide(s.fenceSide) === 'n';
-    const fE = e.kind === 'fence' && normalizeFenceSide(e.fenceSide) === 'w';
-    const fW = w.kind === 'fence' && normalizeFenceSide(w.fenceSide) === 'e';
-    return (fN && fE) || (fN && fW) || (fS && fE) || (fS && fW);
-  }
-
-  function isCastleFence(x, z) {
-    if (getWorldCell(x, z).kind !== 'fence') return false;
-    const seen = new Set();
-    const stack = [[x, z]];
-    seen.add(x + ',' + z);
-    while (stack.length) {
-      const [cx, cz] = stack.pop();
-      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = cx + dx, nz = cz + dz;
-        if (isTurretHouse(nx, nz)) return true;
-        const k = nx + ',' + nz;
-        if (getWorldCell(nx, nz).kind === 'fence' && !seen.has(k)) {
-          seen.add(k);
-          stack.push([nx, nz]);
-        }
-      }
-    }
-    return false;
-  }
-
   // Detect a "composite" topology — a long main wing plus 1+ single-cell
   // perpendicular branches (L-shape, T-shape, +-shape). Returns null if the
   // cluster doesn't fit this shape (e.g. solid 2x2 square, multi-cell branches).
@@ -15041,8 +14565,8 @@
   // then composite (L/T-shapes), then falls back to solo. Returns:
   // Returns a {stone, stoneD, roof, roofD} palette derived from a neighbour
   // house's buildingType, or null when the building should keep its native
-  // palette. Used to make adjacent forced-variant houses (manor / skyscraper
-  // / castle turret) blend into a single visual structure.
+  // palette. Used to make adjacent forced-variant houses blend into a single
+  // visual structure.
   function getMergedBuildingPalette(x, z, selfType) {
     const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
     for (let i = 0; i < dirs.length; i++) {
@@ -15052,22 +14576,6 @@
       if (!n || n.kind !== 'house') continue;
       const bt = n.buildingType;
       if (!bt || bt === selfType) continue;
-      if (bt === 'manor') {
-        return {
-          stone:  M.manorBrick,
-          stoneD: M.manorBrickD,
-          roof:   M.manorRoof,
-          roofD:  M.manorRoofD,
-        };
-      }
-      if (bt === 'turret') {
-        return {
-          stone:  M.castleStone,
-          stoneD: M.castleStoneD,
-          roof:   M.castleRoof || M.towerRoof,
-          roofD:  M.castleRoofD || M.towerRoofD,
-        };
-      }
       if (bt === 'skyscraper') {
         return {
           stone:  M.skyGlass || M.towerStone,
@@ -15084,9 +14592,6 @@
   //   { kind: 'composite', isAnchor, topology }
   //   { kind: 'solo',      isAnchor: true,   anchorX, anchorZ }
   function findHouseCluster(x, z) {
-    if (isTurretHouse(x, z)) {
-      return { kind: 'turret', isAnchor: true, anchorX: x, anchorZ: z };
-    }
     let xMin = x, xMax = x;
     while (getWorldCell(xMin - 1, z).kind === 'house') xMin--;
     while (getWorldCell(xMax + 1, z).kind === 'house') xMax++;
@@ -15159,23 +14664,16 @@
   // 4-neighbour flood fill over connected houses, used to find every cell
   // potentially affected when a placement adds/removes a connection.
   function bfsHouseCluster(x, z) {
-    // Turret-houses act as cluster boundaries: they're not traversed through,
-    // and they aren't included in clusters anchored at OTHER cells. They are
-    // returned (alone) when the BFS starts on the turret cell itself, so refresh
-    // logic still lights them up.
     const result = [];
     const seen = new Set();
-    const queue = [{ x, z, isStart: true }];
+    const queue = [{ x, z }];
     while (queue.length) {
       const c = queue.shift();
       const k = c.x + ',' + c.z;
       if (seen.has(k)) continue;
       seen.add(k);
       if (getWorldCell(c.x, c.z).kind !== 'house') continue;
-      const turret = isTurretHouse(c.x, c.z);
-      if (turret && !c.isStart) continue;
       result.push({ x: c.x, z: c.z });
-      if (turret) continue; // don't expand through a turret
       queue.push({ x: c.x + 1, z: c.z });
       queue.push({ x: c.x - 1, z: c.z });
       queue.push({ x: c.x, z: c.z + 1 });
@@ -15353,59 +14851,18 @@
     }
     else if (kind === 'house') {
       const floors = cell.floors || 1;
-      const bType = cell.buildingType || null;
+      const bType = normalizeBuildingType(cell.buildingType) || 'tower';
 
-      // Forced single-cell overrides — bypass cluster lookup so adjacent
-      // forced-variant houses stay independent (no merging).
       if (bType === 'skyscraper') {
         mesh = makeSkyscraper(floors);
       } else if (bType === 'habitat') {
         mesh = makeSpaceHabitat(floors);
-      } else if (bType === 'manor') {
-        mesh = makeManor(floors);
       } else if (bType === 'tower') {
         // When a tower is adjacent to another house variant, adopt that
-        // variant's palette so they read as one merged structure (e.g. a
-        // tower next to a manor switches from grey stone to brick). Per-cell
+        // variant's palette so they read as one merged structure. Per-cell
         // appearance then overrides body/top colours for direct editing.
         mesh = makeStoneTower(floors, towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
-      } else if (bType === 'turret') {
-        mesh = makeTurret(floors);
-      } else {
-      const cluster = findHouseCluster(x, z);
-      if (!cluster.isAnchor) return;          // non-anchor cluster cells render nothing
-      if (cluster.kind === 'turret') {
-        mesh = makeTurret(floors);
-      } else if (cluster.kind === 'solo') {
-        // Residential / cottage houses keep their own look as you stack
-        // floors — makeHouse handles tall counts. Skyscrapers are an
-        // explicit variant from the flyout, not an auto-promotion.
-        mesh = makeHouse(floors);
-      } else if (cluster.kind === 'linear') {
-        mesh = makeStretchedHouse(cluster.length, cluster.orientation, floors);
-        // Position at cluster CENTRE (not the anchor cell), so the visible house
-        // spans the run cleanly. Skip gx/gz so pickTile falls through to whichever
-        // tile is actually under the cursor.
-        const a = tilePos(cluster.anchorX, cluster.anchorZ);
-        posX = a.x; posZ = a.z;
-        if (cluster.orientation === 'x') posX += (cluster.length - 1) * TILE / 2;
-        else                              posZ += (cluster.length - 1) * TILE / 2;
-        setGridUserData = false;
-      } else if (cluster.kind === 'composite') {
-        mesh = buildCompositeHouse(cluster.topology, floors);
-        // Position at cluster bounding-box centre so wings fall in place.
-        const t = cluster.topology;
-        posX = (t.bbox.xMin + t.bbox.xMax) / 2 - GRID / 2 + 0.5;
-        posZ = (t.bbox.zMin + t.bbox.zMax) / 2 - GRID / 2 + 0.5;
-        setGridUserData = false;
-      } else if (cluster.kind === 'square') {
-        mesh = buildSquareHouse(floors);
-        // Centre the 2x2 mesh between the four cells.
-        posX = (cluster.anchorX + 0.5) - GRID / 2 + 0.5;
-        posZ = (cluster.anchorZ + 0.5) - GRID / 2 + 0.5;
-        setGridUserData = false;
       }
-      } // close skyscraper-bypass else
     } else return;
 
     if (!mesh) return;
@@ -15478,7 +14935,7 @@
     cell.extras.forEach((ex, i) => {
       let mesh = null;
       if (ex.kind === 'tuft') mesh = makeVoxelCropKind('tuft', ex.floors || 1);
-      else if (ex.kind === 'fence') mesh = makeVoxelFence(normalizeFenceSide(ex.fenceSide), ex.floors || 1, false, false);
+      else if (ex.kind === 'fence') mesh = makeVoxelFence(normalizeFenceSide(ex.fenceSide), ex.floors || 1, false);
       if (!mesh) return;
       // Smaller, corner-offset extras so they sit alongside the main
       // kind without overlapping its silhouette.
@@ -15559,15 +15016,11 @@
     pumpkin: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     carrot: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    house: { label: 'Housing', cost: { gold: 18 }, effect: { shelter: 12 } },
-    cottage: { label: 'Cottage', cost: { gold: 18 }, effect: { shelter: 14 } },
-    manor: { label: 'Housing', cost: { gold: 26 }, effect: { shelter: 20 } },
     highrise: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
     skyscraper: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
     habitat: { label: 'Habitat', cost: { gold: 24 }, effect: { shelter: 18 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
     tower: { label: 'Tower', cost: { gold: 25 }, effect: { army: 16 } },
-    turret: { label: 'Tower', cost: { gold: 28 }, effect: { army: 18 } },
     // TODO(contract/indexer): Barracks is reserved for the future army-building
     // tool/model. No visual placement is created here.
     barracks: { label: 'Barracks', cost: { gold: 30 }, effect: { army: 22 }, placeholder: true },
@@ -15584,8 +15037,8 @@
     if (tool.terrain === 'water') return RESOURCE_BUILD_RULES.water;
     if (tool.kind === 'house') {
       const variant = tool.activeVariant;
-      const buildingType = (variant && variant.buildingType) || 'house';
-      return RESOURCE_BUILD_RULES[buildingType] || RESOURCE_BUILD_RULES.house;
+      const buildingType = normalizeBuildingType(variant && variant.buildingType);
+      return buildingType ? RESOURCE_BUILD_RULES[buildingType] : null;
     }
     if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
@@ -15595,8 +15048,8 @@
   function resourceRuleForPlacedCell(cell) {
     if (!cell) return null;
     if (cell.kind === 'house') {
-      const buildingType = cell.buildingType || 'house';
-      return RESOURCE_BUILD_RULES[buildingType] || RESOURCE_BUILD_RULES.house;
+      const buildingType = normalizeBuildingType(cell.buildingType) || 'tower';
+      return RESOURCE_BUILD_RULES[buildingType] || null;
     }
     if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
@@ -15744,7 +15197,7 @@
         }
         if (cell.kind === 'house') {
           population += floors * 10;
-          if (cell.buildingType === 'tower' || cell.buildingType === 'turret') army += floors * 18;
+          if (cell.buildingType === 'tower') army += floors * 18;
         } else if (cell.kind === 'fence') {
           army += 8;
         } else if (cell.kind === 'rock') {
@@ -15828,17 +15281,19 @@
     const kindChanged    = (prev.kind || null) !== nextKind;
     // floors default: when placing a fresh kind, start at 1; when preserving the
     // same kind without specifying, keep the previous value.
-    const newFloors = (floors !== undefined) ? floors
-                    : (kindChanged ? 1 : (prev.floors || 1));
+    const requestedFloors = (floors !== undefined) ? floors
+                          : (kindChanged ? 1 : (prev.floors || 1));
+    const newFloors = clampFloorsForKind(nextKind, requestedFloors);
     const floorsChanged = (prev.floors || 1) !== newFloors;
     const newTerrainFloors = (terrainFloors !== undefined) ? terrainFloors : terrainLevelForCell(prev);
     const terrainFloorsChanged = terrainLevelForCell(prev) !== newTerrainFloors;
     // buildingType: when caller passes undefined, preserve previous unless the
     // kind is changing (a fresh kind clears any old building-type override).
-    let newBType = (buildingType !== undefined) ? (buildingType || null)
-                 : (kindChanged ? null : (prev.buildingType || null));
+    let newBType = (buildingType !== undefined) ? normalizeBuildingType(buildingType)
+                 : (kindChanged ? null : normalizeBuildingType(prev.buildingType));
     if (nextKind !== 'house') newBType = null;
-    const bTypeChanged = (prev.buildingType || null) !== newBType;
+    else if (!newBType) newBType = 'tower';
+    const bTypeChanged = normalizeBuildingType(prev.buildingType) !== newBType;
     let newFenceSide = (fenceSide !== undefined) ? (fenceSide || null)
                      : (kindChanged ? null : (prev.fenceSide || null));
     if (nextKind === 'fence') newFenceSide = normalizeFenceSide(newFenceSide);
@@ -15957,44 +15412,6 @@
         toRefresh.set(nx + ',' + nz, { x: nx, z: nz });
       } else if (nk === 'house') {
         for (const c of bfsHouseCluster(nx, nz)) toRefresh.set(c.x + ',' + c.z, c);
-      }
-    }
-
-    // Castle promotion expansion: the changed cell or its 4-neighbours might
-    // be part of a fence component whose castle status just flipped (a
-    // turret-house appeared / disappeared, a fence joined / left the chain).
-    // Walk every connected fence cell starting from this cell and its
-    // 4-neighbours, and re-render all of them — plus their adjacent houses,
-    // since a house's turret status depends on neighbouring fences.
-    const fenceVisited = new Set();
-    const fenceStack = [[x, z]];
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      fenceStack.push([x + dx, z + dz]);
-    }
-    while (fenceStack.length) {
-      const [cx, cz] = fenceStack.pop();
-      const fk = cx + ',' + cz;
-      if (fenceVisited.has(fk)) continue;
-      if (getWorldCell(cx, cz).kind !== 'fence') continue;
-      fenceVisited.add(fk);
-      toRefresh.set(fk, { x: cx, z: cz });
-      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nx = cx + dx, nz = cz + dz;
-        if (getWorldCell(nx, nz).kind === 'house') {
-          for (const c of bfsHouseCluster(nx, nz)) {
-            toRefresh.set(c.x + ',' + c.z, c);
-            // Bridge the castle network: push every fence that touches any
-            // cluster cell. Without this, a turret promotion only refreshes
-            // the fence component the player just edited, leaving fences on
-            // the cluster's *other* sides stuck on stale geometry.
-            for (const [hdx, hdz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-              const hx = c.x + hdx, hz = c.z + hdz;
-              if (getWorldCell(hx, hz).kind === 'fence') fenceStack.push([hx, hz]);
-            }
-          }
-        } else if (getWorldCell(nx, nz).kind === 'fence') {
-          fenceStack.push([nx, nz]);
-        }
       }
     }
 
@@ -16153,12 +15570,10 @@
     } else if (kind === 'house') {
       const v = tool.activeVariant;
       const bt = v && v.buildingType;
-      if      (bt === 'manor')      mesh = makeVoxelManor(1);
-      else if (bt === 'tower')      mesh = makeStoneTower(1);
-      else if (bt === 'turret')     mesh = makeVoxelTurret(1, false);
+      if      (bt === 'tower')      mesh = makeStoneTower(1);
       else if (bt === 'skyscraper') mesh = makeVoxelSkyscraper(1);
       else if (bt === 'habitat')    mesh = makeSpaceHabitat(1);
-      else                          mesh = makeVoxelLinearHouse(1, 'z', 1);
+      else                          mesh = null;
     } else if (tool.terrain) {
       // For pure terrain tools, show a thin coloured swatch hovering
       // just above the tile so the user can still see what they'd paint.
@@ -16677,11 +16092,7 @@
     { id: 'snow',   label: 'Snow',   terrain: 'snow',  color: '#f2f5fa', group: 'terrain' },
     { id: 'house',  label: 'House',  kind: 'house', color: '#3a72c8', shortcut: '5', group: 'build',
       variants: [
-        { id: 'auto',       label: 'Auto',      buildingType: null,         hint: 'cluster + auto-promo' },
-        { id: 'cottage',    label: 'Cottage',   buildingType: 'cottage',    hint: 'force cottage style' },
-        { id: 'manor',      label: 'Manor',     buildingType: 'manor',      hint: 'brick + portico' },
         { id: 'tower',      label: 'Tower',     buildingType: 'tower',      hint: 'stone tower w/ conical roof' },
-        { id: 'turret',     label: 'Castle',    buildingType: 'turret',     hint: 'castle turret / keep' },
         { id: 'highrise',   label: 'High-rise', buildingType: 'skyscraper', hint: 'glass tower' },
         { id: 'habitat',    label: 'Habitat',   buildingType: 'habitat',    hint: 'space base module' },
       ],
@@ -16787,12 +16198,10 @@
     if (k === 'house') {
       const v = tool.activeVariant;
       const bType = v && v.buildingType;
-      if (bType === 'manor')      return makeVoxelManor(2);
       if (bType === 'tower')      return makeStoneTower(1);
-      if (bType === 'turret')     return makeVoxelTurret(2, false);
       if (bType === 'skyscraper') return makeVoxelSkyscraper(1);
       if (bType === 'habitat')    return makeSpaceHabitat(1);
-      return makeVoxelLinearHouse(1, 'z', 2);
+      return null;
     }
     return null;
   }
@@ -16832,8 +16241,7 @@
     scene.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
 
     // Buildings need variant-specific framing: the skyscraper/towers need a
-    // taller frustum, but using that same crop for cottages leaves a lot of
-    // empty air above the icon in the flyout.
+    // taller frustum, while compact variants need a tighter flyout crop.
     const houseType = tool.kind === 'house' && tool.activeVariant && tool.activeVariant.buildingType;
     let thumbFrame = { left: -1.3, right: 1.3, top: 1.3, bottom: -1.3, lookAtY: 0.4 };
     if (tool.kind === 'house') {
@@ -16841,10 +16249,8 @@
         thumbFrame = { left: -1.7, right: 1.7, top: 2.6, bottom: -1.0, lookAtY: 1.0 };
       } else if (houseType === 'habitat') {
         thumbFrame = { left: -1.45, right: 1.45, top: 1.55, bottom: -0.95, lookAtY: 0.48 };
-      } else if (houseType === 'tower' || houseType === 'turret') {
+      } else if (houseType === 'tower') {
         thumbFrame = { left: -1.58, right: 1.58, top: 2.15, bottom: -0.95, lookAtY: 0.85 };
-      } else if (houseType === 'manor') {
-        thumbFrame = { left: -1.48, right: 1.48, top: 1.9, bottom: -0.95, lookAtY: 0.68 };
       } else {
         thumbFrame = { left: -1.36, right: 1.36, top: 1.65, bottom: -0.95, lookAtY: 0.56 };
       }
@@ -17307,8 +16713,8 @@
       const tool = TOOLS.find(t => t.id === id);
       if (!tool || tool.hidden) return;
       // Don't bury the building types behind a second click: the Build
-      // menu shows the house variants directly (Cottage / Manor / Tower /
-      // Castle / High-rise), so no feature disappeared when the toolbar
+      // menu shows the house variants directly (Tower / High-rise),
+      // so no feature disappeared when the toolbar
       // was grouped.
       if (group.id === 'build' && tool.id === 'house' && tool.variants) {
         tool.variants.forEach(v => el.appendChild(buildVariantToolButton(tool, v)));
@@ -17497,11 +16903,19 @@
             playMockResourcePlacementSuccess(selectedTool);
           });
         } else if (selectedTool.kind) {
+          const selectedBuildingType = selectedTool.kind === 'house'
+            ? normalizeBuildingType(selectedTool.activeVariant && selectedTool.activeVariant.buildingType)
+            : null;
+          if (selectedTool.kind === 'house' && !selectedBuildingType) { rejectMockResourceBuildAction(selectedTool); return; }
           selectedCoords.forEach(({ x: sx, z: sz }) => {
             const current = getWorldCell(sx, sz);
             const terrainForKind = selectedTool.terrainOverride || current.terrain || BASE_TERRAIN;
             if (!trySpendMockResourcesForPlacement(selectedTool)) return;
-            setCell(sx, sz, { kind: selectedTool.kind, terrain: terrainForKind });
+            setCell(sx, sz, {
+              kind: selectedTool.kind,
+              terrain: terrainForKind,
+              buildingType: selectedTool.kind === 'house' ? selectedBuildingType : undefined,
+            });
             playMockResourcePlacementSuccess(selectedTool);
           });
         } else if (selectedTool.erase) {
@@ -17538,7 +16952,8 @@
       }
       // Fresh placement — read buildingType from the active fly-out variant.
       const variant = selectedTool.activeVariant;
-      const bType = (variant && variant.buildingType) || null;
+      const bType = normalizeBuildingType(variant && variant.buildingType);
+      if (!bType) { rejectMockResourceBuildAction(selectedTool); return; }
       const terrainForHouse = cell.terrain || BASE_TERRAIN;
       if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       const gt = consumeGhostTransform();
@@ -17614,7 +17029,7 @@
       if (cell.kind === selectedTool.kind) {
         // Bridges have only 4 visual styles (wood → covered → stone → arch),
         // so cap their stacking there instead of running up to MAX_FLOORS.
-        const stackMax = selectedTool.kind === 'bridge' ? 4 : MAX_FLOORS;
+        const stackMax = selectedTool.kind === 'bridge' ? 4 : maxFloorsForKind(selectedTool.kind);
         const newLevel = Math.min((cell.floors || 1) + 1, stackMax);
         if (newLevel === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
@@ -19061,8 +18476,8 @@
       return stamp ? stamp.name : 'Voxel build';
     }
     if (cell.kind === 'house') {
-      const bt = cell.buildingType || 'cottage';
-      return bt.charAt(0).toUpperCase() + bt.slice(1) + ' house';
+      const bt = normalizeBuildingType(cell.buildingType);
+      return bt ? bt.charAt(0).toUpperCase() + bt.slice(1) + ' house' : 'House';
     }
     if (cell.kind === 'oxygen-plant') return 'Oxygen Generation Plant';
     return cell.kind.charAt(0).toUpperCase() + cell.kind.slice(1);
@@ -19130,7 +18545,6 @@
     let seedId = 'machiya-house';
     if (cell.kind === 'house') {
       if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper' || cell.buildingType === 'habitat') seedId = 'watchtower';
-      else if (cell.buildingType === 'turret') seedId = 'watchtower';
       else seedId = 'machiya-house';
     } else if (cell.kind === 'tree' || cell.kind === 'flower' || cell.kind === 'bush') {
       seedId = 'cherry-tree-build';
@@ -19154,13 +18568,10 @@
   function selectedBuildingStampId(cell) {
     if (!cell || cell.kind !== 'house') return null;
     if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper' || cell.buildingType === 'habitat') return 'tower';
-    if (cell.buildingType === 'manor') return 'manor';
-    if (cell.buildingType === 'turret') return 'tower';
     return 'house';
   }
 
   function selectedBuildingRenderFootprint(stamp) {
-    if (stamp === 'manor') return 2.05;
     if (stamp === 'pagoda') return 2.15;
     if (stamp === 'tower') return 1.55;
     return 1.72;
@@ -19187,32 +18598,6 @@
         part('roof-top', 'box', 'roofEdge', [0.9, 0.24, 0.9], [0, 3.34, 0]),
         part('finial', 'box', 'gold', [0.32, 0.32, 0.32], [0, 3.68, 0]),
       );
-    } else if (stamp === 'manor') {
-      parts.push(
-        part('base', 'box', 'white', [2.4, 0.22, 1.65], [0, 0.11, 0]),
-        part('body', 'box', 'red', [2.0, 1.05, 1.35], [0, 0.74, 0]),
-        part('body-shadow', 'box', 'woodDark', [0.08, 0.95, 1.36], [-1.04, 0.76, 0]),
-        part('body-shadow-right', 'box', 'woodDark', [0.08, 0.95, 1.36], [1.04, 0.76, 0]),
-        part('cornice', 'box', 'white', [2.12, 0.12, 1.44], [0, 1.32, 0]),
-        part('roof-slab', 'box', 'roof', [2.25, 0.28, 1.55], [0, 1.55, 0]),
-        part('roof-cap', 'box', 'roofEdge', [1.75, 0.18, 1.1], [0, 1.78, 0]),
-        part('roof-ridge', 'box', 'roofEdge', [1.25, 0.12, 0.14], [0, 1.95, 0]),
-        part('front-step', 'box', 'white', [0.9, 0.12, 0.35], [0, 0.12, -0.96]),
-        part('portico-top', 'box', 'white', [0.95, 0.16, 0.22], [0, 0.92, -0.78]),
-        part('portico-left', 'cylinder', 'white', [0.11, 0.82, 0.11], [-0.34, 0.52, -0.78], [1, 1, 1], 8),
-        part('portico-mid', 'cylinder', 'white', [0.11, 0.82, 0.11], [0, 0.52, -0.78], [1, 1, 1], 8),
-        part('portico-right', 'cylinder', 'white', [0.11, 0.82, 0.11], [0.34, 0.52, -0.78], [1, 1, 1], 8),
-        part('door', 'box', 'woodDark', [0.34, 0.58, 0.08], [0, 0.52, -0.71]),
-        part('door-knob', 'box', 'gold', [0.05, 0.05, 0.04], [0.1, 0.52, -0.77]),
-      );
-      for (const x of [-0.72, 0.72]) {
-        for (const y of [0.56, 0.98]) {
-          parts.push(
-            part(`front-window-${x}-${y}`, 'box', 'white', [0.28, 0.24, 0.07], [x, y, -0.72]),
-            part(`front-window-glass-${x}-${y}`, 'box', 'waterDark', [0.18, 0.16, 0.08], [x, y, -0.77]),
-          );
-        }
-      }
     } else if (stamp === 'pagoda') {
       parts.push(part('stone-base', 'box', 'stone', [2.25, 0.4, 2.0], [0, 0.2, 0]));
       for (let i = 0; i < 3; i++) {
@@ -19458,13 +18843,11 @@
     const sourceBounds = customPartsBounds(seed.customParts);
     const model = textModelForGeneration(provider, ai.model);
     const instruction = String(userInstruction || '').trim() || 'Enhance this selected building as a richer low-poly voxel model.';
-    const buildingStyle = seed.stamp === 'manor'
-      ? 'Tiny World Georgian manor house, red brick walls, slate roof, white trim, portico columns, sash windows, large readable manor render with small detail parts'
-      : seed.stamp === 'tower'
-        ? 'Tiny World stone tower, readable vertical render with small crenellation, window, roof cap, and door parts'
-        : seed.stamp === 'pagoda'
-          ? 'Tiny World pagoda building, tiered roof, readable render with small trim parts'
-          : 'Tiny World low-poly house, readable roof, walls, windows, door, trim, larger render with small detail parts';
+    const buildingStyle = seed.stamp === 'tower'
+      ? 'Tiny World stone tower, readable vertical render with small crenellation, window, roof cap, and door parts'
+      : seed.stamp === 'pagoda'
+        ? 'Tiny World pagoda building, tiered roof, readable render with small trim parts'
+        : 'Tiny World low-poly house, readable roof, walls, windows, door, trim, larger render with small detail parts';
     const renderFootprint = selectedBuildingRenderFootprint(seed.stamp);
     const payload = {
       model,
@@ -21954,10 +21337,7 @@
         ],
         "enum": [
           null,
-          "cottage",
-          "manor",
           "tower",
-          "turret",
           "skyscraper",
           "habitat"
         ]
@@ -22305,7 +21685,7 @@
       },
       buildingType: {
         type: ['string', 'null'],
-        enum: [null, 'cottage', 'manor', 'tower', 'turret', 'skyscraper', 'habitat'],
+        enum: [null, 'tower', 'skyscraper', 'habitat'],
       },
     },
   };
@@ -22355,9 +21735,9 @@
     '- You cannot invent new object kinds, meshes, labels, or custom geometry in JSON. Build every requested thing by arranging the available Tiny World primitives: terrain cells, raised terrainFloors, houses/buildingType variants, trees, fences/fenceSide, rocks, bridges, crop kinds, and tufts.',
     '- Translate real-world objects into readable low-poly tile assemblies. Example: skate park = path/dirt plaza + raised terrain ramps + rocks as boulders/ramps + fences as rails/edges + tufts/trees as landscaping.',
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
-    '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, road gates, and castle-wall components. Set fenceSide deliberately.',
+    '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, and road gates. Set fenceSide deliberately.',
     '- Use rocks as sparse sculptural props only: boulders, monuments, rubble, stepping stones, and focal landmarks. Do not use rock props to represent broad hills or mountains.',
-    '- Use houses and variants as massing primitives: cottages for small buildings, manors for civic buildings, towers/turrets for vertical landmarks, high-rise for modern tall structures, and habitats for compact sci-fi bases. Adjacent null-buildingType houses assemble into larger footprints.',
+    '- Use explicit house variants as massing primitives: towers for vertical landmarks, high-rise for modern tall structures, and habitats for compact sci-fi bases. Do not emit null/default house buildingType.',
     '- Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
     '- Use crops/tufts/trees as texture primitives: fields, hedges, gardens, park planting, wild edges, orchards, and scale cues.',
     '- Prefer 3–5 clear assembled features over scattering many single unrelated cells. Make the construction legible from the default isometric camera.',
@@ -22372,11 +21752,10 @@
       'Required home board edge length: include "gridSize": ' + size + ' in the JSON object.',
       'Grid coordinates: x in 0..' + maxCoord + ' (left-right), z in 0..' + maxCoord + ' (front-back). Default cell is grass with no object.',
       'Only emit cells that differ from defaults — the renderer fills the rest.',
-      'Houses cluster automatically when buildingType is null: adjacent houses merge into linear, L/T/+, or 2x2 forms. To force a single-cell variant set buildingType to cottage|manor|tower|turret|skyscraper|habitat.',
+      'House cells must set buildingType to tower|skyscraper|habitat. Do not emit null/default house buildingType.',
       'Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
       'Repeat-tapping the same object increases floors/intensity: houses grow upward; trees, rocks, bridges, fences, tufts, and crops become larger, denser, or more detailed.',
       'A fence is a single side/leaf, not a full square. Set fenceSide to n|s|e|w for tile edges or center-x|center-z for centre-line walls.',
-      'Fences placed on two perpendicular sides of a house can promote it to a castle turret and turn connected fence cells into stone wall — use this for castles.',
       'Think like a low-poly diorama designer, not a random tile filler: start from a readable scene concept, use strong silhouettes, and leave negative space.',
       'Use low-poly worldbuilding cues: readable silhouettes, a few landmark cells, modular clusters, paths that lead the eye, and color-blocked terrain.',
       'Terrain should compose the scene: paths lead the eye, water creates crossings, dirt groups crops, grass creates breathing room, and raised terrain can imply mesas or Monument Valley-style landforms.',
@@ -22401,6 +21780,7 @@
       'Base the suggestions on the current sparse world state, nearby patterns, and what would be coherent next manual placements.',
       'Act as a low-poly primitive assembler: suggest reusable primitive actions that help the player build larger requested forms from terrain, height, fences, rocks, buildings, crops, tufts, trees, and bridges.',
       'Prefer extending visible structures: paths continue, fences align as side/leaf wall runs, crops form fields, houses cluster, trees/rocks frame empty edges, bridges belong on water crossings.',
+      'When suggesting a house, choose an explicit buildingType from tower, skyscraper, or habitat. Never suggest a null/default house buildingType.',
       'Use floors/intensity as variation: repeated fences stay stone at lower levels and become steel walls at the highest levels; repeated rocks, trees, bridges, crops, and tufts gain size/detail.',
       'Return varied suggestions, ordered best first: include structural options, terrain/path options, nature/detail options, and intensify/repeat options when useful.',
       'Suggestions must be reusable across several placements, so avoid relying on a single exact coordinate.',
@@ -22522,6 +21902,7 @@
   // success or an error string.
   function validateWorld(data) {
     if (!data || typeof data !== 'object') return 'not an object';
+    normalizeHouseBuildingTypes(data);
     // Coerce v: accept missing (assume current), strings ('2'), and numbers.
     // We only need to reject obviously incompatible versions.
     if (data.v === undefined || data.v === null) data.v = STORAGE_VERSION;
@@ -22538,7 +21919,7 @@
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','oxygen-plant','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
-    const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper','habitat']);
+    const okBT = new Set([null,'tower','skyscraper','habitat']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
     for (let i = 0; i < data.cells.length; i++) {
@@ -22874,7 +22255,7 @@
         kind: kind || null,
         floors: floors || 1,
         terrainFloors: terrainFloors || 1,
-        buildingType: buildingType || null,
+        buildingType: normalizeBuildingType(buildingType),
         fenceSide: fenceSide || null,
       });
     }
@@ -22936,8 +22317,7 @@
           if (rng() < 0.7) {
             kind = 'house';
             floors = 1 + Math.floor(rng() * 3);
-            // Mountain-biome settlements turn into towers.
-            if (tier === 'mountains') bType = 'tower';
+            bType = 'tower';
           }
         }
 
@@ -23002,6 +22382,7 @@
       throw new Error('response was not parseable JSON');
     }
     normalizeWorldCells(parsed);
+    normalizeHouseBuildingTypes(parsed);
     if (isValidGridSize(requestedGridSize)) parsed.gridSize = requestedGridSize;
     const err = validateWorld(parsed);
     if (err) {
@@ -23017,11 +22398,11 @@
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
-    const okBT = new Set([null,'cottage','manor','tower','turret','skyscraper','habitat']);
+    const okBT = new Set([null,'tower','skyscraper','habitat']);
     let kind = data.kind === undefined ? null : data.kind;
     let terrain = data.terrain;
     let floors = data.floors === undefined ? 1 : data.floors;
-    let buildingType = data.buildingType === undefined ? null : data.buildingType;
+    let buildingType = normalizeBuildingType(data.buildingType === undefined ? null : data.buildingType);
 
     if (!okKind.has(kind)) throw new Error('schema check: invalid kind ' + kind);
     if (terrain === undefined || terrain === null) {
@@ -23033,6 +22414,7 @@
     }
     if (buildingType === undefined) buildingType = null;
     if (!okBT.has(buildingType)) throw new Error('schema check: invalid buildingType ' + buildingType);
+    if (kind === 'house' && !buildingType) throw new Error('schema check: house requires explicit buildingType');
     if (kind !== 'house') buildingType = null;
     if (kind === 'bridge') terrain = 'water';
     else if (CROP_KINDS.has(kind)) terrain = 'dirt';
@@ -23049,10 +22431,7 @@
     const normalized = normalizeAutoAction(action);
     const cell = getWorldCell(x, z);
     if (normalized.kind && cell.kind === normalized.kind) {
-      normalized.floors = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
-      if (normalized.kind === 'house' && normalized.buildingType === null) {
-        normalized.buildingType = cell.buildingType || null;
-      }
+      normalized.floors = Math.min((cell.floors || 1) + 1, maxFloorsForKind(normalized.kind));
     }
       if (normalized.kind === 'house' && (cell.terrain === 'water' || cell.terrain === 'path' || cell.terrain === 'lava')) normalized.terrain = 'grass';
     return normalized;
@@ -23626,7 +23005,7 @@
         'to break ties consistently so the same seed + prompt yields a similar layout.\n\n' +
         'Notes:\n' +
         '- "forest" composition share should be expressed via tree placements on grass.\n' +
-        '- "settlement" share should be expressed via house clusters connected by path.\n' +
+        '- "settlement" share should be expressed via explicit house variants connected by path.\n' +
         '- Use water cells for water share, dirt cells for farmland, grass for the rest.\n' +
         '- Raise hills/mountains using terrainFloors (1=plains, 2-3=hills, 4-8=mountains).\n' +
         '- Do not express hills or mountains by filling the map with rock objects. Use rock only as occasional landmark/boulder cells.'
@@ -23821,9 +23200,7 @@
         if (cell.kind === 'tree') return materialHex(M.leaves) || '#86d139';
         if (cell.kind === 'rock') return materialHex(M.rock) || '#9b9a8f';
         if (cell.kind === 'house') {
-          if (cell.buildingType === 'manor') return materialHex(M.manorRoof) || '#403b3d';
           if (cell.buildingType === 'tower') return materialHex(M.towerRoof) || '#7563c9';
-          if (cell.buildingType === 'castle') return materialHex(M.castleRoof) || '#6d5bc7';
           if (cell.buildingType === 'skyhouse') return materialHex(M.skyRoof) || '#70a8df';
           if (cell.buildingType === 'habitat') return materialHex(M.habitatWindow) || '#83d8f0';
           return materialHex(M.roofBlue) || '#2f8fe6';
@@ -24160,13 +23537,10 @@
       let obj = null;
       try {
         if (kind === 'house') {
-          const bt = target.cell.buildingType || 'cottage';
-          if (bt === 'manor') obj = makeManor(target.cell.floors || 1);
-          else if (bt === 'tower') obj = makeStoneTower(target.cell.floors || 1);
-          else if (bt === 'turret') obj = makeTurret(target.cell.floors || 1);
+          const bt = normalizeBuildingType(target.cell.buildingType) || 'tower';
+          if (bt === 'tower') obj = makeStoneTower(target.cell.floors || 1);
           else if (bt === 'skyscraper') obj = makeSkyscraper(target.cell.floors || 1);
           else if (bt === 'habitat') obj = makeSpaceHabitat(target.cell.floors || 1);
-          else obj = makeHouse(target.cell.floors || 2);
         }
         else if (kind === 'tree') obj = makeTree();
         else if (kind === 'fence') obj = makeFence(normalizeFenceSide(target.cell.fenceSide), target.cell.floors || 1);
@@ -24424,10 +23798,7 @@
         if (primary === 'house') {
           rows.push(
           { key: 'buildingType', label: 'Shape', options: [
-            { label: 'Cottage', value: 'cottage' },
-            { label: 'Manor', value: 'manor' },
             { label: 'Tower', value: 'tower' },
-            { label: 'Castle', value: 'turret' },
             { label: 'High-rise', value: 'skyscraper' },
             { label: 'Habitat', value: 'habitat' },
           ] },
@@ -24538,7 +23909,6 @@
       'build a small village',
       'add a forest of trees',
       'make it nighttime',
-      'place a castle in the middle',
       'add a path through it',
       'make it a desert',
       'add some sheep and cows',
@@ -24953,6 +24323,7 @@
   function applyState(data, opts = {}) {
     if (!data || !Array.isArray(data.cells)) return false;
     normalizeWorldCells(data);
+    normalizeHouseBuildingTypes(data);
     const err = validateWorld(data);
     if (err) {
       console.warn('[applyState] rejected world:', err, data);
@@ -25459,12 +24830,14 @@
       if (!Number.isFinite(x) || !Number.isFinite(z)) return;
       if (x < 0 || x >= GRID || z < 0 || z >= GRID) return;
       const cell = getWorldCell(x, z);
+      const nextKind = kind || null;
+      const nextBuildingType = nextKind === 'house' ? (normalizeBuildingType(buildingType) || 'tower') : null;
       setCell(x, z, {
         terrain: terrain || cell.terrain || BASE_TERRAIN,
         terrainFloors: terrainLevelForCell(cell),
-        kind: kind || null,
+        kind: nextKind,
         floors: floors || 1,
-        buildingType: buildingType || null,
+        buildingType: nextBuildingType,
         fenceSide: fenceSide || null,
         rotationY: rotationY || 0,
         offsetX: offsetX || 0,

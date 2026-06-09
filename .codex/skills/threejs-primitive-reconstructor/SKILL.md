@@ -63,13 +63,13 @@ If a generated scene does not render:
 5. Confirm the camera points at the asset and the object is near the origin.
 6. Simplify animation until a static render works.
 
-## Cottage reference shortcut
+## Small-house reference shortcut
 
-For the cropped cottage reference, reconstruct:
+For the cropped small-house reference, reconstruct:
 
 - A 5 by 5 floating grass tile island with a brown dirt base.
 - A front-left water strip slightly below grass level.
-- One warm yellow cottage centered slightly back-left.
+- One warm yellow small house centered slightly back-left.
 - A bright blue hipped roof with dark blue ridge/caps.
 - A tall chimney with four rising smoke puffs.
 - A brown front door, cyan windows with dark frames, and exterior stone stairs on the right.

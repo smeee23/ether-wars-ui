@@ -19564,7 +19564,7 @@ function preplace(){
   place(cx+2, cz, 'lampPost');
   // A fountain in front of the keep, two tiles north
   place(cx, cz-2, 'fountain');
-  // A cottage further north
+  // A small building further north
   place(cx, cz-4, 'house', 0);
 
   // Farm patch (2x2) to the east, already growing
@@ -19921,7 +19921,7 @@ preplace();
 // Load the saved kingdom NOW (before the player clicks Start) so the
 // intro/menu camera orbits around the actual castle they built, not
 // the bare default preplaced scene. If there's no save, the default
-// preplaced scene stays — that's still the keep + cottage + farms
+// preplaced scene stays — that's still the keep + small building + farms
 // rotating in the background, which is fine.
 // startGame() detects state._snapAlreadyLoaded and skips its own
 // loadSavedSnapshot+apply call to avoid double-applying.
@@ -20132,7 +20132,7 @@ function startGame(){
     // Easy mode bonus — a free Lara spawned a comfortable distance
     // from the keep so the player can see her clearly + she has room
     // to move without instantly getting walled-in. Was 1 tile away,
-    // which felt cramped + made her overlap with the fountain/cottage.
+    // which felt cramped + made her overlap with the fountain/small building.
     if(diff === 'easy'){
       const cx = Math.floor(GRID/2), cz = Math.floor(GRID/2);
       // 4 tiles from the keep on the south-east diagonal first (in

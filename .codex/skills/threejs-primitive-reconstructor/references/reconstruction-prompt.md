@@ -78,14 +78,14 @@ Before writing code, produce a short inventory and include the same inventory as
 12. Avoid random placement unless seeded or used only for non-critical decoration.
 13. Ensure camera target and object positions put the asset in frame immediately.
 
-## For the attached cottage image specifically
+## For the attached small-house image specifically
 
 Reconstruct the scene as a single focused asset:
 
 - A 5 by 5 floating grass tile island.
 - Brown dirt base underneath.
 - Bright water strip at the front-left edge.
-- One warm yellow cottage centered slightly back-left.
+- One warm yellow small house centered slightly back-left.
 - Bright blue hipped roof with dark blue ridge/caps.
 - Tall chimney on the left/rear roof slope.
 - Four small smoke puffs rising from the chimney.

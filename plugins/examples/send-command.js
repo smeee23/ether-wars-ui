@@ -24,7 +24,7 @@ Options for place:
   --terrain <name>     grass, path, dirt, water, stone, lava, sand, snow
   --kind <name|null>   house, tree, fence, rock, bridge, crop, corn, wheat, etc.
   --floors <n>         object intensity/floors, 1..8
-  --buildingType <id>  cottage, manor, tower, turret, skyscraper
+  --buildingType <id>  tower, skyscraper, habitat
   --fenceSide <side>   n, s, e, w, center-x, center-z
 
 Options for vehicle-spawn:
@@ -102,7 +102,7 @@ async function main() {
       terrain: args.terrain || 'grass',
       kind: args.kind === 'null' ? null : (args.kind || null),
       floors: number(args.floors, 1),
-      buildingType: args.buildingType || null,
+      buildingType: (args.kind || null) === 'house' ? (args.buildingType || 'tower') : null,
       fenceSide: args.fenceSide || null,
       rotationY: number(args.rotationY, 0),
       offsetX: number(args.offsetX, 0),

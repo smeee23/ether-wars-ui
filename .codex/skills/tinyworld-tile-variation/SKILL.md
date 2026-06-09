@@ -13,6 +13,8 @@ Use separate terrain and object layers:
 Expected behavior:
 
 - Re-clicking the same object kind increases `floors` up to `MAX_FLOORS`.
+- Oxygen Generation Plant is a specific exception: re-clicking increases
+  `floors` up to `OXYGEN_PLANT_MAX_LEVEL` (6), then stops.
 - Terrain tools on empty terrain cells should stack height using `terrainFloors`.
 - Raised terrain should lift the tile top and any object on that cell via `terrainRiseAt`.
 - Terrain height changes must rebuild the visible tile mesh immediately, even when terrain/kind did not change.

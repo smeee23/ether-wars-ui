@@ -14,6 +14,9 @@ Current intended model:
 - Spend `autoSuggestionQueue` locally for multiple Auto placements.
 - Refresh after `AUTO_REFRESH_EVERY` Auto placements or when the queue runs out.
 - Auto still places on the clicked cell. The model suggests tile/action definitions, not coordinates.
+- If Auto suggests `kind: 'house'`, it must include an explicit surviving
+  `buildingType` (`tower`, `skyscraper`, or `habitat`); null/default houses are
+  rejected and must not be recreated as thumbnails or fallbacks.
 
 Implementation guardrails:
 

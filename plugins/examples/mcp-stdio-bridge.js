@@ -29,7 +29,7 @@ const tools = [
           default: null,
         },
         floors: { type: 'integer', minimum: 1, maximum: 8, default: 1 },
-        buildingType: { type: ['string', 'null'], enum: [null, 'cottage', 'manor', 'tower', 'turret', 'skyscraper'], default: null },
+        buildingType: { type: ['string', 'null'], enum: [null, 'tower', 'skyscraper', 'habitat'], default: null },
         fenceSide: { type: ['string', 'null'], enum: [null, 'n', 's', 'e', 'w', 'center-x', 'center-z'], default: null },
       },
     },
@@ -181,7 +181,7 @@ async function callTool(name, args = {}) {
       terrain: args.terrain || 'grass',
       kind: args.kind === undefined ? null : args.kind,
       floors: args.floors || 1,
-      buildingType: args.buildingType || null,
+      buildingType: args.kind === 'house' ? (args.buildingType || 'tower') : null,
       fenceSide: args.fenceSide || null,
     }));
   }

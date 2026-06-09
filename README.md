@@ -114,10 +114,10 @@ window.__getVehicleRuntimeSnapshot()
 
 Terrain/object rules are normalized by the renderer: crops force dirt
 underneath, bridges force water, and ordinary objects do not float on water.
-Paths, shorelines, water foam, bridges, fences, castle walls, houses, and
+Paths, shorelines, water foam, bridges, fences, explicit house variants, and
 rocks are adjacency-aware — placing a neighbor re-renders surrounding cells
 so roads join, rivers get banks, bridge direction updates, fence walls connect,
-house clusters form L/T/+/square buildings, and rock cells grow into craggy
+variant towers stay coherent near other house variants, and rock cells grow into craggy
 outcrops.
 
 ## Architecture
@@ -129,11 +129,7 @@ comments (`// -------- xyz --------`). The model is split cleanly:
 - **`cellMeshes['x,z']`** — rendered Three.js groups for each cell.
 - **`setCell(x, z, opts)`** — single mutation entry point. Updates `world`,
   rebuilds the cell's tile/object meshes, and re-renders any neighbors that
-  care about adjacency (fence/house clusters).
-
-House clusters use BFS (`bfsHouseCluster`) plus `tryComposite` (L/T/+) and
-`trySquare` to decide whether a group of house cells should render as a
-unified structure or stretched rectangles.
+  care about adjacency (fences and explicit house variants).
 
 A shared `dropAnims` queue ease-outs new tiles/objects into place. Other
 per-frame animations (tree sway, crop bob, smoke origin) check

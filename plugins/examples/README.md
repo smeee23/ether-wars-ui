@@ -72,7 +72,7 @@ Then push commands into the relay:
 
 ```bash
 node plugins/examples/send-command.js place --x 2 --z 2 --kind tree --terrain grass
-node plugins/examples/send-command.js place --x 3 --z 2 --kind house --terrain grass --floors 2
+node plugins/examples/send-command.js place --x 3 --z 2 --kind house --buildingType tower --terrain grass --floors 2
 node plugins/examples/send-command.js clear
 node plugins/examples/send-command.js reset
 ```
