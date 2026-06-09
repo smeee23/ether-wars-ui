@@ -1021,6 +1021,29 @@
     image-rendering: -webkit-optimize-contrast;
     filter: contrast(1.45) brightness(0.78) saturate(1.28);
   }
+  .tool.resource-military .tool-label,
+  .tool.resource-military .tool-resource {
+    color: #b83f45;
+  }
+  .tool.resource-civilian .tool-label,
+  .tool.resource-civilian .tool-resource {
+    color: #3f8d55;
+  }
+  .tool .tool-resource {
+    display: block;
+    max-width: 100%;
+    margin-top: -1px;
+    font-size: 8.5px;
+    line-height: 1;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toolbar > .tool .tool-resource,
+  .toolbar .tool-group-btn .tool-resource {
+    display: none;
+  }
   .tool .swatch.eraser {
     background: repeating-linear-gradient(45deg, #e8e3d6, #e8e3d6 3px, #d6cdb8 3px, #d6cdb8 6px) !important;
     box-shadow: inset 0 0 0 1px #c4ba9e;
@@ -1345,8 +1368,8 @@
     gap: 4px;
   }
   .flyout .tool.flyout-tool {
-    width: 62px;
-    height: 70px;
+    width: 88px;
+    height: 76px;
     font-size: 10.5px;
     padding: 1px 3px 5px;
     justify-content: flex-start;
@@ -6668,6 +6691,29 @@
     return 'none';
   }
 
+  function isTerraformTerrain(terrain) {
+    return terrain === 'grass' || terrain === 'dirt' || terrain === 'water';
+  }
+
+  function isTerraformKind(kind) {
+    return kind === 'tree' || kind === 'tuft' || kind === 'flower' || kind === 'bush';
+  }
+
+  function isTerraformTool(tool) {
+    return !!(tool && (isTerraformTerrain(tool.terrain) || isTerraformKind(tool.kind)));
+  }
+
+  function addTerraformGreenhouseBox(root, baseY = 0, heightScale = 1) {
+    if (!root) return null;
+    const box = new THREE.Group();
+    addCropGreenhouseDome(box);
+    box.name = 'terraformGreenhouseBox';
+    box.position.y = baseY;
+    box.scale.y = Math.max(0.1, heightScale || 1);
+    root.add(box);
+    return box;
+  }
+
   function makeTile(terrain, neighbors, x = 0, z = 0, level = 1, opts = {}) {
     const g = new THREE.Group();
     g.userData = { kind: 'tile', terrain };
@@ -7940,7 +7986,7 @@
     return (level || 1) > 2 ? largeScale : 0.34;
   }
 
-  // Space-themed glass-sided high-rise. Chosen explicitly via the House
+  // Space-themed glass-sided Command Center. Chosen explicitly via the House
   // fly-out menu (buildingType = 'skyscraper'). Single-cell footprint
   // regardless of clustering. floors scales the height from the first level.
   function makeSkyscraper(floors = 1) {
@@ -7950,7 +7996,7 @@
     const floorH = 0.30;
     const totalH = floorH * f;
 
-    // Body — main habitat-shell column so the high-rise matches the sci-fi set.
+    // Body — main habitat-shell column so the Command Center matches the sci-fi set.
     const body = new THREE.Mesh(roundedBox(W, totalH, D, 0.025), M.habitatShell);
     body.position.y = totalH / 2;
     g.add(body);
@@ -8110,11 +8156,8 @@
     const capY = scrubberBaseY + brickHeight + 0.045;
     let oxygenPump = null;
 
-    const platform = new THREE.Mesh(roundedBox(0.88, 0.10, 0.72, 0.025), M.habitatTrim);
-    platform.position.y = 0.05;
-    g.add(platform);
     const inset = new THREE.Mesh(getBoxGeometry(0.72, 0.035, 0.54), M.habitatBand);
-    inset.position.y = 0.125;
+    inset.position.y = 0;
     g.add(inset);
 
     const scrubber = new THREE.Mesh(roundedBox(0.18, brickHeight, 0.18, 0.02), M.greenhouseGlass);
@@ -8131,7 +8174,7 @@
       phase: Math.random() * Math.PI * 2,
       speed: Math.PI * 2 / 4.2,
     };
-    const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.065, 0.15), M.habitatShell);
+    const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.065, 0.15), M.goldbrick);
     goldCap.position.set(0, capY, 0);
     g.add(goldCap);
 
@@ -8410,7 +8453,7 @@
       }
     }
 
-    for (const y of [CROP_DOME_BASE_Y + 0.018, topY + 0.018]) {
+    for (const y of [CROP_DOME_BASE_Y + 0.009, topY + 0.009]) {
       for (const z of [-half, half]) {
         const rail = new THREE.Mesh(assets.railXGeo, M.greenhouseFrame);
         rail.position.set(0, y, z);
@@ -8990,7 +9033,7 @@
       { id: 'pagoda-large', name: 'Voxel Pagoda', voxels: pagoda(), footprint: 2.8 },
       { id: 'temple-gate', name: 'Temple Gate', voxels: gate(), footprint: 2.4 },
       { id: 'watchtower', name: 'Watchtower', voxels: watchtower(), footprint: 1.9 },
-      { id: 'crystal-mining-rig', name: 'Crystal Mining Rig', voxels: crystalMiningRig(), footprint: 1.9 },
+      { id: 'crystal-mining-rig', name: 'Crystal Weapons Platform', voxels: crystalMiningRig(), footprint: 1.9 },
       { id: 'machiya-house', name: 'Machiya House', voxels: machiya(), footprint: 2.0 },
       { id: 'cherry-tree-build', name: 'Cherry Build', voxels: cherry(), footprint: 1.45 },
       { id: 'bamboo-garden', name: 'Bamboo Garden', voxels: garden(), footprint: 1.7 },
@@ -14761,6 +14804,10 @@
       levels: getLevelNeighbors(x, z),
     }, x, z, tileLevelForCell(cell), { showBorder: true });
 
+    if (isTerraformTerrain(cell.terrain)) {
+      addTerraformGreenhouseBox(tile, terrainRiseAt(x, z) + TOP_H);
+    }
+
     const p = tilePos(x, z);
     tile.position.copy(p);
     groundReceiveOnly(tile);
@@ -14867,6 +14914,7 @@
 
     if (!mesh) return;
     if (!voxelRender && kind !== 'house' && kind !== 'fence' && kind !== 'rock') addEnhancementBits(mesh, kind, level);
+    if (isTerraformKind(kind)) addTerraformGreenhouseBox(mesh, 0, kind === 'tree' ? 2.5 : 1);
     if (posX === null) {
       const p = tilePos(x, z);
       posX = p.x; posZ = p.z;
@@ -15016,11 +15064,12 @@
     pumpkin: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     carrot: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    highrise: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
-    skyscraper: { label: 'Housing', cost: { gold: 30 }, effect: { shelter: 24 } },
-    habitat: { label: 'Habitat', cost: { gold: 24 }, effect: { shelter: 18 } },
+    highrise: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 24 } },
+    skyscraper: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 24 } },
+    habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 18 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
-    tower: { label: 'Tower', cost: { gold: 25 }, effect: { army: 16 } },
+    tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 16 } },
+    'crystal-mining-rig': { label: 'Crystal Weapons Platform', role: 'military', cost: { gold: 60 }, effect: { army: 48 } },
     // TODO(contract/indexer): Barracks is reserved for the future army-building
     // tool/model. No visual placement is created here.
     barracks: { label: 'Barracks', cost: { gold: 30 }, effect: { army: 22 }, placeholder: true },
@@ -15040,6 +15089,7 @@
       const buildingType = normalizeBuildingType(variant && variant.buildingType);
       return buildingType ? RESOURCE_BUILD_RULES[buildingType] : null;
     }
+    if (tool.kind === 'voxel-build' && tool.voxelBuildId) return RESOURCE_BUILD_RULES[tool.voxelBuildId] || null;
     if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
     return null;
@@ -15051,10 +15101,41 @@
       const buildingType = normalizeBuildingType(cell.buildingType) || 'tower';
       return RESOURCE_BUILD_RULES[buildingType] || null;
     }
+    if (cell.kind === 'voxel-build') {
+      const id = cell.appearance && cell.appearance.voxelBuildId;
+      return id ? RESOURCE_BUILD_RULES[id] || null : null;
+    }
     if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
     if (!cell.kind && cell.terrain === 'water') return RESOURCE_BUILD_RULES.water;
     return null;
+  }
+
+  function resourceRoleForRule(rule) {
+    if (!rule) return null;
+    if (rule.role) return rule.role;
+    const effect = rule.effect || {};
+    if ((effect.army || 0) > 0) return 'military';
+    if ((effect.shelter || 0) > 0) return 'civilian';
+    return null;
+  }
+
+  function formatResourceRuleSummary(rule) {
+    if (!rule) return '';
+    const parts = [];
+    const goldCost = Math.max(0, Math.round((rule.cost && rule.cost.gold) || 0));
+    if (goldCost) parts.push('Gold ' + goldCost);
+    const effect = rule.effect || {};
+    if (effect.army) parts.push('Army +' + effect.army);
+    if (effect.shelter) parts.push('Shelter +' + effect.shelter);
+    if (effect.food) parts.push('Food +' + effect.food);
+    if (effect.water) parts.push('Water +' + effect.water);
+    return parts.join(' | ');
+  }
+
+  function displayNameForBuildingType(buildingType) {
+    const rule = RESOURCE_BUILD_RULES[normalizeBuildingType(buildingType)];
+    return rule ? rule.label : 'House';
   }
 
   function normalizeBuildLevel(value) {
@@ -15195,11 +15276,11 @@
           lands += 1;
           conquered.add(x + ',' + z);
         }
+        const rule = resourceRuleForPlacedCell(cell);
+        const ruleEffect = (rule && rule.effect) || {};
+        if (ruleEffect.army) army += ruleEffect.army * getBuildRefundMultiplier(cell);
         if (cell.kind === 'house') {
           population += floors * 10;
-          if (cell.buildingType === 'tower') army += floors * 18;
-        } else if (cell.kind === 'fence') {
-          army += 8;
         } else if (cell.kind === 'rock') {
           army += terrainFloors * 3;
         } else if (cell.kind === 'cow' || cell.kind === 'sheep') {
@@ -16082,19 +16163,19 @@
   // -------- tools --------
   const TOOLS = [
     { id: 'select', label: 'Select', select: true, color: '#c8b06f', shortcut: 'v', group: 'tools' },
-    { id: 'grass',  label: 'Grass',  terrain: 'grass', color: '#9ec74b', shortcut: '1', group: 'terrain' },
+    { id: 'grass',  label: 'Grass',  terrain: 'grass', color: '#9ec74b', shortcut: '1', group: 'plants' },
     { id: 'path',   label: 'Path',   terrain: 'path',  color: '#e8d5a8', shortcut: '2', group: 'terrain' },
-    { id: 'dirt',   label: 'Dirt',   terrain: 'dirt',  color: '#5a3b27', shortcut: '3', group: 'terrain' },
-    { id: 'water',  label: 'Water',  terrain: 'water', color: '#4a90c2', shortcut: '4', group: 'terrain' },
+    { id: 'dirt',   label: 'Dirt',   terrain: 'dirt',  color: '#5a3b27', shortcut: '3', group: 'plants' },
+    { id: 'water',  label: 'Water',  terrain: 'water', color: '#4a90c2', shortcut: '4', group: 'plants' },
     { id: 'stone',  label: 'Stone',  terrain: 'stone', color: '#8f8a82', group: 'terrain' },
     { id: 'lava',   label: 'Lava',   terrain: 'lava',  color: '#e7592b', group: 'terrain' },
     { id: 'sand',   label: 'Sand',   terrain: 'sand',  color: '#e6cc7c', group: 'terrain' },
     { id: 'snow',   label: 'Snow',   terrain: 'snow',  color: '#f2f5fa', group: 'terrain' },
     { id: 'house',  label: 'House',  kind: 'house', color: '#3a72c8', shortcut: '5', group: 'build',
       variants: [
-        { id: 'tower',      label: 'Tower',     buildingType: 'tower',      hint: 'stone tower w/ conical roof' },
-        { id: 'highrise',   label: 'High-rise', buildingType: 'skyscraper', hint: 'glass tower' },
-        { id: 'habitat',    label: 'Habitat',   buildingType: 'habitat',    hint: 'space base module' },
+        { id: 'tower',      label: 'Tower',          buildingType: 'tower',      hint: 'civilian shelter tower' },
+        { id: 'highrise',   label: 'Command Center', buildingType: 'skyscraper', hint: 'military command structure' },
+        { id: 'habitat',    label: 'Habitat',        buildingType: 'habitat',    hint: 'civilian shelter module' },
       ],
     },
     { id: 'tree',   label: 'Tree',   kind: 'tree',  color: '#6fb442', shortcut: '6', group: 'nature' },
@@ -16112,7 +16193,7 @@
     { id: 'rock',   label: 'Rock',   kind: 'rock',  color: '#9b9a8f', shortcut: '8', group: 'nature' },
     { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: '9', group: 'build' },
     { id: 'oxygen-plant', label: 'Oxygen Generation Plant', kind: 'oxygen-plant', color: '#c7a858', group: 'infra' },
-    { id: 'crystal-mining-rig', label: 'Crystal Mining Rig', kind: 'voxel-build', voxelBuildId: 'crystal-mining-rig', color: '#7fe8ff', group: 'build' },
+    { id: 'crystal-mining-rig', label: 'Crystal Weapons Platform', kind: 'voxel-build', voxelBuildId: 'crystal-mining-rig', color: '#7fe8ff', group: 'build' },
     { id: 'crop',      label: 'Crop',      kind: 'crop',      terrainOverride: 'dirt', color: '#86c544', shortcut: 'g', group: 'crops' },
     { id: 'corn',      label: 'Corn',      kind: 'corn',      terrainOverride: 'dirt', color: '#f2c849', shortcut: 'n', group: 'crops' },
     { id: 'wheat',     label: 'Wheat',     kind: 'wheat',     terrainOverride: 'dirt', color: '#e6c354', shortcut: 'w', group: 'crops' },
@@ -16128,8 +16209,8 @@
   ];
 
   const TOOL_GROUPS = [
-    { id: 'terrain', label: 'Terrain', toolIds: ['grass', 'path', 'dirt', 'water', 'stone', 'lava', 'sand', 'snow', 'rock'], iconTool: 'grass' },
-    { id: 'plants', label: 'Plants', toolIds: ['tree', 'tuft', 'flower', 'bush'], iconTool: 'tree' },
+    { id: 'terrain', label: 'Terrain', toolIds: ['path', 'stone', 'lava', 'sand', 'snow', 'rock'], iconTool: 'path' },
+    { id: 'plants', label: 'Terraform', toolIds: ['grass', 'dirt', 'water', 'tree', 'tuft', 'flower', 'bush'], iconTool: 'grass' },
     { id: 'build', label: 'Build', toolIds: ['house', 'crystal-mining-rig'], iconTool: 'house' },
     { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'oxygen-plant'], iconTool: 'oxygen-plant' },
     { id: 'farm', label: 'Farm', toolIds: ['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower'], iconTool: 'wheat' },
@@ -16234,8 +16315,14 @@
 
     const obj = makeThumbObject(tool);
     if (obj) {
+      if (isTerraformTool(tool)) addTerraformGreenhouseBox(obj, 0, tool.kind === 'tree' ? 2 : 1);
       obj.position.y = TOP_H;
       scene.add(obj);
+    } else if (isTerraformTool(tool)) {
+      const box = new THREE.Group();
+      addTerraformGreenhouseBox(box);
+      box.position.y = TOP_H;
+      scene.add(box);
     }
     // Strip shadows — the thumb renderer has no shadow maps.
     scene.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
@@ -16505,7 +16592,11 @@
     btn.className = 'tool' + ((opts && opts.flyout) ? ' flyout-tool' : '') + ((t.eraser || t.select) ? ' icon-only' : '');
     btn.dataset.id = t.id;
     btn.type = 'button';
-    const toolTip = t.label + (t.shortcut ? ' (' + t.shortcut.toUpperCase() + ')' : '');
+    const rule = resourceRuleForTool(t);
+    const role = resourceRoleForRule(rule);
+    const resourceSummary = formatResourceRuleSummary(rule);
+    if (role) btn.classList.add(role === 'military' ? 'resource-military' : 'resource-civilian');
+    const toolTip = t.label + (t.shortcut ? ' (' + t.shortcut.toUpperCase() + ')' : '') + (resourceSummary ? ' - ' + resourceSummary : '');
     btn.title = toolTip;
     btn.setAttribute('data-tooltip', toolTip);
 
@@ -16530,8 +16621,15 @@
     }
 
     const lbl = document.createElement('span');
+    lbl.className = 'tool-label';
     lbl.textContent = t.label;
     btn.appendChild(lbl);
+    if (resourceSummary) {
+      const meta = document.createElement('span');
+      meta.className = 'tool-resource';
+      meta.textContent = resourceSummary;
+      btn.appendChild(meta);
+    }
     if (t.shortcut) {
       const k = document.createElement('kbd');
       k.textContent = t.shortcut.toUpperCase();
@@ -16570,7 +16668,9 @@
     const btn = buildToolButton(previewTool, { flyout: true, noClick: true });
     btn.dataset.id = tool.id;
     btn.dataset.variant = variant.id;
-    btn.title = tool.label + ': ' + variant.label + (variant.hint ? ' — ' + variant.hint : '');
+    const summary = formatResourceRuleSummary(resourceRuleForTool(previewTool));
+    btn.title = tool.label + ': ' + variant.label + (variant.hint ? ' - ' + variant.hint : '') + (summary ? ' - ' + summary : '');
+    btn.setAttribute('data-tooltip', btn.title);
     btn.addEventListener('click', e => {
       e.stopPropagation();
       tool.activeVariant = variant;
@@ -16713,7 +16813,7 @@
       const tool = TOOLS.find(t => t.id === id);
       if (!tool || tool.hidden) return;
       // Don't bury the building types behind a second click: the Build
-      // menu shows the house variants directly (Tower / High-rise),
+      // menu shows the house variants directly (Tower / Command Center),
       // so no feature disappeared when the toolbar
       // was grouped.
       if (group.id === 'build' && tool.id === 'house' && tool.variants) {
@@ -16968,6 +17068,7 @@
       if (cell.kind === 'voxel-build' && existingStampId === stampId && stampId === 'crystal-mining-rig') {
         const newFloors = Math.min((cell.floors || 1) + 1, CRYSTAL_RIG_MAX_LEVEL);
         if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, {
           terrain: cell.terrain || BASE_TERRAIN,
           terrainFloors: terrainLevelForCell(cell),
@@ -16975,11 +17076,13 @@
           floors: newFloors,
           appearance: cell.appearance,
         });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       const gt = consumeGhostTransform();
       let newTerrain = cell.terrain || BASE_TERRAIN;
       if (newTerrain === 'water' || newTerrain === 'lava') newTerrain = BASE_TERRAIN;
+      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
       setCell(x, z, {
         terrain: newTerrain,
         terrainFloors: terrainLevelForCell(cell),
@@ -16990,6 +17093,7 @@
         offsetZ: gt.offsetZ,
         appearance: { voxelBuildId: stampId },
       });
+      playMockResourcePlacementSuccess(selectedTool);
       return;
     }
     if (selectedTool.kind === 'fence') {
@@ -18477,7 +18581,7 @@
     }
     if (cell.kind === 'house') {
       const bt = normalizeBuildingType(cell.buildingType);
-      return bt ? bt.charAt(0).toUpperCase() + bt.slice(1) + ' house' : 'House';
+      return bt ? displayNameForBuildingType(bt) : 'House';
     }
     if (cell.kind === 'oxygen-plant') return 'Oxygen Generation Plant';
     return cell.kind.charAt(0).toUpperCase() + cell.kind.slice(1);
@@ -21737,7 +21841,7 @@
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
     '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, and road gates. Set fenceSide deliberately.',
     '- Use rocks as sparse sculptural props only: boulders, monuments, rubble, stepping stones, and focal landmarks. Do not use rock props to represent broad hills or mountains.',
-    '- Use explicit house variants as massing primitives: towers for vertical landmarks, high-rise for modern tall structures, and habitats for compact sci-fi bases. Do not emit null/default house buildingType.',
+    '- Use explicit house variants as massing primitives: towers and habitats for civilian shelter, Command Centers for military tall structures. Do not emit null/default house buildingType.',
     '- Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
     '- Use crops/tufts/trees as texture primitives: fields, hedges, gardens, park planting, wild edges, orchards, and scale cues.',
     '- Prefer 3–5 clear assembled features over scattering many single unrelated cells. Make the construction legible from the default isometric camera.',
@@ -23799,7 +23903,7 @@
           rows.push(
           { key: 'buildingType', label: 'Shape', options: [
             { label: 'Tower', value: 'tower' },
-            { label: 'High-rise', value: 'skyscraper' },
+            { label: 'Command Center', value: 'skyscraper' },
             { label: 'Habitat', value: 'habitat' },
           ] },
           );
