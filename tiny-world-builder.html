@@ -20603,17 +20603,22 @@
 
   // -------- crop duster --------
   const CROP_DUSTER_ASSET = 'models/stunt_plane.glb';
-  const CROP_DUSTER_TEXTURES = [
-    'models/Polygon_Plane_Texture_01.png',
-    'models/Polygon_Plane_Texture_02.png',
-    'models/Polygon_Plane_Texture_03.png',
-  ];
   const CROP_DUSTER_WINGSPAN = 1.35;
   const cropDusterRoot = new THREE.Group();
   cropDusterRoot.name = 'cropDuster';
   cropDusterRoot.visible = false;
   xrWorldRoot.add(cropDusterRoot);
   const cropDusterMaterials = [];
+  const cropDusterSpaceMaterials = {
+    body: new THREE.MeshLambertMaterial({ color: 0x6f777b }),
+    bodyDark: new THREE.MeshLambertMaterial({ color: 0x3a4248 }),
+    bodyLight: new THREE.MeshLambertMaterial({ color: 0x8e9698 }),
+    engine: new THREE.MeshLambertMaterial({ color: 0x2d3438 }),
+    engineGlow: new THREE.MeshLambertMaterial({ color: 0x67e8ff, emissive: 0x1fcfff, emissiveIntensity: 0.85 }),
+    navRed: new THREE.MeshLambertMaterial({ color: 0xff5c5c, emissive: 0xff2424, emissiveIntensity: 0.75 }),
+    navCyan: new THREE.MeshLambertMaterial({ color: 0x6eeeff, emissive: 0x1fcfff, emissiveIntensity: 0.75 }),
+    cockpit: new THREE.MeshLambertMaterial({ color: 0x7fd8ee, emissive: 0x1f6f86, emissiveIntensity: 0.12, transparent: true, opacity: 0.48, depthWrite: false }),
+  };
   let cropDusterModel = null;
   let cropDusterTime = 0;
   let cropDusterProps = [];
@@ -20627,8 +20632,8 @@
   // off-screen for a few seconds, then returns. Sometimes the return run
   // skips the dusting and trails a banner instead.
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
-  const FLIGHT_DUST_SPEED = 20.45;       // m/s while spraying
-  const FLIGHT_CRUISE_SPEED = 20.4;      // m/s while transiting / banner pass
+  const FLIGHT_DUST_SPEED = 10.45;       // m/s while spraying
+  const FLIGHT_CRUISE_SPEED = 10.4;      // m/s while transiting / banner pass
   const FLIGHT_DUST_ALT = 2.05;
   const FLIGHT_CRUISE_ALT = 5.6;
   const FLIGHT_REFUEL_MIN = 6.0;
@@ -20700,7 +20705,7 @@
     bannerMesh.receiveShadow = false;
     bannerMesh.renderOrder = 1;
     bannerMesh.userData.basePositions = geo.attributes.position.array.slice();
-    xrWorldRoot.add(bannerMesh);
+    //xrWorldRoot.add(bannerMesh);
 
     // Tow wire: a thin line from the plane's tail to the leading edge of
     // the banner. Two-vertex BufferGeometry, mutated in updateCropDuster.
@@ -20712,7 +20717,7 @@
     bannerWire.frustumCulled = false;
     bannerWire.castShadow = false;
     bannerWire.receiveShadow = false;
-    xrWorldRoot.add(bannerWire);
+    //xrWorldRoot.add(bannerWire);
   }
   function setBannerText(text) {
     ensureBanner();
@@ -20755,9 +20760,20 @@
     if (!cropDusterModel || !cropDusterMaterials.length) return;
     const mat = cropDusterMaterials[index % cropDusterMaterials.length] || cropDusterMaterials[0];
     cropDusterModel.traverse(o => {
-      if (o.isMesh && !o.userData.__propDisc) o.material = mat;
+      if (o.isMesh && !o.userData.__propDisc && !o.userData.__spacecraftAddon) o.material = mat;
     });
     cropDusterRoot.userData.variantIndex = index % cropDusterMaterials.length;
+  }
+
+  function initCropDusterSpacecraftMaterials() {
+    if (cropDusterMaterials.length) return;
+    // Spacecraft-conversion: keep the existing material variant mechanism,
+    // but replace bright plane skins with muted habitat/oxygen-plant metals.
+    cropDusterMaterials.push(
+      cropDusterSpaceMaterials.body,
+      cropDusterSpaceMaterials.bodyDark,
+      cropDusterSpaceMaterials.bodyLight
+    );
   }
 
   function normalizeCropDusterModel(model) {
@@ -20786,25 +20802,122 @@
     const propNames = /prop(eller)?|blade|spinner|rotor|fan/i;
     cropDusterModel.traverse(o => {
       if (!o.isMesh || !propNames.test(o.name || '')) return;
+      // Spacecraft-conversion: hide propeller geometry so the GLB no
+      // longer reads as a prop-driven airplane. Leave the node in place so
+      // the GLB hierarchy stays intact and can be restored later.
+      o.visible = false;
+      o.castShadow = false;
+      o.receiveShadow = false;
       if (o.material && typeof o.material.clone === 'function') o.material = o.material.clone();
       o.userData.__propAxis = 'z';
       cropDusterProps.push(o);
+    });
+  }
 
-      const box = new THREE.Box3().setFromObject(o);
-      const size = box.getSize(new THREE.Vector3());
-      const sweepR = Math.max(size.x, size.y) * 0.52;
-      if (sweepR > 0.08 && !o.userData.__disc) {
-        const disc = new THREE.Mesh(
-          new THREE.CircleGeometry(sweepR, 32),
-          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false })
-        );
-        disc.name = 'crop_duster_prop_blur_disc';
-        disc.userData.__propDisc = true;
-        disc.renderOrder = 2;
-        o.add(disc);
-        o.userData.__disc = disc;
+  function placeCropDusterAddon(root, mesh, normalizedPosition) {
+    const inv = 1 / Math.max(0.0001, cropDusterModel.scale.x || 1);
+    mesh.position.set(
+      (normalizedPosition.x - cropDusterModel.position.x) * inv,
+      (normalizedPosition.y - cropDusterModel.position.y) * inv,
+      (normalizedPosition.z - cropDusterModel.position.z) * inv
+    );
+    mesh.scale.multiplyScalar(inv);
+    mesh.userData.__spacecraftAddon = true;
+    mesh.castShadow = true;
+    mesh.receiveShadow = false;
+    root.add(mesh);
+    return mesh;
+  }
+
+  function cropDusterAddonPoint(normalizedPosition) {
+    const inv = 1 / Math.max(0.0001, cropDusterModel.scale.x || 1);
+    return new THREE.Vector3(
+      (normalizedPosition.x - cropDusterModel.position.x) * inv,
+      (normalizedPosition.y - cropDusterModel.position.y) * inv,
+      (normalizedPosition.z - cropDusterModel.position.z) * inv
+    );
+  }
+
+  function makeCropDusterShieldWing(side, mat) {
+    const s = side < 0 ? -1 : 1;
+    const points = [
+      cropDusterAddonPoint(new THREE.Vector3(s * 0.66, 0.38, 0.01)),
+      cropDusterAddonPoint(new THREE.Vector3(s * 0.44, 0.38, 0.24)),
+      cropDusterAddonPoint(new THREE.Vector3(s * 0, 0.35, 0.33)),
+      cropDusterAddonPoint(new THREE.Vector3(s * 0.04, 0.33, 0.03)),
+    ];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([
+      points[0].x, points[0].y, points[0].z,
+      points[1].x, points[1].y, points[1].z,
+      points[2].x, points[2].y, points[2].z,
+      points[3].x, points[3].y, points[3].z,
+    ], 3));
+    geo.setIndex([0, 1, 3, 1, 2, 3]);
+    geo.computeVertexNormals();
+    const wing = new THREE.Mesh(geo, mat);
+    wing.name = side < 0 ? 'leftRedForceShieldWing' : 'rightRedForceShieldWing';
+    wing.userData.__spacecraftAddon = true;
+    wing.userData.noShadow = true;
+    wing.castShadow = true;
+    wing.receiveShadow = false;
+    wing.renderOrder = 5;
+    return wing;
+  }
+
+  function makeCropDusterEnginePod() {
+    const pod = new THREE.Group();
+    pod.userData.__spacecraftAddon = true;
+
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.18, 8), cropDusterSpaceMaterials.engine);
+    body.rotation.x = Math.PI / 2;
+    body.userData.__spacecraftAddon = true;
+    pod.add(body);
+
+    const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.018, 8), cropDusterSpaceMaterials.engineGlow);
+    exhaust.rotation.x = Math.PI / 2;
+    exhaust.position.z = -0.095;
+    exhaust.userData.__spacecraftAddon = true;
+    exhaust.castShadow = false;
+    exhaust.receiveShadow = false;
+    pod.add(exhaust);
+
+    return pod;
+  }
+
+  function addCropDusterSpacecraftConversion(model) {
+    // Spacecraft-conversion: additive primitives only. The stunt-plane GLB
+    // remains unchanged and the cropDusterRoot flight transforms still drive
+    // pitch, yaw, bank, path following, banner towing, and dust passes.
+    const hiddenPlanePartNames = /crop[_ -]?duster|wheel/i;
+
+    const hiddenPlanePartNames2 = /crop[_ -]?duster|flap|prop|wheels|glass|cockpit/i;
+    model.traverse(o => {
+      if (o.isMesh && hiddenPlanePartNames2.test(o.name || '')) {
+        o.visible = false;
+        o.castShadow = false;
+        o.receiveShadow = false;
       }
     });
+
+    const g = new THREE.Group();
+    g.name = 'spacecraftConversionAddons';
+    g.userData.__spacecraftAddon = true;
+
+    const engineL = makeCropDusterEnginePod();
+    const engineR = makeCropDusterEnginePod();
+    placeCropDusterAddon(g, engineL, new THREE.Vector3(-0.66, 0.43, -0.14));
+    placeCropDusterAddon(g, engineR, new THREE.Vector3(0.66, 0.43, -0.14));
+    // Spacecraft-conversion: red engine-material wing planes replace the
+    // hidden physical wings without using the animated force-shield shader.
+    const redShieldMat = cropDusterSpaceMaterials.engine;
+    //redShieldMat.color.setHex(0xc62828);
+    redShieldMat.side = THREE.DoubleSide;
+    redShieldMat.needsUpdate = true;
+    g.add(makeCropDusterShieldWing(-1, redShieldMat));
+    g.add(makeCropDusterShieldWing(1, redShieldMat));
+
+    model.add(g);
   }
 
   function spinCropDusterPropeller(dt) {
@@ -20823,20 +20936,22 @@
 
   function loadCropDuster() {
     if (!THREE.GLTFLoader) return;
-    const texLoader = new THREE.TextureLoader();
-    CROP_DUSTER_TEXTURES.forEach(src => {
-      const tex = texLoader.load(src);
-      tex.flipY = false;
-      tex.encoding = THREE.sRGBEncoding;
-      tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1);
-      cropDusterMaterials.push(new THREE.MeshLambertMaterial({ map: tex, color: 0xffffff }));
-    });
+    initCropDusterSpacecraftMaterials();
     const loader = new THREE.GLTFLoader();
     loader.load(CROP_DUSTER_ASSET, gltf => {
       cropDusterModel = gltf.scene;
       normalizeCropDusterModel(cropDusterModel);
+      cropDusterModel.traverse(o => {
+        console.log('[stunt_plane node]', {
+          name: o.name,
+          type: o.type,
+          isMesh: !!o.isMesh,
+          visible: o.visible,
+        });
+      });
       cropDusterRoot.add(cropDusterModel);
       applyCropDusterMaterial(0);
+      addCropDusterSpacecraftConversion(cropDusterModel);
       setupCropDusterPropeller();
       cropDusterRoot.visible = true;
     }, undefined, err => {

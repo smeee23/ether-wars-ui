@@ -66,6 +66,7 @@ Use this together with:
 - Respect the existing `userData.landing` pattern for placed cell objects.
 - For propellers: wrap or find the named prop mesh, spin around its local blade axis every frame, and add a translucent disc for high-RPM readability.
 - For aircraft: use shallow easing, pitch with climb/descent slope, and bank during turns. Do not teleport or dive straight down into the board.
+- For first-pass vehicle conversions, prefer additive primitives attached after GLB load over editing/replacing the GLB. Keep the existing flight root, path state, speed, scale, and update loop intact; hide obsolete named nodes such as propellers only when the GLB hierarchy can remain in place.
 - Particle effects should be capped and use cheap cloned `MeshBasicMaterial`; dispose particle materials when particles die.
 
 ## Validation checklist
