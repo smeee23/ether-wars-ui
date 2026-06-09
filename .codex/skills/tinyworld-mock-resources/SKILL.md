@@ -21,6 +21,10 @@ Use this while the Resources model is frontend/mock-state only.
 
 Validation:
 
-- Placing supported farm, water, housing, wall/fence, or tower tools spends gold and updates the matching resource immediately.
+- Placing supported farm, water, shelter, wall/fence, or army tools spends gold and updates the matching resource immediately.
+- Building roles live in `RESOURCE_BUILD_RULES`: military buildings contribute
+  `army`, civilian buildings contribute `shelter`. Keep UI labels, role color,
+  cost text, placement spending, erase refunds, and stat/resource accounting
+  derived from that central table.
 - Insufficient gold blocks placement and leaves the world unchanged.
 - Unsupported decorative tools keep normal world-builder behavior.

@@ -16,6 +16,9 @@ Expected behavior:
 - Oxygen Generation Plant is a specific exception: re-clicking increases
   `floors` up to `OXYGEN_PLANT_MAX_LEVEL` (6), then stops.
 - Terrain tools on empty terrain cells should stack height using `terrainFloors`.
+- Water terrain is the flat-terrain exception: manual water placement is capped
+  at `terrainFloors: 1`, and repeat-click attempts should reject through the
+  same mock resource feedback used for blocked builds.
 - Raised terrain should lift the tile top and any object on that cell via `terrainRiseAt`.
 - Terrain height changes must rebuild the visible tile mesh immediately, even when terrain/kind did not change.
 - Object intensity changes must rebuild the object mesh, not the ground mesh.

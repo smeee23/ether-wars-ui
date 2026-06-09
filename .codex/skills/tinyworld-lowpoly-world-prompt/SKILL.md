@@ -27,7 +27,9 @@ Prompt principles:
 - Use adjacency intentionally: fences connect, bridges belong on water crossings, crops form fields.
 - Avoid noise: do not fill every board cell; leave open cells and visible paths.
 - Use `floors` as variation/intensity, including terrain stacking and object detail.
-- House cells must use an explicit surviving `buildingType` such as `tower`, `skyscraper`, or `habitat`; do not ask models to emit null/default houses.
+- House cells must use an explicit surviving `buildingType`: `tower` and
+  `habitat` are civilian/shelter structures, while `skyscraper` displays as the
+  military Command Center. Do not ask models to emit null/default houses.
 - Keep output strictly machine-parseable JSON matching the schema.
 
 Primitive assembly prompting:

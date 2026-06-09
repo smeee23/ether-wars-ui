@@ -12130,9 +12130,10 @@
   function writeWorldIntentCell(x, z, src, userEdited = false) {
     if (!world[x]) world[x] = [];
     const kind = (src && src.kind) || null;
+    const terrain = (src && src.terrain) || BASE_TERRAIN;
     const cell = {
-      terrain: (src && src.terrain) || BASE_TERRAIN,
-      terrainFloors: (src && src.terrainFloors) || 1,
+      terrain,
+      terrainFloors: terrain === 'water' ? 1 : ((src && src.terrainFloors) || 1),
       kind,
       floors: clampFloorsForKind(kind, (src && src.floors) || 1),
       buildingType: normalizeBuildingType(src && src.buildingType),
@@ -15366,7 +15367,8 @@
                           : (kindChanged ? 1 : (prev.floors || 1));
     const newFloors = clampFloorsForKind(nextKind, requestedFloors);
     const floorsChanged = (prev.floors || 1) !== newFloors;
-    const newTerrainFloors = (terrainFloors !== undefined) ? terrainFloors : terrainLevelForCell(prev);
+    const requestedTerrainFloors = (terrainFloors !== undefined) ? terrainFloors : terrainLevelForCell(prev);
+    const newTerrainFloors = nextTerrain === 'water' ? 1 : requestedTerrainFloors;
     const terrainFloorsChanged = terrainLevelForCell(prev) !== newTerrainFloors;
     // buildingType: when caller passes undefined, preserve previous unless the
     // kind is changing (a fresh kind clears any old building-type override).
@@ -17182,10 +17184,16 @@
       if (nextKind === 'bridge' && selectedTool.terrain !== 'water') nextKind = null;
       if (CROP_KINDS.has(nextKind) && selectedTool.terrain !== 'dirt') nextKind = null;
       const sameTerrain = selectedTool.terrain === cell.terrain;
+      const currentTerrainFloors = terrainLevelForCell(cell);
+      const maxTerrainFloors = selectedTool.terrain === 'water' ? 1 : MAX_FLOORS;
       const nextTerrainFloors = nextKind
-        ? terrainLevelForCell(cell)
-        : (sameTerrain ? Math.min(terrainLevelForCell(cell) + 1, MAX_FLOORS) : 1);
-      if (!nextKind && sameTerrain && nextTerrainFloors === terrainLevelForCell(cell)) {
+        ? currentTerrainFloors
+        : (sameTerrain ? Math.min(currentTerrainFloors + 1, maxTerrainFloors) : 1);
+      if (selectedTool.terrain === 'water' && sameTerrain && nextTerrainFloors === currentTerrainFloors && nextKind === (cell.kind || null)) {
+        rejectMockResourceBuildAction(selectedTool);
+        return;
+      }
+      if (!nextKind && sameTerrain && nextTerrainFloors === currentTerrainFloors) {
         rejectMockResourceBuildAction(selectedTool);
         return;
       }
@@ -24476,8 +24484,8 @@
       if (normalizedKind && FLAT_REQUIRED.has(normalizedKind) && normalizedTerrainFloors > 1) {
         normalizedTerrainFloors = 1;
       }
-      // Paths and farmland (dirt under crops) are also intrinsically flat.
-      const flatTerrain = (terrain === 'path' || terrain === 'dirt');
+      // Paths, water, and farmland (dirt under crops) are intrinsically flat.
+      const flatTerrain = (terrain === 'path' || terrain === 'water' || terrain === 'dirt');
       if (flatTerrain && normalizedTerrainFloors > 1) {
         normalizedTerrainFloors = 1;
       }
@@ -24768,7 +24776,7 @@
     return {
       x, z,
       terrain: terrain || BASE_TERRAIN,
-      terrainFloors: terrainFloors || 1,
+      terrainFloors: terrain === 'water' ? 1 : (terrainFloors || 1),
       kind: kind || null,
       floors: floors || 1,
       buildingType: buildingType || null,
