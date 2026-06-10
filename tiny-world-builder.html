@@ -8914,6 +8914,11 @@
       out.push(vox(0, 24, 0, C.gold));
       return out;
     }
+    function airCommand() {
+      // Air Command is derived directly from the Pagoda stamp: keep only the
+      // foundation, lowest wooden level, and first gray roof section.
+      return pagoda().filter(v => v.y <= 10);
+    }
     function gate() {
       const out = [];
       fill(out, -5, 5, 0, 0, -2, 2, C.stone);
@@ -9018,6 +9023,7 @@
     }
     return [
       { id: 'pagoda-large', name: 'Voxel Pagoda', voxels: pagoda(), footprint: 2.8 },
+      { id: 'air-command', name: 'Air Command', voxels: airCommand(), footprint: 2.8, hidden: true },
       { id: 'temple-gate', name: 'Temple Gate', voxels: gate(), footprint: 2.4 },
       { id: 'watchtower', name: 'Watchtower', voxels: watchtower(), footprint: 1.9 },
       { id: 'crystal-mining-rig', name: 'Crystal Weapons Platform', voxels: crystalMiningRig(), footprint: 1.9 },
@@ -9354,6 +9360,22 @@
     }
     g.userData = { kind: 'voxel-build', voxelBuildId: stamp.id, name: stamp.name, chimneyTops: [] };
     castReceive(g);
+    return g;
+  }
+
+  function makeAirCommand(level = 1) {
+    // Air Command is a military house variant derived from the Pagoda stamp,
+    // not a new design. It renders only the Pagoda's first/lower tier for now.
+    // Future Air Command upgrade levels can branch on `level` here while
+    // preserving the existing house floors/upgrade save architecture.
+    const stamp = getVoxelBuildStamp('air-command');
+    const g = makeVoxelBuildStamp(stamp, { level });
+    if (!g) return null;
+    g.userData = {
+      kind: 'house',
+      buildingType: 'air-command',
+      chimneyTops: [],
+    };
     return g;
   }
 
@@ -9887,6 +9909,8 @@
         mesh = makeVoxelSkyscraper(floors);
       } else if (bType === 'habitat') {
         mesh = makeSpaceHabitat(floors);
+      } else if (bType === 'air-command') {
+        mesh = makeAirCommand(floors);
       } else if (bType === 'tower') {
         mesh = makeStoneTower(floors, towerPaletteWithAppearance(getMergedBuildingPalette(x, z, 'tower'), cell.appearance));
       }
@@ -12083,7 +12107,7 @@
   }
 
   function activeHouseTypeValues() {
-    return new Set(['tower', 'skyscraper', 'habitat']);
+    return new Set(['tower', 'skyscraper', 'habitat', 'air-command']);
   }
 
   function normalizeBuildingType(value) {
@@ -13399,6 +13423,7 @@
       if (bType === 'tower') mesh = makeStoneTower(level);
       else if (bType === 'skyscraper') mesh = makeVoxelSkyscraper(level);
       else if (bType === 'habitat') mesh = makeSpaceHabitat(level);
+      else if (bType === 'air-command') mesh = makeAirCommand(level);
     }
     return mesh;
   }
@@ -14892,6 +14917,8 @@
         mesh = makeSkyscraper(floors);
       } else if (bType === 'habitat') {
         mesh = makeSpaceHabitat(floors);
+      } else if (bType === 'air-command') {
+        mesh = makeAirCommand(floors);
       } else if (bType === 'tower') {
         // When a tower is adjacent to another house variant, adopt that
         // variant's palette so they read as one merged structure. Per-cell
@@ -15054,6 +15081,7 @@
     sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     highrise: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 24 } },
     skyscraper: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 24 } },
+    'air-command': { label: 'Air Command', role: 'military', cost: { gold: 45 }, effect: { army: 35 } },
     habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 18 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
     tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 16 } },
@@ -16164,6 +16192,7 @@
       variants: [
         { id: 'tower',      label: 'Tower',          buildingType: 'tower',      hint: 'civilian shelter tower' },
         { id: 'highrise',   label: 'Command Center', buildingType: 'skyscraper', hint: 'military command structure' },
+        { id: 'air-command', label: 'Air Command',   buildingType: 'air-command', hint: 'military air command' },
         { id: 'habitat',    label: 'Habitat',        buildingType: 'habitat',    hint: 'civilian shelter module' },
       ],
     },
@@ -16271,6 +16300,7 @@
       if (bType === 'tower')      return makeStoneTower(1);
       if (bType === 'skyscraper') return makeVoxelSkyscraper(1);
       if (bType === 'habitat')    return makeSpaceHabitat(1);
+      if (bType === 'air-command') return makeAirCommand(1);
       return null;
     }
     return null;
@@ -16325,6 +16355,8 @@
         thumbFrame = { left: -1.7, right: 1.7, top: 2.6, bottom: -1.0, lookAtY: 1.0 };
       } else if (houseType === 'habitat') {
         thumbFrame = { left: -1.45, right: 1.45, top: 1.55, bottom: -0.95, lookAtY: 0.48 };
+      } else if (houseType === 'air-command') {
+        thumbFrame = { left: -2.35, right: 2.35, top: 2.45, bottom: -1.0, lookAtY: 0.78 };
       } else if (houseType === 'tower') {
         thumbFrame = { left: -1.58, right: 1.58, top: 2.15, bottom: -0.95, lookAtY: 0.85 };
       } else {
@@ -16477,6 +16509,7 @@
       }
     }
     for (const stamp of VOXEL_BUILD_STAMPS) {
+      if (stamp.hidden) continue;
       tools.push({
         id: 'voxel-build:' + stamp.id,
         label: stamp.name,
@@ -18644,6 +18677,7 @@
     let seedId = 'machiya-house';
     if (cell.kind === 'house') {
       if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper' || cell.buildingType === 'habitat') seedId = 'watchtower';
+      else if (cell.buildingType === 'air-command') seedId = 'air-command';
       else seedId = 'machiya-house';
     } else if (cell.kind === 'tree' || cell.kind === 'flower' || cell.kind === 'bush') {
       seedId = 'cherry-tree-build';
@@ -18666,6 +18700,7 @@
 
   function selectedBuildingStampId(cell) {
     if (!cell || cell.kind !== 'house') return null;
+    if (cell.buildingType === 'air-command') return 'pagoda';
     if (cell.buildingType === 'tower' || cell.buildingType === 'skyscraper' || cell.buildingType === 'habitat') return 'tower';
     return 'house';
   }
@@ -21577,6 +21612,7 @@
           null,
           "tower",
           "skyscraper",
+          "air-command",
           "habitat"
         ]
       },
@@ -21923,7 +21959,7 @@
       },
       buildingType: {
         type: ['string', 'null'],
-        enum: [null, 'tower', 'skyscraper', 'habitat'],
+        enum: [null, 'tower', 'skyscraper', 'air-command', 'habitat'],
       },
     },
   };
@@ -21975,7 +22011,7 @@
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
     '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, and road gates. Set fenceSide deliberately.',
     '- Use rocks as sparse sculptural props only: boulders, monuments, rubble, stepping stones, and focal landmarks. Do not use rock props to represent broad hills or mountains.',
-    '- Use explicit house variants as massing primitives: towers and habitats for civilian shelter, Command Centers for military tall structures. Do not emit null/default house buildingType.',
+    '- Use explicit house variants as massing primitives: towers and habitats for civilian shelter, Command Centers and Air Command for military structures. Do not emit null/default house buildingType.',
     '- Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
     '- Use crops/tufts/trees as texture primitives: fields, hedges, gardens, park planting, wild edges, orchards, and scale cues.',
     '- Prefer 3–5 clear assembled features over scattering many single unrelated cells. Make the construction legible from the default isometric camera.',
@@ -21990,7 +22026,7 @@
       'Required home board edge length: include "gridSize": ' + size + ' in the JSON object.',
       'Grid coordinates: x in 0..' + maxCoord + ' (left-right), z in 0..' + maxCoord + ' (front-back). Default cell is grass with no object.',
       'Only emit cells that differ from defaults — the renderer fills the rest.',
-      'House cells must set buildingType to tower|skyscraper|habitat. Do not emit null/default house buildingType.',
+      'House cells must set buildingType to tower|skyscraper|air-command|habitat. Do not emit null/default house buildingType.',
       'Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
       'Repeat-tapping the same object increases floors/intensity: houses grow upward; trees, rocks, bridges, fences, tufts, and crops become larger, denser, or more detailed.',
       'A fence is a single side/leaf, not a full square. Set fenceSide to n|s|e|w for tile edges or center-x|center-z for centre-line walls.',
@@ -22018,7 +22054,7 @@
       'Base the suggestions on the current sparse world state, nearby patterns, and what would be coherent next manual placements.',
       'Act as a low-poly primitive assembler: suggest reusable primitive actions that help the player build larger requested forms from terrain, height, fences, rocks, buildings, crops, tufts, trees, and bridges.',
       'Prefer extending visible structures: paths continue, fences align as side/leaf wall runs, crops form fields, houses cluster, trees/rocks frame empty edges, bridges belong on water crossings.',
-      'When suggesting a house, choose an explicit buildingType from tower, skyscraper, or habitat. Never suggest a null/default house buildingType.',
+      'When suggesting a house, choose an explicit buildingType from tower, skyscraper, air-command, or habitat. Never suggest a null/default house buildingType.',
       'Use floors/intensity as variation: repeated fences stay stone at lower levels and become steel walls at the highest levels; repeated rocks, trees, bridges, crops, and tufts gain size/detail.',
       'Return varied suggestions, ordered best first: include structural options, terrain/path options, nature/detail options, and intensify/repeat options when useful.',
       'Suggestions must be reusable across several placements, so avoid relying on a single exact coordinate.',
@@ -22157,7 +22193,7 @@
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','oxygen-plant','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
-    const okBT = new Set([null,'tower','skyscraper','habitat']);
+    const okBT = new Set([null,'tower','skyscraper','habitat','air-command']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
     for (let i = 0; i < data.cells.length; i++) {
@@ -22636,7 +22672,7 @@
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
     const okKind = new Set([null,'house','tree','fence','rock','bridge','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep']);
-    const okBT = new Set([null,'tower','skyscraper','habitat']);
+    const okBT = new Set([null,'tower','skyscraper','habitat','air-command']);
     let kind = data.kind === undefined ? null : data.kind;
     let terrain = data.terrain;
     let floors = data.floors === undefined ? 1 : data.floors;
@@ -23438,6 +23474,7 @@
         if (cell.kind === 'tree') return materialHex(M.leaves) || '#86d139';
         if (cell.kind === 'rock') return materialHex(M.rock) || '#9b9a8f';
         if (cell.kind === 'house') {
+          if (cell.buildingType === 'air-command') return '#3F494D';
           if (cell.buildingType === 'tower') return materialHex(M.towerRoof) || '#7563c9';
           if (cell.buildingType === 'skyhouse') return materialHex(M.skyRoof) || '#70a8df';
           if (cell.buildingType === 'habitat') return materialHex(M.habitatWindow) || '#83d8f0';
@@ -23779,6 +23816,7 @@
           if (bt === 'tower') obj = makeStoneTower(target.cell.floors || 1);
           else if (bt === 'skyscraper') obj = makeSkyscraper(target.cell.floors || 1);
           else if (bt === 'habitat') obj = makeSpaceHabitat(target.cell.floors || 1);
+          else if (bt === 'air-command') obj = makeAirCommand(target.cell.floors || 1);
         }
         else if (kind === 'tree') obj = makeTree();
         else if (kind === 'fence') obj = makeFence(normalizeFenceSide(target.cell.fenceSide), target.cell.floors || 1);
@@ -24038,6 +24076,7 @@
           { key: 'buildingType', label: 'Shape', options: [
             { label: 'Tower', value: 'tower' },
             { label: 'Command Center', value: 'skyscraper' },
+            { label: 'Air Command', value: 'air-command' },
             { label: 'Habitat', value: 'habitat' },
           ] },
           );
