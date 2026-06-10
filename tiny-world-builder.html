@@ -20632,9 +20632,10 @@
   // off-screen for a few seconds, then returns. Sometimes the return run
   // skips the dusting and trails a banner instead.
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
-  const FLIGHT_DUST_SPEED = 10.45;       // m/s while spraying
-  const FLIGHT_CRUISE_SPEED = 10.4;      // m/s while transiting / banner pass
-  const FLIGHT_DUST_ALT = 2.05;
+  const FLIGHT_DUST_SPEED = 5.45;       // m/s while spraying
+  const FLIGHT_CRUISE_SPEED = 5.4;      // m/s while transiting / banner pass
+  const FLIGHT_DUST_ALT = 0.05;
+  const FLIGHT_GROUND_HOLD_SEC = 2.5;
   const FLIGHT_CRUISE_ALT = 5.6;
   const FLIGHT_REFUEL_MIN = 6.0;
   const FLIGHT_REFUEL_MAX = 14.0;
@@ -20660,6 +20661,10 @@
     refuelTimer: 0,
     variantIndex: 0,
     isBanner: false,
+    holdActive: false,
+    holdDone: false,
+    holdTimer: 0,
+    holdEligible: false,
   };
   // Scratch vectors reused per frame to avoid allocations in the hot path.
   const _flightPos = new THREE.Vector3();
@@ -20793,24 +20798,6 @@
         o.receiveShadow = false;
         o.frustumCulled = true;
       }
-    });
-  }
-
-  function setupCropDusterPropeller() {
-    cropDusterProps = [];
-    if (!cropDusterModel) return;
-    const propNames = /prop(eller)?|blade|spinner|rotor|fan/i;
-    cropDusterModel.traverse(o => {
-      if (!o.isMesh || !propNames.test(o.name || '')) return;
-      // Spacecraft-conversion: hide propeller geometry so the GLB no
-      // longer reads as a prop-driven airplane. Leave the node in place so
-      // the GLB hierarchy stays intact and can be restored later.
-      o.visible = false;
-      o.castShadow = false;
-      o.receiveShadow = false;
-      if (o.material && typeof o.material.clone === 'function') o.material = o.material.clone();
-      o.userData.__propAxis = 'z';
-      cropDusterProps.push(o);
     });
   }
 
@@ -20952,7 +20939,6 @@
       cropDusterRoot.add(cropDusterModel);
       applyCropDusterMaterial(0);
       addCropDusterSpacecraftConversion(cropDusterModel);
-      setupCropDusterPropeller();
       cropDusterRoot.visible = true;
     }, undefined, err => {
       console.warn('[crop-duster] failed to load model', err);
@@ -21052,13 +21038,18 @@
   }
 
   function startDustingRun() {
-    const curve = planDustingCurve() || planFlyoverCurve(0);
+    const dustingCurve = planDustingCurve();
+    const curve = dustingCurve || planFlyoverCurve(0);
     cropDusterState.curve = curve;
     cropDusterState.curveLen = curve.getLength();
     cropDusterState.travel = 0;
     cropDusterState.speed = FLIGHT_DUST_SPEED;
     cropDusterState.phase = 'flying';
     cropDusterState.isBanner = false;
+    cropDusterState.holdActive = false;
+    cropDusterState.holdDone = false;
+    cropDusterState.holdTimer = 0;
+    cropDusterState.holdEligible = !!dustingCurve;
     if (bannerMesh) bannerMesh.visible = false;
     if (bannerWire) bannerWire.visible = false;
     cropDusterRoot.visible = true;
@@ -21071,6 +21062,10 @@
     cropDusterState.speed = FLIGHT_CRUISE_SPEED * 0.85;
     cropDusterState.phase = 'banner';
     cropDusterState.isBanner = true;
+    cropDusterState.holdActive = false;
+    cropDusterState.holdDone = true;
+    cropDusterState.holdTimer = 0;
+    cropDusterState.holdEligible = false;
     setBannerText(text);
     bannerMesh.visible = true;
     cropDusterRoot.visible = true;
@@ -21158,7 +21153,36 @@
 
     const curve = cropDusterState.curve;
     if (!curve) return;
-    cropDusterState.travel += cropDusterState.speed * dt;
+
+    // Ground hold: on real dusting runs, pause once at the first low point
+    // of the existing curve. While active, travel is frozen so the craft
+    // keeps the same position and orientation before continuing the pass.
+    if (cropDusterState.holdActive) {
+      cropDusterState.holdTimer += dt;
+      if (cropDusterState.holdTimer < FLIGHT_GROUND_HOLD_SEC) return;
+      cropDusterState.holdActive = false;
+      cropDusterState.holdDone = true;
+    }
+
+    const nextTravel = cropDusterState.travel + cropDusterState.speed * dt;
+    if (
+      cropDusterState.holdEligible &&
+      !cropDusterState.holdDone &&
+      cropDusterState.curveLen > 0
+    ) {
+      const nextU = Math.min(1, nextTravel / cropDusterState.curveLen);
+      curve.getPointAt(nextU, _flightPos);
+      if (_flightPos.y <= FLIGHT_DUST_ALT + 0.08) {
+        cropDusterState.travel = nextTravel;
+        cropDusterState.holdActive = true;
+        cropDusterState.holdTimer = 0;
+      } else {
+        cropDusterState.travel = nextTravel;
+      }
+    } else {
+      cropDusterState.travel = nextTravel;
+    }
+
     if (cropDusterState.travel >= cropDusterState.curveLen) {
       startRefuel();
       return;
