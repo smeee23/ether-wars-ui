@@ -533,6 +533,37 @@
     font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
+  .player-stat-numeric {
+    grid-template-columns: 82px 1fr;
+  }
+  .colony-status-row {
+    grid-template-columns: 82px 10px 44px 1fr;
+  }
+  .colony-status-name {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .colony-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #9aa3ad;
+    box-shadow: 0 0 0 2px rgba(35, 45, 60, 0.08);
+  }
+  .colony-status-dot.green { background: #23a65a; }
+  .colony-status-dot.blue { background: #2f80d0; }
+  .colony-status-dot.yellow { background: #d5a928; }
+  .colony-status-dot.red { background: #c8463b; }
+  .colony-status-percent {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--ink);
+  }
+  .colony-status-ratio {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    color: var(--muted);
+  }
   .crowd-panel .crowd-row {
     display: grid;
     grid-template-columns: 82px 1fr 44px;
@@ -3929,68 +3960,86 @@
 
   <div class="player-stats-panel" id="player-stats-panel" aria-label="Stats and actions">
     <h3>User stats</h3>
-    <div class="player-stat">
-      <span>Gold</span>
-      <span class="player-stat-bar"><span class="player-stat-fill gold" id="player-stat-gold-bar"></span></span>
+    <div class="player-stat player-stat-numeric">
+      <span>Credits</span>
       <span class="player-stat-value" id="player-stat-gold">0</span>
     </div>
-    <div class="player-stat">
-      <span>Food</span>
-      <span class="player-stat-bar"><span class="player-stat-fill food" id="player-stat-food-bar"></span></span>
-      <span class="player-stat-value" id="player-stat-food">0</span>
+    <div class="player-stat player-stat-numeric">
+      <span>Population</span>
+      <span class="player-stat-value" id="player-stat-population">0</span>
     </div>
-    <div class="player-stat">
-      <span>Water</span>
-      <span class="player-stat-bar"><span class="player-stat-fill water" id="player-stat-water-bar"></span></span>
-      <span class="player-stat-value" id="player-stat-water">0</span>
+    <div class="player-stat colony-status-row">
+      <span class="colony-status-name">FLEET</span>
+      <span class="colony-status-dot" id="player-stat-army-dot" aria-hidden="true"></span>
+      <span class="colony-status-percent" id="player-stat-army">-</span>
+      <span class="colony-status-ratio" id="player-stat-army-ratio">-</span>
     </div>
-    <div class="player-stat">
-      <span>Shelter</span>
-      <span class="player-stat-bar"><span class="player-stat-fill shelter" id="player-stat-shelter-bar"></span></span>
-      <span class="player-stat-value" id="player-stat-shelter">0</span>
+    <div class="player-stat colony-status-row">
+      <span class="colony-status-name">FOOD</span>
+      <span class="colony-status-dot" id="player-stat-food-dot" aria-hidden="true"></span>
+      <span class="colony-status-percent" id="player-stat-food">-</span>
+      <span class="colony-status-ratio" id="player-stat-food-ratio">-</span>
     </div>
-    <div class="player-stat">
-      <span>Army</span>
-      <span class="player-stat-bar"><span class="player-stat-fill army" id="player-stat-army-bar"></span></span>
-      <span class="player-stat-value" id="player-stat-army">0</span>
+    <div class="player-stat colony-status-row">
+      <span class="colony-status-name">WATER</span>
+      <span class="colony-status-dot" id="player-stat-water-dot" aria-hidden="true"></span>
+      <span class="colony-status-percent" id="player-stat-water">-</span>
+      <span class="colony-status-ratio" id="player-stat-water-ratio">-</span>
+    </div>
+    <div class="player-stat colony-status-row">
+      <span class="colony-status-name">OXYGEN</span>
+      <span class="colony-status-dot" id="player-stat-oxygen-dot" aria-hidden="true"></span>
+      <span class="colony-status-percent" id="player-stat-oxygen">-</span>
+      <span class="colony-status-ratio" id="player-stat-oxygen-ratio">-</span>
+    </div>
+    <div class="player-stat colony-status-row">
+      <span class="colony-status-name">SHELTER</span>
+      <span class="colony-status-dot" id="player-stat-shelter-dot" aria-hidden="true"></span>
+      <span class="colony-status-percent" id="player-stat-shelter">-</span>
+      <span class="colony-status-ratio" id="player-stat-shelter-ratio">-</span>
     </div>
     <div class="player-stat-total">
       <span>Round number</span>
       <strong id="player-stat-round-number">1</strong>
-    </div>
-    <div class="player-stat-total">
-      <span>Population</span>
-      <strong id="player-stat-population">0</strong>
     </div>
 
     <div class="neighbor-stats-panel" id="neighbor-stats-panel" aria-label="Neighbor stats">
       <div class="stats-panel-header">
         <h3 id="neighbor-stats-title">Neighbor</h3>
       </div>
-      <div class="player-stat">
-        <span>Gold</span>
-        <span class="player-stat-bar"><span class="player-stat-fill gold" id="neighbor-stat-gold-bar"></span></span>
+      <div class="player-stat player-stat-numeric">
+        <span>Credits</span>
         <span class="player-stat-value" id="neighbor-stat-gold">0</span>
       </div>
-      <div class="player-stat">
-        <span>Food</span>
-        <span class="player-stat-bar"><span class="player-stat-fill food" id="neighbor-stat-food-bar"></span></span>
-        <span class="player-stat-value" id="neighbor-stat-food">0</span>
+      <div class="player-stat colony-status-row">
+        <span class="colony-status-name">FLEET</span>
+        <span class="colony-status-dot" id="neighbor-stat-army-dot" aria-hidden="true"></span>
+        <span class="colony-status-percent" id="neighbor-stat-army">-</span>
+        <span class="colony-status-ratio" id="neighbor-stat-army-ratio">-</span>
       </div>
-      <div class="player-stat">
-        <span>Water</span>
-        <span class="player-stat-bar"><span class="player-stat-fill water" id="neighbor-stat-water-bar"></span></span>
-        <span class="player-stat-value" id="neighbor-stat-water">0</span>
+      <div class="player-stat colony-status-row">
+        <span class="colony-status-name">FOOD</span>
+        <span class="colony-status-dot" id="neighbor-stat-food-dot" aria-hidden="true"></span>
+        <span class="colony-status-percent" id="neighbor-stat-food">-</span>
+        <span class="colony-status-ratio" id="neighbor-stat-food-ratio">-</span>
       </div>
-      <div class="player-stat">
-        <span>Shelter</span>
-        <span class="player-stat-bar"><span class="player-stat-fill shelter" id="neighbor-stat-shelter-bar"></span></span>
-        <span class="player-stat-value" id="neighbor-stat-shelter">0</span>
+      <div class="player-stat colony-status-row">
+        <span class="colony-status-name">WATER</span>
+        <span class="colony-status-dot" id="neighbor-stat-water-dot" aria-hidden="true"></span>
+        <span class="colony-status-percent" id="neighbor-stat-water">-</span>
+        <span class="colony-status-ratio" id="neighbor-stat-water-ratio">-</span>
       </div>
-      <div class="player-stat">
-        <span>Army</span>
-        <span class="player-stat-bar"><span class="player-stat-fill army" id="neighbor-stat-army-bar"></span></span>
-        <span class="player-stat-value" id="neighbor-stat-army">0</span>
+      <div class="player-stat colony-status-row">
+        <span class="colony-status-name">OXYGEN</span>
+        <span class="colony-status-dot" id="neighbor-stat-oxygen-dot" aria-hidden="true"></span>
+        <span class="colony-status-percent" id="neighbor-stat-oxygen">-</span>
+        <span class="colony-status-ratio" id="neighbor-stat-oxygen-ratio">-</span>
+      </div>
+      <div class="player-stat colony-status-row">
+        <span class="colony-status-name">SHELTER</span>
+        <span class="colony-status-dot" id="neighbor-stat-shelter-dot" aria-hidden="true"></span>
+        <span class="colony-status-percent" id="neighbor-stat-shelter">-</span>
+        <span class="colony-status-ratio" id="neighbor-stat-shelter-ratio">-</span>
       </div>
       <div class="player-stat-total">
         <span>Last action</span>
@@ -4008,11 +4057,11 @@
           <label class="neighbor-action-row">Target
             <select id="neighbor-attack-target"></select>
           </label>
-          <label class="neighbor-action-row">Gold
+          <label class="neighbor-action-row">Credits
             <input id="neighbor-wager-gold" type="range" min="0" max="0" step="1" />
             <output id="neighbor-wager-gold-value">0</output>
           </label>
-          <div class="neighbor-action-note" id="neighbor-wager-note" hidden>No gold available for an attack wager.</div>
+          <div class="neighbor-action-note" id="neighbor-wager-note" hidden>No credits available for an attack wager.</div>
         </div>
         <div class="neighbor-action-buttons">
           <button class="btn" id="neighbor-commit-action" type="button">Commit</button>
@@ -4770,9 +4819,11 @@
     gold: 100,
     food: 50,
     water: 50,
+    oxygen: 0,
     shelter: 50,
     army: 50,
   };
+  const COLONY_STATUS_KEYS = ['army', 'food', 'water', 'oxygen', 'shelter'];
   const HOME_GRID_DEFAULT = 15;
   const HOME_GRID_MIN = HOME_GRID_DEFAULT;
   // Storage/preview coordinate cap only; it does not resize the playable board.
@@ -12859,7 +12910,9 @@
       army: slot && slot.occupied ? 10 : 0,
       food: slot && slot.occupied ? 10 : 0,
       water: slot && slot.occupied ? 10 : 0,
+      oxygen: 0,
       shelter: slot && slot.occupied ? 10 : 0,
+      population: slot && slot.occupied ? 10 : 0,
       neighbor: slot && slot.occupied ? 'Occupied' : 'Open land',
     };
   }
@@ -12965,11 +13018,12 @@
     const stats = statsForNeighborSlot(slot);
     activeNeighborSlotId = slot.id;
     if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = slot.label || 'Neighbor';
-    setNeighborStat('gold', stats.gold, stats.gold);
-    setNeighborStat('army', stats.army, stats.army);
-    setNeighborStat('food', stats.food, stats.food);
-    setNeighborStat('water', stats.water, stats.water);
-    setNeighborStat('shelter', stats.shelter, stats.shelter);
+    const population = Math.max(0, Math.round(Number(stats.population) || 0));
+    setNeighborStat('gold', stats.gold, 0);
+    setNeighborStat('population', population, 0);
+    for (const key of COLONY_STATUS_KEYS) {
+      setScopedColonyStatusRow('neighbor-stat', key, stats[key] || 0, population);
+    }
     const neighborEl = document.getElementById('neighbor-stat-neighbor');
     if (neighborEl) neighborEl.textContent = stats.neighbor || '-';
     syncRoundActionControls(true);
@@ -15224,7 +15278,7 @@
   }
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
-  const RESOURCE_KEYS = ['gold', 'food', 'water', 'shelter', 'army'];
+  const RESOURCE_KEYS = ['gold', 'food', 'water', 'oxygen', 'shelter', 'army'];
   // Temporary frontend-only building economics for the mock Resources model.
   // TODO(contract/indexer): replace this table with canonical costs/effects
   // from contract/indexer state or a versioned game-state snapshot.
@@ -15497,14 +15551,51 @@
     if (barEl) barEl.style.width = Math.max(0, Math.min(100, percent || 0)) + '%';
   }
 
+  function getColonyStatus(resourceValue, population) {
+    const value = Math.max(0, Math.round(Number(resourceValue) || 0));
+    const pop = Math.max(0, Math.round(Number(population) || 0));
+    if (pop <= 0) return { value, population: pop, percent: null, tone: 'neutral', label: '-' };
+    const percent = Math.round((value / pop) * 100);
+    let tone = 'red';
+    if (percent > 120) tone = 'green';
+    else if (percent >= 100) tone = 'blue';
+    else if (percent >= 80) tone = 'yellow';
+    return { value, population: pop, percent, tone, label: percent + '%' };
+  }
+
+  function formatColonyRatio(resourceValue, population) {
+    const value = Math.max(0, Math.round(Number(resourceValue) || 0));
+    const pop = Math.max(0, Math.round(Number(population) || 0));
+    if (pop <= 0) return '-';
+    return value + ' / ' + pop;
+  }
+
+  function setColonyStatusRow(id, resourceValue, population) {
+    setScopedColonyStatusRow('player-stat', id, resourceValue, population);
+  }
+
+  function setScopedColonyStatusRow(prefix, id, resourceValue, population) {
+    const status = getColonyStatus(resourceValue, population);
+    const percentEl = document.getElementById(prefix + '-' + id);
+    const ratioEl = document.getElementById(prefix + '-' + id + '-ratio');
+    const dotEl = document.getElementById(prefix + '-' + id + '-dot');
+    if (percentEl) percentEl.textContent = status.label;
+    if (ratioEl) ratioEl.textContent = formatColonyRatio(resourceValue, population);
+    if (dotEl) {
+      dotEl.className = 'colony-status-dot' + (status.tone !== 'neutral' ? ' ' + status.tone : '');
+      dotEl.title = status.percent === null ? 'No population pressure' : status.label + ' supported';
+    }
+  }
+
   function updatePlayerStatsPanel() {
     playerStatsUpdateQueued = false;
     const panel = document.getElementById('player-stats-panel');
     if (!panel) return;
-    for (const key of RESOURCE_KEYS) {
-      setPlayerStat(key, resources[key] || 0, clampStatPercent(resources[key] || 0, 100));
-    }
     const stats = collectPlayerStats();
+    setPlayerStat('gold', resources.gold || 0, 0);
+    for (const key of COLONY_STATUS_KEYS) {
+      setColonyStatusRow(key, resources[key] || 0, stats.population || 0);
+    }
     const roundEl = document.getElementById('player-stat-round-number');
     const populationEl = document.getElementById('player-stat-population');
     if (roundEl) roundEl.textContent = String(stats.roundNumber);
