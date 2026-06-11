@@ -8915,9 +8915,29 @@
       return out;
     }
     function airCommand() {
-      // Air Command is derived directly from the Pagoda stamp: keep only the
-      // foundation, lowest wooden level, and first gray roof section.
-      return pagoda().filter(v => v.y <= 10);
+      // Air Command is derived directly from the Pagoda stamp: keep the tan
+      // foundation, remove the brown/paper middle level, and lower the first
+      // gray roof so it rests directly on the base. Keep one compact gray top
+      // layer above the roof; makeAirCommand adds the force-shield cap over it.
+      const base = pagoda()
+        .filter(v => v.y == 7 )
+        .map(v => v.y >= 7 ? vox(v.x, v.y - 5, v.z, v.color) : v);
+
+      const upper = pagoda() 
+        .filter(v => (v.y >= 7 && v.y <= 9))
+        .map(v => v.y >= 7 ? vox(v.x, v.y - 5, v.z, v.color) : v);
+
+      const heightOffset = 12;
+
+      return [
+        ...base.map(v => vox(v.x, v.y, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 1, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 2, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 3, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 4, v.z, v.color)),
+        ...upper.map(v => vox(v.x, v.y + 5, v.z, v.color)),
+        ...upper.map(v => vox(v.x, v.y + heightOffset, v.z, v.color)),
+      ];
     }
     function gate() {
       const out = [];
@@ -9363,17 +9383,130 @@
     return g;
   }
 
+  function addAirCommandForceShields(g) {
+    // Air Command shield geometry is additive over the Pagoda-derived voxel
+    // roof: one roof cap plus four wall panels down to ground level.
+    const stamp = getVoxelBuildStamp('air-command');
+    if (!g || !stamp || !Array.isArray(stamp.voxels) || !stamp.voxels.length) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const v of stamp.voxels) {
+      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
+      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+      minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
+    }
+    const spanX = Math.max(1, maxX - minX + 1);
+    const spanZ = Math.max(1, maxZ - minZ + 1);
+    const unit = stamp.footprint / Math.max(spanX, spanZ);
+    const topY = (maxY - minY + 1) * unit;
+    const shieldSide = unit * 5;
+    const shieldHeight = topY;
+    const roofSpanX = spanX * unit;
+    const roofSpanZ = spanZ * unit;
+    const panelThick = Math.max(0.018, unit * 0.09);
+
+    const cap = new THREE.Mesh(getBoxGeometry(shieldSide, panelThick, shieldSide), M.habitatBand);
+    cap.position.set(0, topY + panelThick / 2, 0);
+    cap.userData.noShadow = true;
+    cap.renderOrder = 5;
+    g.add(cap);
+
+    const sideSpecs = [
+      { w: roofSpanX, d: panelThick, x: 0, z: roofSpanZ / 2 + panelThick / 2 },
+      { w: roofSpanX, d: panelThick, x: 0, z: -roofSpanZ / 2 - panelThick / 2 },
+      { w: panelThick, d: roofSpanZ, x: roofSpanX / 2 + panelThick / 2, z: 0 },
+      { w: panelThick, d: roofSpanZ, x: -roofSpanX / 2 - panelThick / 2, z: 0 },
+    ];
+    for (const spec of sideSpecs) {
+      const panel = new THREE.Mesh(getBoxGeometry(spec.w, shieldHeight, spec.d), M.greenhouseGlass);
+      panel.position.set(spec.x, shieldHeight / 2, spec.z);
+      panel.userData.noShadow = true;
+      panel.renderOrder = 4;
+      g.add(panel);
+    }
+  }
+
+  const AIR_COMMAND_MAX_LEVEL = 3;
+  const AIR_COMMAND_MINI_TURRET_SCALE = 0.7;
+  const AIR_COMMAND_MAIN_CANNON_SCALE = 1.5;
+  const AIR_COMMAND_ROOF_ATTACHMENT_Y = 1.08;
+  const AIR_COMMAND_ROOF_MOUNT_CORNERS = [
+    { x: -5, z: -5, rot: Math.PI * 0.25 },
+    { x:  5, z: -5, rot: Math.PI * 0.75 },
+    { x: -5, z:  5, rot: Math.PI * 1.75 },
+    { x:  5, z:  5, rot: Math.PI * 1.25 },
+  ];
+
+  function airCommandLevel(level = 1) {
+    return Math.max(1, Math.min(AIR_COMMAND_MAX_LEVEL, level || 1));
+  }
+
+  function airCommandRoofMetrics() {
+    const stamp = getVoxelBuildStamp('air-command');
+    if (!stamp || !Array.isArray(stamp.voxels) || !stamp.voxels.length) return null;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const v of stamp.voxels) {
+      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
+      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
+      minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
+    }
+    const spanX = Math.max(1, maxX - minX + 1);
+    const spanZ = Math.max(1, maxZ - minZ + 1);
+    const unit = stamp.footprint / Math.max(spanX, spanZ);
+    return {
+      unit,
+      centerX: (minX + maxX) / 2,
+      centerZ: (minZ + maxZ) / 2,
+      roofY: (maxY - minY + AIR_COMMAND_ROOF_ATTACHMENT_Y) * unit,
+    };
+  }
+
+  function makeMiniPlasmaGun() {
+    return makePlasmaTurret(AIR_COMMAND_MINI_TURRET_SCALE);
+  }
+
+  function makeAirCommandTurrets(metrics) {
+    const turrets = new THREE.Group();
+    if (!metrics) return turrets;
+    // Level 2 visual addition: four mini plasma guns on the roof corner blocks.
+    for (const mount of AIR_COMMAND_ROOF_MOUNT_CORNERS) {
+      const turret = makeMiniPlasmaGun();
+      turret.position.set((mount.x - metrics.centerX) * metrics.unit, metrics.roofY - 2.03, (mount.z - metrics.centerZ) * metrics.unit);
+      turret.rotation.y = mount.rot;
+      turrets.add(turret);
+    }
+    for (const mount of AIR_COMMAND_ROOF_MOUNT_CORNERS) {
+      const turret = makeMiniPlasmaGun();
+      turret.position.set((mount.x - metrics.centerX) * metrics.unit, metrics.roofY - 0.26, (mount.z - metrics.centerZ) * metrics.unit);
+      turret.rotation.y = mount.rot;
+      turrets.add(turret);
+    }
+    return turrets;
+  }
+
+  function makeAirCommandMainCannon(metrics) {
+    const cannon = makePlasmaTurret(AIR_COMMAND_MAIN_CANNON_SCALE);
+    if (!metrics) return cannon;
+    // Level 3 visual addition: one large plasma cannon in the exact roof center.
+    cannon.position.set(0, metrics.roofY + 0.02, 0);
+    return cannon;
+  }
+
   function makeAirCommand(level = 1) {
     // Air Command is a military house variant derived from the Pagoda stamp,
-    // not a new design. It renders only the Pagoda's first/lower tier for now.
-    // Future Air Command upgrade levels can branch on `level` here while
-    // preserving the existing house floors/upgrade save architecture.
+    // not a new design. The base massing stays identical at every level;
+    // upgrades only add rooftop military equipment.
+    const commandLevel = airCommandLevel(level);
     const stamp = getVoxelBuildStamp('air-command');
-    const g = makeVoxelBuildStamp(stamp, { level });
+    const g = makeVoxelBuildStamp(stamp, { level: commandLevel });
     if (!g) return null;
+    addAirCommandForceShields(g);
+    const roofMetrics = airCommandRoofMetrics();
+    if (commandLevel >= 2) g.add(makeAirCommandTurrets(roofMetrics));
+    if (commandLevel >= 3) g.add(makeAirCommandMainCannon(roofMetrics));
     g.userData = {
       kind: 'house',
       buildingType: 'air-command',
+      level: commandLevel,
       chimneyTops: [],
     };
     return g;
@@ -10061,6 +10194,7 @@
   const plasmaTurretObjects = new Set();
   const buildingWindowBaseMaterials = new Set([M.windowB, M.skyGlass, M.habitatWindow]);
   const cropPositions = new Set();        // 'x,z' strings for home-grid cells whose kind is in CROP_KINDS
+  const airCommandPositions = new Set();  // 'x,z' strings for Air Command flight targets
   let carriagePumpkin = null;             // {x, z} | null — current lowest-index max-floor pumpkin (Cinderella rule)
   const maxPumpkinPositions = new Set();  // 'x,z' of all pumpkins with floors >= MAX_FLOORS (home grid)
 
@@ -10136,9 +10270,14 @@
 
   // -------- live index sets for hot-path queries (avoid O(GRID²) scans) --------
   function isCropCell(cell) { return !!(cell && CROP_KINDS.has(cell.kind)); }
+  function isAirCommandCell(cell) {
+    return !!(cell && cell.kind === 'house' && normalizeBuildingType(cell.buildingType) === 'air-command');
+  }
 
   function addCropPosition(x, z) { cropPositions.add(x + ',' + z); }
   function removeCropPosition(x, z) { cropPositions.delete(x + ',' + z); }
+  function addAirCommandPosition(x, z) { airCommandPositions.add(x + ',' + z); }
+  function removeAirCommandPosition(x, z) { airCommandPositions.delete(x + ',' + z); }
 
   function rebuildCropPositions() {
     cropPositions.clear();
@@ -10146,6 +10285,18 @@
       if (!world[x]) continue;
       for (let z = 0; z < GRID; z++) {
         if (isCropCell(world[x][z])) cropPositions.add(x + ',' + z);
+      }
+    }
+  }
+
+  function rebuildAirCommandPositions() {
+    airCommandPositions.clear();
+    for (const xKey of Object.keys(world)) {
+      const x = parseInt(xKey, 10);
+      if (!Number.isFinite(x) || !world[x]) continue;
+      for (const zKey of Object.keys(world[x])) {
+        const z = parseInt(zKey, 10);
+        if (Number.isFinite(z) && isAirCommandCell(world[x][z])) airCommandPositions.add(x + ',' + z);
       }
     }
   }
@@ -10194,6 +10345,12 @@
 
   function maxFloorsForKind(kind) {
     return kind === 'oxygen-plant' ? OXYGEN_PLANT_MAX_LEVEL : MAX_FLOORS;
+  }
+
+  function maxFloorsForCell(cell, fallbackKind = null) {
+    const kind = fallbackKind || (cell && cell.kind);
+    if (kind === 'house' && normalizeBuildingType(cell && cell.buildingType) === 'air-command') return AIR_COMMAND_MAX_LEVEL;
+    return maxFloorsForKind(kind);
   }
 
   function clampFloorsForKind(kind, value) {
@@ -15427,12 +15584,16 @@
     const vehicleDrivableChanged = prevVehicleDrivable !== isVehicleDrivableCell(world[x][z]);
     if (vehicleDrivableChanged) refreshVehiclesForWorldObstacleChange(x, z);
 
-    // Maintain live index sets so hot paths (crop duster, pumpkin carriage)
-    // never scan the full grid. Only home-grid cells (0..GRID) are tracked.
+    // Maintain live index sets so hot paths (spacecraft routing, crop gameplay,
+    // pumpkin carriage) never scan the full grid during animation.
     const wasCrop = isCropCell(prev);
     const isCrop = isCropCell(world[x][z]);
     if (wasCrop && !isCrop) removeCropPosition(x, z);
     if (!wasCrop && isCrop) addCropPosition(x, z);
+    const wasAirCommand = isAirCommandCell(prev);
+    const isAirCommand = isAirCommandCell(world[x][z]);
+    if (wasAirCommand && !isAirCommand) removeAirCommandPosition(x, z);
+    if (!wasAirCommand && isAirCommand) addAirCommandPosition(x, z);
 
     const wasMaxPump = (prev.kind === 'pumpkin' && (prev.floors || 1) >= MAX_FLOORS);
     const isMaxPump = (world[x][z].kind === 'pumpkin' && (world[x][z].floors || 1) >= MAX_FLOORS);
@@ -15567,12 +15728,14 @@
     resetHomeWorldIntent();
     dropAnims.length = 0;
     cropPositions.clear();
+    airCommandPositions.clear();
     maxPumpkinPositions.clear();
     carriagePumpkin = null;
 
     // Empty starter world: sparse default terrain only. User builds and
     // imports still populate cells through setCell/applyState.
     rebuildCropPositions();
+    rebuildAirCommandPositions();
     rebuildMaxPumpkinCache();
     invalidateHomeFade();
 
@@ -15671,6 +15834,7 @@
       if      (bt === 'tower')      mesh = makeStoneTower(1);
       else if (bt === 'skyscraper') mesh = makeVoxelSkyscraper(1);
       else if (bt === 'habitat')    mesh = makeSpaceHabitat(1);
+      else if (bt === 'air-command') mesh = makeAirCommand(1);
       else                          mesh = null;
     } else if (tool.terrain) {
       // For pure terrain tools, show a thin coloured swatch hovering
@@ -17064,7 +17228,7 @@
     if (selectedTool.kind === 'house') {
       if (cell.kind === 'house') {
         // Stack: clicking the house tool on an existing house adds a floor.
-        const newFloors = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
+        const newFloors = Math.min((cell.floors || 1) + 1, maxFloorsForCell(cell, 'house'));
         if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
         // Floor stack preserves the existing buildingType (passing undefined).
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
@@ -18154,6 +18318,7 @@
     if (useWindowedHomeRendering()) {
       resetHomeWorldIntent();
       cropPositions.clear();
+      airCommandPositions.clear();
       maxPumpkinPositions.clear();
       carriagePumpkin = null;
       disposeAllCellMeshes();
@@ -20669,12 +20834,13 @@
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
   const FLIGHT_DUST_SPEED = 5.45;       // m/s while spraying
   const FLIGHT_CRUISE_SPEED = 5.4;      // m/s while transiting / banner pass
-  const FLIGHT_DUST_ALT = 0.05;
-  const FLIGHT_GROUND_HOLD_SEC = 2.5;
+  const FLIGHT_DUST_ALT = 2.1;
+  const FLIGHT_GROUND_HOLD_SEC = 4.5;
   const FLIGHT_CRUISE_ALT = 5.6;
   const FLIGHT_REFUEL_MIN = 6.0;
   const FLIGHT_REFUEL_MAX = 14.0;
   const FLIGHT_BANNER_CHANCE = 0.32;
+  const FLIGHT_GROUND_HOLD_FORWARD_OFFSET = 0.83;
   const BANNER_MESSAGES = [
     'TINY WORLD',
     'HELLO!',
@@ -20696,6 +20862,7 @@
     refuelTimer: 0,
     variantIndex: 0,
     isBanner: false,
+    airCommandTarget: null,
     holdActive: false,
     holdDone: false,
     holdTimer: 0,
@@ -20980,56 +21147,50 @@
     });
   }
 
-  function cropCellsForDusting() {
-    // Use the live cropPositions Set (maintained in setCell) instead of
-    // rescanning the entire GRID every time the duster plans a new run.
-    // This keeps planning O(crops) even on 128×128+ home boards.
-    const cells = [];
-    for (const key of cropPositions) {
+  function getAirCommandBuildings() {
+    // Use the live Air Command index maintained by setCell/applyState so
+    // spacecraft route planning does not depend on crop fields.
+    const buildings = [];
+    for (const key of airCommandPositions) {
       const [x, z] = key.split(',').map(Number);
-      if (x >= 0 && x < GRID && z >= 0 && z < GRID) {
-        cells.push({ x, z });
-      }
+      const cell = getWorldCell(x, z);
+      if (!isAirCommandCell(cell)) continue;
+      const p = tilePos(x, z);
+      buildings.push({ x, z, worldX: p.x, worldZ: p.z });
     }
-    return cells;
+    return buildings;
   }
 
-  // A real crop-duster doesn't zig-zag between individual cells — it lines
-  // up on the field, descends, and makes a single straight pass that dumps
-  // on every crop in the band. Returns a Catmull-Rom curve that starts well
-  // off-grid at cruise altitude, descends gently into the row, runs flat
-  // and low across the entire crop extent, then climbs back to cruise and
-  // exits off-grid on the other side. No 90° turns.
-  let cropDusterPassAxis = 'x'; // remembered for the dust-spawn loop
-  function planDustingCurve() {
-    const crops = cropCellsForDusting();
-    if (!crops.length) return null;
+  function getAirCommandFlightTarget() {
+    const targets = getAirCommandBuildings();
+    if (!targets.length) return null;
+    // Multiple Air Command buildings are currently selected randomly. Keep
+    // this helper as the single future hook for priority, nearest, or mission
+    // based targeting.
+    return targets[Math.floor(Math.random() * targets.length)];
+  }
+
+  // Air Command run: keep the existing eight-point Catmull-Rom flight shape,
+  // but center the low-altitude pass on a selected Air Command building
+  // instead of deriving the destination from crop fields.
+  function planAirCommandCurve() {
+    const targetBuilding = getAirCommandFlightTarget();
+    if (!targetBuilding) return null;
+    cropDusterState.airCommandTarget = targetBuilding;
     const dustY = FLIGHT_DUST_ALT;
     const cruiseY = Math.max(renderCloudHeight + 0.4, FLIGHT_CRUISE_ALT);
-
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const c of crops) {
-      const p = tilePos(c.x, c.z);
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.z < minZ) minZ = p.z;
-      if (p.z > maxZ) maxZ = p.z;
-    }
-    const extentX = maxX - minX;
-    const extentZ = maxZ - minZ;
-    // Run along the longer axis so a single pass crosses the most rows.
-    const axis = extentX >= extentZ ? 'x' : 'z';
-    cropDusterPassAxis = axis;
+    const axis = Math.random() < 0.5 ? 'x' : 'z';
     // Flip the approach direction occasionally so the plane doesn't always
     // arrive from the same corner.
     const flip = Math.random() < 0.5 ? -1 : 1;
 
     const lead = FLIGHT_OFFSCREEN_DIST;
+    const lowRunHalf = 0.72;
     let pts;
     if (axis === 'x') {
-      const runZ = (minZ + maxZ) / 2;
-      const x0 = flip > 0 ? minX : maxX;
-      const x1 = flip > 0 ? maxX : minX;
+      const runZ = targetBuilding.worldZ;
+      const x0 = targetBuilding.worldX - flip * lowRunHalf;
+      const x1 = targetBuilding.worldX + flip * lowRunHalf;
       const margin = 2.0;
       pts = [
         new THREE.Vector3(x0 - flip * lead, cruiseY, runZ),
@@ -21042,9 +21203,9 @@
         new THREE.Vector3(x1 + flip * lead, cruiseY, runZ),
       ];
     } else {
-      const runX = (minX + maxX) / 2;
-      const z0 = flip > 0 ? minZ : maxZ;
-      const z1 = flip > 0 ? maxZ : minZ;
+      const runX = targetBuilding.worldX;
+      const z0 = targetBuilding.worldZ - flip * lowRunHalf;
+      const z1 = targetBuilding.worldZ + flip * lowRunHalf;
       const margin = 2.0;
       pts = [
         new THREE.Vector3(runX, cruiseY, z0 - flip * lead),
@@ -21072,9 +21233,10 @@
     return new THREE.CatmullRomCurve3([start, mid, end], false, 'catmullrom', 0.25);
   }
 
-  function startDustingRun() {
-    const dustingCurve = planDustingCurve();
-    const curve = dustingCurve || planFlyoverCurve(0);
+  function startAirCommandRun() {
+    cropDusterState.airCommandTarget = null;
+    const airCommandCurve = planAirCommandCurve();
+    const curve = airCommandCurve || planFlyoverCurve(0);
     cropDusterState.curve = curve;
     cropDusterState.curveLen = curve.getLength();
     cropDusterState.travel = 0;
@@ -21084,7 +21246,7 @@
     cropDusterState.holdActive = false;
     cropDusterState.holdDone = false;
     cropDusterState.holdTimer = 0;
-    cropDusterState.holdEligible = !!dustingCurve;
+    cropDusterState.holdEligible = !!airCommandCurve;
     if (bannerMesh) bannerMesh.visible = false;
     if (bannerWire) bannerWire.visible = false;
     cropDusterRoot.visible = true;
@@ -21097,6 +21259,7 @@
     cropDusterState.speed = FLIGHT_CRUISE_SPEED * 0.85;
     cropDusterState.phase = 'banner';
     cropDusterState.isBanner = true;
+    cropDusterState.airCommandTarget = null;
     cropDusterState.holdActive = false;
     cropDusterState.holdDone = true;
     cropDusterState.holdTimer = 0;
@@ -21116,20 +21279,20 @@
   }
 
   function startNextRun() {
-    const haveCrops = cropCellsForDusting().length > 0;
-    // Crop dusting is a summer/farm-season behaviour, but the plane itself
-    // should still exist year-round as an ambient banner flyover.
-    if (activeSeason !== 'summer' || !haveCrops || Math.random() < FLIGHT_BANNER_CHANCE) {
+    const haveAirCommand = getAirCommandBuildings().length > 0;
+    // Air Command buildings act as spacecraft destinations. Without one,
+    // keep the ambient banner flyover so the craft still has a fallback run.
+    if (!haveAirCommand) {
       startBannerRun(BANNER_MESSAGES[Math.floor(Math.random() * BANNER_MESSAGES.length)]);
     } else {
       cropDusterState.variantIndex = (cropDusterState.variantIndex + 1)
         % Math.max(1, cropDusterMaterials.length);
       applyCropDusterMaterial(cropDusterState.variantIndex);
-      startDustingRun();
+      startAirCommandRun();
     }
   }
 
-  function spawnCropDust(x, y, z) {
+  function spawnFlightGroundDust(x, y, z) {
     if (cropDustParticles.length > 180) return;
     const p = new THREE.Mesh(cropDustGeo, cropDustMat.clone());
     p.position.set(x + (Math.random() - 0.5) * 0.34, y, z + (Math.random() - 0.5) * 0.52);
@@ -21207,8 +21370,11 @@
     ) {
       const nextU = Math.min(1, nextTravel / cropDusterState.curveLen);
       curve.getPointAt(nextU, _flightPos);
-      if (_flightPos.y <= FLIGHT_DUST_ALT + 0.08) {
-        cropDusterState.travel = nextTravel;
+      if (_flightPos.y <= FLIGHT_DUST_ALT + 0.00001) {
+        cropDusterState.travel = Math.min(
+          nextTravel + FLIGHT_GROUND_HOLD_FORWARD_OFFSET,
+          cropDusterState.curveLen
+        );
         cropDusterState.holdActive = true;
         cropDusterState.holdTimer = 0;
       } else {
@@ -21275,30 +21441,21 @@
       bannerWire.visible = false;
     }
 
-    // Dust spray: during the dusting pass, spawn dust at every home-grid
-    // crop cell whose along-track coordinate is currently under the plane.
-    // Walking by cells (not just by the plane's exact xz) means a single
-    // straight pass blankets every crop in the band, regardless of how
-    // wide the field is on the perpendicular axis.
-    if (!cropDusterState.isBanner && _flightPos.y < FLIGHT_DUST_ALT + 0.55) {
-      const planeX = cropDusterRoot.position.x;
-      const planeZ = cropDusterRoot.position.z;
-      const window = 0.6;
-      for (const key of cropPositions) {
-        const [x, z] = key.split(',').map(Number);
-        // Only home-grid crops are tracked; ghost boards are never dusted.
-        if (x < 0 || x >= GRID || z < 0 || z >= GRID) continue;
-        const c = getWorldCell(x, z);
-        if (!CROP_KINDS.has(c.kind)) continue; // defensive
-        const p = tilePos(x, z);
-        const along = cropDusterPassAxis === 'x' ? p.x - planeX : p.z - planeZ;
-        if (Math.abs(along) > window) continue;
-        if (cropDustParticles.length > 220) break;
-        spawnCropDust(
-          p.x + (Math.random() - 0.5) * 0.34,
-          0.72 + Math.random() * 0.10,
-          p.z + (Math.random() - 0.5) * 0.34,
-        );
+    // Ground dust: during an Air Command approach, keep the existing particle
+    // timing but localize the effect around the selected building instead of
+    // scanning crop fields.
+    if (!cropDusterState.isBanner && cropDusterState.airCommandTarget && _flightPos.y < FLIGHT_DUST_ALT + 0.55) {
+      const t = cropDusterState.airCommandTarget;
+      const dx = cropDusterRoot.position.x - t.worldX;
+      const dz = cropDusterRoot.position.z - t.worldZ;
+      if (dx * dx + dz * dz < 1.45 * 1.45) {
+        for (let i = 0; i < 2 && cropDustParticles.length <= 220; i++) {
+          spawnFlightGroundDust(
+            t.worldX + (Math.random() - 0.5) * 0.46,
+            0.72 + Math.random() * 0.10,
+            t.worldZ + (Math.random() - 0.5) * 0.46,
+          );
+        }
       }
     }
   }
@@ -24002,12 +24159,14 @@
           setCell(x, z, { ...cell, appearance, animate: false, impactDust: false });
         } else if (rowKey === 'buildingType') {
           if (cell.kind !== 'house') return;
-          const floors = value === 'tower' ? Math.max(cell.floors || 1, 2)
+          let floors = value === 'tower' ? Math.max(cell.floors || 1, 2)
             : (cell.floors || 1);
+          if (normalizeBuildingType(value) === 'air-command') floors = Math.min(floors, AIR_COMMAND_MAX_LEVEL);
           setCell(x, z, { ...cell, buildingType: value, floors, animate: false, impactDust: false });
         } else if (rowKey === 'size') {
           if (cell.kind) {
-            const floors = value === 'small' ? 1 : value === 'large' ? 4 : 2;
+            const requestedFloors = value === 'small' ? 1 : value === 'large' ? 4 : 2;
+            const floors = Math.min(requestedFloors, maxFloorsForCell(cell));
             setCell(x, z, { ...cell, floors, animate: false, impactDust: false });
           } else {
             const terrainFloors = value === 'small' ? 1 : value === 'large' ? 4 : 2;
@@ -24695,6 +24854,7 @@
       }
       // Bulk direct writes bypassed setCell — rebuild the live indices.
       rebuildCropPositions();
+      rebuildAirCommandPositions();
       rebuildMaxPumpkinCache();
       invalidateHomeFade();
       suppressSave = false;
