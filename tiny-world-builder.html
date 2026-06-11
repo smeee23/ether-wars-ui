@@ -387,7 +387,7 @@
     right: 14px;
     top: 324px;
     z-index: 42;
-    width: 300px;
+    width: 250px;
     max-width: calc(100vw - 32px);
     max-height: calc(100vh - 132px);
     overflow: auto;
@@ -3963,6 +3963,14 @@
     <div class="player-stat player-stat-numeric">
       <span>Credits</span>
       <span class="player-stat-value" id="player-stat-gold">0</span>
+    </div>
+    <div class="player-stat player-stat-numeric">
+      <span>Round Phase</span>
+      <span class="player-stat-value" id="player-stat-round-phase">Commit</span>
+    </div>
+    <div class="player-stat player-stat-numeric">
+      <span id="player-stat-next-phase-label">Next Reveal</span>
+      <span class="player-stat-value" id="player-stat-next-phase-countdown">--:--:--</span>
     </div>
     <div class="player-stat player-stat-numeric">
       <span>Population</span>
@@ -15307,6 +15315,9 @@
     entriesRemaining: 22,
     maxEntries: 200,
   };
+  const ROUND_COMMIT_START_HOUR = 6;
+  const ROUND_REVEAL_START_HOUR = 18;
+  let roundPhaseTimerId = null;
 
   function resourceRuleForTool(tool) {
     if (!tool) return null;
@@ -15468,6 +15479,53 @@
     return window.__tinyworldPlayerGameState || PLAYER_GAME_STATE_MOCK;
   }
 
+  function formatRoundCountdown(ms) {
+    const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+  }
+
+  function nextLocalHourDate(now, hour) {
+    const target = new Date(now);
+    target.setHours(hour, 0, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);
+    return target;
+  }
+
+  function getRoundPhaseInfo(now = new Date()) {
+    const hour = now.getHours();
+    const isCommit = hour >= ROUND_COMMIT_START_HOUR && hour < ROUND_REVEAL_START_HOUR;
+    const phase = isCommit ? 'Commit' : 'Reveal';
+    const nextPhase = isCommit ? 'Reveal' : 'Commit';
+    const nextHour = isCommit ? ROUND_REVEAL_START_HOUR : ROUND_COMMIT_START_HOUR;
+    const nextAt = nextLocalHourDate(now, nextHour);
+    const msUntilNextPhase = Math.max(0, nextAt.getTime() - now.getTime());
+    return {
+      phase,
+      nextPhase,
+      msUntilNextPhase,
+      formattedCountdown: formatRoundCountdown(msUntilNextPhase),
+    };
+  }
+
+  function updateRoundPhaseDisplay() {
+    const info = getRoundPhaseInfo();
+    const phaseEl = document.getElementById('player-stat-round-phase');
+    const nextLabelEl = document.getElementById('player-stat-next-phase-label');
+    const countdownEl = document.getElementById('player-stat-next-phase-countdown');
+    if (phaseEl) phaseEl.textContent = info.phase;
+    if (nextLabelEl) nextLabelEl.textContent = 'Next ' + info.nextPhase;
+    if (countdownEl) countdownEl.textContent = info.formattedCountdown;
+  }
+
+  function startRoundPhaseTimer() {
+    updateRoundPhaseDisplay();
+    if (roundPhaseTimerId !== null) return;
+    roundPhaseTimerId = window.setInterval(updateRoundPhaseDisplay, 1000);
+  }
+
   function clampStatPercent(value, target) {
     if (!target || target <= 0) return 0;
     return Math.max(0, Math.min(100, Math.round((value / target) * 100)));
@@ -15600,6 +15658,7 @@
     const populationEl = document.getElementById('player-stat-population');
     if (roundEl) roundEl.textContent = String(stats.roundNumber);
     if (populationEl) populationEl.textContent = String(Math.round(stats.population || 0));
+    updateRoundPhaseDisplay();
     if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
   }
 
@@ -26076,6 +26135,7 @@
     ensureGhostBoardsAroundTarget();
     initCrowdLayer();
     schedulePlayerStatsUpdate();
+    startRoundPhaseTimer();
     onResize();
     renderer.setAnimationLoop(animate);
     const vehicleDemoRequest = getVehicleDemoUrlRequest();

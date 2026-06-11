@@ -29,6 +29,7 @@ Use this together with:
 - Small props should fit comfortably inside a tile: ~0.2–0.8 units wide.
 - Houses can occupy one or multiple tiles, but doors/windows must remain readable from the default camera.
 - New single-cell building variants should usually be `kind: 'house'` with a `buildingType`, rendered by a shared voxel/procedural factory and added to the House tool variants, schema enums, ghost preview, thumbnails, ghost rendering, and mock resource rules.
+- Building variants derived from a voxel stamp can use a hidden internal stamp plus a dedicated house factory. Keep the stamp hidden from generic voxel-build pickers when the building must place/save as `kind: 'house'`.
 - Flying ambient objects should be scaled to feel like toys above the board, not real-world aircraft; crop duster wingspan target is around 1–1.5 tiles.
 - Rooftop defensive visuals should be separate visual-only factories with named subgroups for future rotation/tracking; do not add firing, damage, projectile, or combat behavior unless explicitly requested.
 - Level-gated rooftop visuals should derive from existing `floors` / build level state and shared helpers, not new saved fields; keep thresholds consistent across detailed, voxel, ghost, and thumbnail render paths.
@@ -66,6 +67,7 @@ Use this together with:
 - Respect the existing `userData.landing` pattern for placed cell objects.
 - For propellers: wrap or find the named prop mesh, spin around its local blade axis every frame, and add a translucent disc for high-RPM readability.
 - For aircraft: use shallow easing, pitch with climb/descent slope, and bank during turns. Do not teleport or dive straight down into the board.
+- Aircraft route targeting should use named live index helpers for the intended destination type, such as `airCommandPositions` plus `getAirCommandFlightTarget()`, instead of reusing unrelated gameplay indexes like crops.
 - For first-pass vehicle conversions, prefer additive primitives attached after GLB load over editing/replacing the GLB. Keep the existing flight root, path state, speed, scale, and update loop intact; hide obsolete named nodes such as propellers only when the GLB hierarchy can remain in place.
 - Particle effects should be capped and use cheap cloned `MeshBasicMaterial`; dispose particle materials when particles die.
 
