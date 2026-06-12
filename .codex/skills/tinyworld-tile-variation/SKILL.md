@@ -15,6 +15,7 @@ Expected behavior:
 - Re-clicking the same object kind increases `floors` up to `MAX_FLOORS`.
 - Oxygen Generation Plant is a specific exception: re-clicking increases
   `floors` up to `OXYGEN_PLANT_MAX_LEVEL` (6), then stops.
+- Tree is a specific exception: re-clicking/building is capped at level 1.
 - Terrain tools on empty terrain cells should stack height using `terrainFloors`.
 - Water terrain is the flat-terrain exception: manual water placement is capped
   at `terrainFloors: 1`, and repeat-click attempts should reject through the
@@ -24,6 +25,10 @@ Expected behavior:
 - Object intensity changes must rebuild the object mesh, not the ground mesh.
 - Object variations should remain the same `kind` unless a schema change is explicitly requested.
 - Same-kind rock neighbours should blend by neighbour strength, not render as identical stamped cells.
+- Crop/terraform greenhouse side masking must compare the same panel profile
+  that is actually rendered. If tree boxes render at crop-dome height, their
+  adjacency profile must also be crop-dome height, and out-of-bounds neighbors
+  must not be treated as default terrain.
 
 Fence levels:
 

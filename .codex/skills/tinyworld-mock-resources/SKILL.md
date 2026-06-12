@@ -26,5 +26,10 @@ Validation:
   `army`, civilian buildings contribute `shelter`. Keep UI labels, role color,
   cost text, placement spending, erase refunds, and stat/resource accounting
   derived from that central table.
+- Oxygen Generation Plant is a resource-backed non-house building in
+  `RESOURCE_BUILD_RULES`: it spends `gold`, contributes `oxygen`, upgrades
+  through the generic repeat-click `floors` path, and relies on
+  `OXYGEN_PLANT_MAX_LEVEL` / `maxFloorsForKind()` to reject max-level clicks
+  before spending.
 - Insufficient gold blocks placement and leaves the world unchanged.
 - Unsupported decorative tools keep normal world-builder behavior.

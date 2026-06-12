@@ -47,6 +47,7 @@ Use this together with:
 - When voxel stamps need to match built-in procedural structures, prefer passing targeted material overrides that reuse shared `M.*` materials instead of copying equivalent hex colors into the voxel palette.
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.
+- For building toolbar thumbnails, use the shared Box3-based thumbnail normalizer instead of per-building camera or Y-offset tweaks. Center by rendered bounds, scale by the largest rendered dimension, and align the bounding-box bottom to the shared tile baseline so large stamps like Air Command and Crystal Weapons Platform do not dominate.
 - If a model comes with a texture atlas, set `texture.encoding = THREE.sRGBEncoding` and check `flipY` for GLTF compatibility.
 
 ## Model import hygiene
