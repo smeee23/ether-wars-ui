@@ -17,6 +17,8 @@ Expected behavior:
   `floors` up to `OXYGEN_PLANT_MAX_LEVEL` (6), then stops.
 - Tree is a specific exception: re-clicking/building is capped at level 1.
 - Terrain tools on empty terrain cells should stack height using `terrainFloors`.
+- The Erase/trash tool peels one level at a time: extras first, then object
+  `floors`, then the object itself at level 1, then terrain height/material.
 - Water terrain is the flat-terrain exception: manual water placement is capped
   at `terrainFloors: 1`, and repeat-click attempts should reject through the
   same mock resource feedback used for blocked builds.

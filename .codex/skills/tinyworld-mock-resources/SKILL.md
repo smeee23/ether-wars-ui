@@ -11,7 +11,7 @@ Use this while the Resources model is frontend/mock-state only.
 - Keep cost/effect rules in `RESOURCE_BUILD_RULES`; do not spread resource economics into individual mesh factories.
 - `gold` is the spendable resource. Supported placements should call `trySpendMockResourcesForPlacement(selectedTool)` immediately before mutating world state.
 - If a placement cannot afford its gold cost, return without calling `setCell()` or `addCellExtra()`.
-- Erase refunds should derive from `RESOURCE_BUILD_RULES`, not a duplicated table. Multiply refunds/effect reversals by the stored build level (`floors` for objects, `terrainFloors` for repeated resource terrain), then clamp reversed resource effects at zero.
+- Erase refunds should derive from `RESOURCE_BUILD_RULES`, not a duplicated table. The Erase/trash tool removes one level per click, so refund/effect reversal should apply to one level at a time and clamp reversed resource effects at zero.
 - Resource placement audio should use the existing SFX helpers. Spend failures play the rejection clip in the spend helper; successes play after `setCell()` / `addCellExtra()` mutates the world.
 - Update the User Stats panel through `RESOURCE_KEYS`, `setPlayerStat()`, and `updatePlayerStatsPanel()`.
 - Placement feedback should stay in the mock resource layer: use `flashPlayerResourceStats()` from spend/refund helpers rather than scattering DOM animation calls through tool placement branches.
@@ -31,5 +31,8 @@ Validation:
   through the generic repeat-click `floors` path, and relies on
   `OXYGEN_PLANT_MAX_LEVEL` / `maxFloorsForKind()` to reject max-level clicks
   before spending.
+- Grass, Dirt, Tree, Tuft, Flower, and Bush are also oxygen-backed rules in
+  `RESOURCE_BUILD_RULES`. Keep them on the same placement/refund helpers as
+  Oxygen Generation Plant rather than directly mutating oxygen stats.
 - Insufficient gold blocks placement and leaves the world unchanged.
 - Unsupported decorative tools keep normal world-builder behavior.

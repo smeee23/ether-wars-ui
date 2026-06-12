@@ -4963,7 +4963,7 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
-  let currentTodMinutes = 500;
+  let currentTodMinutes = 0;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.84;
   const WEATHER_DECAL_LIFT = 0.09;
@@ -9074,6 +9074,22 @@
       // foundation, remove the brown/paper middle level, and lower the first
       // gray roof so it rests directly on the base. Keep one compact gray top
       // layer above the roof; makeAirCommand adds the force-shield cap over it.
+      const layer7 = pagoda().filter(v => v.y === 7);
+
+      const minX = Math.min(...layer7.map(v => v.x));
+      const maxX = Math.max(...layer7.map(v => v.x));
+      const minZ = Math.min(...layer7.map(v => v.z));
+      const maxZ = Math.max(...layer7.map(v => v.z));
+
+      const corners = layer7
+          .filter(v =>
+              (v.x === minX && v.z === minZ) ||
+              (v.x === minX && v.z === maxZ) ||
+              (v.x === maxX && v.z === minZ) ||
+              (v.x === maxX && v.z === maxZ)
+          )
+          .map(v => vox(v.x, v.y - 5, v.z, v.color));
+
       const base = pagoda()
         .filter(v => v.y == 7 )
         .map(v => v.y >= 7 ? vox(v.x, v.y - 5, v.z, v.color) : v);
@@ -9085,12 +9101,13 @@
       const heightOffset = 12;
 
       return [
-        ...base.map(v => vox(v.x, v.y, v.z, v.color)),
-        ...base.map(v => vox(v.x, v.y + 1, v.z, v.color)),
-        ...base.map(v => vox(v.x, v.y + 2, v.z, v.color)),
-        ...base.map(v => vox(v.x, v.y + 3, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 1, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 2, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 3, v.z, v.color)),
         ...base.map(v => vox(v.x, v.y + 4, v.z, v.color)),
-        ...upper.map(v => vox(v.x, v.y + 5, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 5, v.z, v.color)),
+        ...upper.map(v => vox(v.x, v.y + 6, v.z, v.color)),
         ...upper.map(v => vox(v.x, v.y + heightOffset, v.z, v.color)),
       ];
     }
@@ -15385,6 +15402,8 @@
   }
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
+  const OXYGEN_TERRAIN_KINDS = new Set(['grass', 'dirt']);
+  const OXYGEN_PLANT_KINDS = new Set(['tree', 'tuft', 'flower', 'bush']);
   const RESOURCE_KEYS = ['gold', 'food', 'water', 'oxygen', 'shelter', 'army'];
   const OXYGEN_PER_LEVEL = 12;
   // Temporary frontend-only building economics for the mock Resources model.
@@ -15392,6 +15411,12 @@
   // from contract/indexer state or a versioned game-state snapshot.
   const RESOURCE_BUILD_RULES = {
     water: { label: 'Well / Water', cost: { gold: 10 }, effect: { water: 12 } },
+    grass: { label: 'Grass', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
+    dirt: { label: 'Dirt', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
+    tree: { label: 'Tree', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
+    tuft: { label: 'Tuft', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
+    flower: { label: 'Flower', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
+    bush: { label: 'Bush', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     crop: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     corn: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
     wheat: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
@@ -15423,12 +15448,14 @@
   function resourceRuleForTool(tool) {
     if (!tool) return null;
     if (tool.terrain === 'water') return RESOURCE_BUILD_RULES.water;
+    if (tool.terrain && OXYGEN_TERRAIN_KINDS.has(tool.terrain)) return RESOURCE_BUILD_RULES[tool.terrain] || null;
     if (tool.kind === 'house') {
       const variant = tool.activeVariant;
       const buildingType = normalizeBuildingType(variant && variant.buildingType);
       return buildingType ? RESOURCE_BUILD_RULES[buildingType] : null;
     }
     if (tool.kind === 'voxel-build' && tool.voxelBuildId) return RESOURCE_BUILD_RULES[tool.voxelBuildId] || null;
+    if (tool.kind && OXYGEN_PLANT_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || null;
     if (tool.kind === 'oxygen-plant') return RESOURCE_BUILD_RULES['oxygen-plant'];
     if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
@@ -15445,10 +15472,12 @@
       const id = cell.appearance && cell.appearance.voxelBuildId;
       return id ? RESOURCE_BUILD_RULES[id] || null : null;
     }
+    if (cell.kind && OXYGEN_PLANT_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || null;
     if (cell.kind === 'oxygen-plant') return RESOURCE_BUILD_RULES['oxygen-plant'];
     if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
     if (!cell.kind && cell.terrain === 'water') return RESOURCE_BUILD_RULES.water;
+    if (!cell.kind && cell.terrain !== BASE_TERRAIN && OXYGEN_TERRAIN_KINDS.has(cell.terrain)) return RESOURCE_BUILD_RULES[cell.terrain] || null;
     return null;
   }
 
@@ -15571,6 +15600,14 @@
     flashPlayerResourceStats(feedbackIds, 'positive');
     schedulePlayerStatsUpdate();
     return true;
+  }
+
+  function refundOneMockResourceLevelForErase(cell) {
+    if (!cell) return false;
+    const oneLevelCell = Object.assign({}, cell);
+    if (oneLevelCell.kind) oneLevelCell.floors = 1;
+    else oneLevelCell.terrainFloors = 1;
+    return refundMockResourcesForErase(oneLevelCell);
   }
 
   function playMockResourcePlacementSuccess(tool) {
@@ -17434,17 +17471,37 @@
     // Peel decorations off first — tufts / fences sitting alongside
     // the main kind go before the main kind itself goes.
     if (cell.extras && cell.extras.length) {
-      refundMockResourcesForErase(cell.extras[cell.extras.length - 1]);
+      const lastExtra = cell.extras[cell.extras.length - 1];
+      const extraFloors = lastExtra.floors || 1;
+      refundOneMockResourceLevelForErase(lastExtra);
+      if (extraFloors > 1) {
+        lastExtra.floors = extraFloors - 1;
+        renderCellExtras(x, z);
+        refreshVehiclesForWorldObstacleChange(x, z);
+        saveState();
+        return true;
+      }
       popCellExtra(x, z);
       return true;
     }
     if (cell.kind) {
-      refundMockResourcesForErase(cell);
+      const objectFloors = cell.floors || 1;
+      refundOneMockResourceLevelForErase(cell);
+      if (objectFloors > 1) {
+        setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: cell.kind, floors: objectFloors - 1 });
+        return true;
+      }
       setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       return true;
     }
+    const terrainFloors = terrainLevelForCell(cell);
+    if (terrainFloors > 1) {
+      refundOneMockResourceLevelForErase({ terrain: cell.terrain, terrainFloors: 1, kind: null });
+      setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainFloors - 1, kind: null, floors: 1 });
+      return true;
+    }
     if (cell.terrain !== BASE_TERRAIN) {
-      refundMockResourcesForErase({ terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: null });
+      refundOneMockResourceLevelForErase({ terrain: cell.terrain, terrainFloors: 1, kind: null });
       setCell(x, z, { terrain: BASE_TERRAIN, terrainFloors: terrainLevelForCell(cell), kind: null, floors: 1 });
       return true;
     }
@@ -17617,7 +17674,9 @@
       // Tufts are decorative — they go alongside another main kind
       // rather than replacing it.
       if (selectedTool.kind === 'tuft' && cell.kind && cell.kind !== 'tuft') {
+        if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         addCellExtra(x, z, { kind: 'tuft' });
+        playMockResourcePlacementSuccess(selectedTool);
         return;
       }
       // If the tile's current main is a fence or tuft, demote it to an
