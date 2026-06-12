@@ -6758,15 +6758,20 @@
     return kind === 'tree' || kind === 'tuft' || kind === 'flower' || kind === 'bush';
   }
 
+  function isLifeKind(kind) {
+    return kind === 'cow' || kind === 'sheep';
+  }
+
   function isTerraformTool(tool) {
     return !!(tool && (isTerraformTerrain(tool.terrain) || isTerraformKind(tool.kind)));
   }
 
-  function addTerraformGreenhouseBox(root, baseY = 0, heightScale = 1) {
+  function addTerraformGreenhouseBox(root, baseY = 0, heightScale = 1, visibleSides = null) {
     if (!root) return null;
     const box = new THREE.Group();
-    addCropGreenhouseDome(box);
+    addCropGreenhouseDome(box, visibleSides);
     box.name = 'terraformGreenhouseBox';
+    box.userData.gridAlignedGreenhouse = true;
     box.position.y = baseY;
     box.scale.y = Math.max(0.1, heightScale || 1);
     root.add(box);
@@ -6931,7 +6936,7 @@
 
   // -------- object factories --------
   function makeTree(level = 1) {
-    const L = Math.max(1, Math.min(MAX_FLOORS, level));
+    const L = Math.max(1, Math.min(maxFloorsForKind('tree'), level || 1));
     const g = new THREE.Group();
 
     // Trunk grows in both height and thickness with level.
@@ -8462,8 +8467,8 @@
     return g;
   }
 
-  const CROP_DOME_SIZE = 0.96;
-  const CROP_DOME_HEIGHT = 0.7;
+  const CROP_DOME_SIZE = 0.99;
+  const CROP_DOME_HEIGHT = 1.2;
   const CROP_DOME_BASE_Y = 0.045;
   let cropDomeAssets = null;
 
@@ -8478,18 +8483,21 @@
     return cropDomeAssets;
   }
 
-  function addCropGreenhouseDome(g) {
+  function addCropGreenhouseDome(g, visibleSides = null) {
     const assets = ensureCropDomeAssets();
     const half = CROP_DOME_SIZE / 2;
     const midY = CROP_DOME_BASE_Y + CROP_DOME_HEIGHT / 2;
     const topY = CROP_DOME_BASE_Y + CROP_DOME_HEIGHT;
 
     [
-      { x: 0, z: -half, rot: 0 },
-      { x: 0, z:  half, rot: 0 },
-      { x: -half, z: 0, rot: Math.PI / 2 },
-      { x:  half, z: 0, rot: Math.PI / 2 },
+      { side: 'n', x: 0, z: -half, rot: 0 },
+      { side: 's', x: 0, z:  half, rot: 0 },
+      { side: 'w', x: -half, z: 0, rot: Math.PI / 2 },
+      { side: 'e', x:  half, z: 0, rot: Math.PI / 2 },
     ].forEach(p => {
+      // Connected greenhouse cells share an internal edge. Hide that panel
+      // on both cells so only the outside perimeter keeps force-shield sides.
+      if (visibleSides && visibleSides[p.side] === false) return;
       const panel = new THREE.Mesh(assets.glassSideGeo, M.greenhouseGlass);
       panel.position.set(p.x, midY, p.z);
       panel.rotation.y = p.rot;
@@ -8504,21 +8512,109 @@
     roof.renderOrder = 4;
     g.add(roof);
 
-    for (const x of [-half, half]) {
-      for (const z of [-half, half]) {
-        const post = new THREE.Mesh(assets.postGeo, M.greenhouseFrame);
-        post.position.set(x, midY, z);
-        g.add(post);
-      }
-    }
     return g;
+  }
+
+  function addGridAlignedCropGreenhouseDome(root, visibleSides = null) {
+    const shield = new THREE.Group();
+    shield.userData.gridAlignedGreenhouse = true;
+    addCropGreenhouseDome(shield, visibleSides);
+    root.add(shield);
+    return shield;
   }
 
   function isGreenhouseCropKind(kind) {
     return kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'pumpkin' || kind === 'carrot' || kind === 'sunflower';
   }
 
-  function makeCrop() {
+  function isCropGreenhouseObjectKind(kind) {
+    return isTerraformKind(kind) || isGreenhouseCropKind(kind) || isLifeKind(kind);
+  }
+
+  function cellHasCropGreenhouseDome(cell) {
+    return !!(cell && (isTerraformTerrain(cell.terrain) || isCropGreenhouseObjectKind(cell.kind)));
+  }
+
+  function cellHasCropGreenhouseObjectDome(cell) {
+    return !!(cell && isCropGreenhouseObjectKind(cell.kind));
+  }
+
+  function cropGreenhousePanelProfile(cell, x, z) {
+    if (x < 0 || x >= GRID || z < 0 || z >= GRID) return null;
+    if (!cell) return null;
+    const baseY = TOP_H + terrainRiseAt(x, z);
+    if (isCropGreenhouseObjectKind(cell.kind)) {
+      return {
+        baseY,
+        heightScale: 1,
+      };
+    }
+    if (isTerraformTerrain(cell.terrain)) {
+      return { baseY, heightScale: 1 };
+    }
+    return null;
+  }
+
+  function cropGreenhousePanelsConnect(a, b) {
+    if (!a || !b) return false;
+    const epsilon = 0.001;
+    // Only remove the shared side when the two force-shield panels occupy the
+    // same vertical profile. Different terrain heights keep their separating
+    // side panels visible.
+    return Math.abs(a.baseY - b.baseY) < epsilon
+      && Math.abs(a.heightScale - b.heightScale) < epsilon;
+  }
+
+  function getCropGreenhouseVisibleSides(x, z) {
+    // Side panels are perimeter-only. If the cardinal neighbor also renders a
+    // compatible crop greenhouse dome, this cell's shared panel is internal and omitted.
+    const current = cropGreenhousePanelProfile(getWorldCell(x, z), x, z);
+    return {
+      n: !cropGreenhousePanelsConnect(current, cropGreenhousePanelProfile(getWorldCell(x, z - 1), x, z - 1)),
+      s: !cropGreenhousePanelsConnect(current, cropGreenhousePanelProfile(getWorldCell(x, z + 1), x, z + 1)),
+      w: !cropGreenhousePanelsConnect(current, cropGreenhousePanelProfile(getWorldCell(x - 1, z), x - 1, z)),
+      e: !cropGreenhousePanelsConnect(current, cropGreenhousePanelProfile(getWorldCell(x + 1, z), x + 1, z)),
+    };
+  }
+
+  function renderCropGreenhouseCell(x, z) {
+    const cell = getWorldCell(x, z);
+    if (!cellHasCropGreenhouseDome(cell)) return;
+    // Greenhouse panels can live on terrain tiles, crop objects, Terraform
+    // objects, and Life objects. Rebuild both layers so mixed neighbors do not
+    // leave one side with a stale internal panel.
+    if (isTerraformTerrain(cell.terrain)) renderCellTile(x, z, { animate: false });
+    if (cell.kind) renderCellObject(x, z, { animate: false, impactDust: false });
+  }
+
+  function refreshCropGreenhouseAdjacency(x, z) {
+    renderCropGreenhouseCell(x, z);
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      renderCropGreenhouseCell(x + dx, z + dz);
+    }
+  }
+
+  function naturalObjectQuarterTurns(kind, x, z) {
+    if (kind === 'rock' || kind === 'tree' || kind === 'tuft' || kind === 'flower' || kind === 'bush' || isLifeKind(kind)) {
+      return Math.floor(cellRand(x, z, 71) * 4);
+    }
+    return 0;
+  }
+
+  function alignGridGreenhouseShields(root) {
+    if (!root) return;
+    const inverseY = -(root.rotation && root.rotation.y ? root.rotation.y : 0);
+    root.traverse(child => {
+      if (child !== root && child.userData && child.userData.gridAlignedGreenhouse) {
+        // Natural objects can rotate independently, but their force-shield
+        // panels describe tile edges. Counter-rotate the shield wrapper so
+        // north/south/east/west masks stay symmetric with neighboring cells.
+        child.rotation.y = inverseY;
+      }
+    });
+  }
+
+  function makeCrop(visibleSides = null) {
     // Leafy "cabbage" crop — the original. Now static (no bob animation).
     const g = new THREE.Group();
     const positions = [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]];
@@ -8531,14 +8627,14 @@
       leaf.rotation.y = i * 0.4;
       g.add(leaf);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'crop' };
     castReceive(g);
     return g;
   }
 
   // Tall corn stalks with a yellow cob and tasseled top. 4 per cell.
-  function makeCorn() {
+  function makeCorn(visibleSides = null) {
     const g = new THREE.Group();
     const positions = [[-0.22, -0.20], [0.22, -0.22], [-0.20, 0.22], [0.22, 0.20]];
     positions.forEach(([x, z], i) => {
@@ -8557,14 +8653,14 @@
       tip.rotation.y = i * 0.55;
       g.add(tip);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'corn' };
     castReceive(g);
     return g;
   }
 
   // Dense wheat field — 9 thin stalks with golden heads, slight jitter.
-  function makeWheat() {
+  function makeWheat(visibleSides = null) {
     const g = new THREE.Group();
     for (let i = 0; i < 9; i++) {
       const gx = (i % 3) - 1;
@@ -8579,14 +8675,14 @@
       head.position.set(x, h + 0.04, z);
       g.add(head);
     }
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'wheat' };
     castReceive(g);
     return g;
   }
 
   // 3 chunky pumpkins on the dirt — flattened spheres with a brown stem.
-  function makePumpkin() {
+  function makePumpkin(visibleSides = null) {
     const g = new THREE.Group();
     const positions = [
       { x: -0.18, z:  0.10, s: 1.00, rot: 0.3 },
@@ -8609,7 +8705,7 @@
       stem.position.set(p.x, r * 1.2, p.z);
       g.add(stem);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'pumpkin' };
     castReceive(g);
     return g;
@@ -8620,7 +8716,7 @@
   // pumpkin lumps: rounded coach body in pumpkin orange, ribbed bands
   // from the dark pumpkin material, four little wheels, a door window,
   // and a gold ornament on the roof.
-  function makePumpkinCarriage() {
+  function makePumpkinCarriage(visibleSides = null) {
     const g = new THREE.Group();
 
     // Main coach body — flattened sphere standing on the dirt.
@@ -8691,14 +8787,14 @@
     trim.position.y = 0.20;
     g.add(trim);
 
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'pumpkin', carriage: true, swayPhase: Math.random() * Math.PI * 2 };
     castReceive(g);
     return g;
   }
 
   // Carrot rows — orange tips poking out of the dirt with green leafy tops.
-  function makeCarrot() {
+  function makeCarrot(visibleSides = null) {
     const g = new THREE.Group();
     const positions = [
       [-0.22, -0.22], [0.0, -0.22], [0.22, -0.22],
@@ -8718,14 +8814,14 @@
         g.add(blade);
       }
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'carrot' };
     castReceive(g);
     return g;
   }
 
   // Sunflowers — 3 tall stalks with yellow discs and brown centers.
-  function makeSunflower() {
+  function makeSunflower(visibleSides = null) {
     const g = new THREE.Group();
     const positions = [
       { x: -0.20, z: -0.10, h: 0.62 },
@@ -8752,7 +8848,7 @@
       center.rotation.x = -0.25;
       g.add(center);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'sunflower' };
     castReceive(g);
     return g;
@@ -8848,7 +8944,7 @@
     castReceive(g);
     return g;
   }
-  function makeCow() {
+  function makeCow(visibleSides = null) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.24), M_ANIMAL.cowWhite);
     body.position.set(0, 0.22, 0);
@@ -8873,12 +8969,12 @@
       leg.position.set(x, 0.08, z);
       g.add(leg);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'cow' };
     castReceive(g);
     return g;
   }
-  function makeSheep() {
+  function makeSheep(visibleSides = null) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.22), M_ANIMAL.sheepWool);
     body.position.set(0, 0.22, 0);
@@ -8899,7 +8995,7 @@
       leg.position.set(x, 0.07, z);
       g.add(leg);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'sheep' };
     castReceive(g);
     return g;
@@ -9954,7 +10050,7 @@
       : makeFence(normalized, level);
   }
 
-  function makeVoxelCropKind(kind, level = 1) {
+  function makeVoxelCropKind(kind, level = 1, visibleSides = null) {
     const g = new THREE.Group();
     const extra = Math.max(0, Math.min(MAX_FLOORS, level || 1) - 1);
     const positions = [
@@ -9995,7 +10091,7 @@
         vbox(g, 0.18, 0.16, 0.18, x, 0.17, z, M.cropLeaf);
       }
     }
-    if (isGreenhouseCropKind(kind)) addCropGreenhouseDome(g);
+    if (isGreenhouseCropKind(kind)) addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind };
     castReceive(g);
     return g;
@@ -10018,7 +10114,7 @@
     return g;
   }
 
-  function makeVoxelAnimal(kind) {
+  function makeVoxelAnimal(kind, visibleSides = null) {
     const g = new THREE.Group();
     const sheep = kind === 'sheep';
     const bodyMat = sheep ? M_ANIMAL.sheepWool : M_ANIMAL.cowWhite;
@@ -10034,7 +10130,7 @@
     [[0.13, -0.08], [0.13, 0.08], [-0.13, -0.08], [-0.13, 0.08]].forEach(([x, z]) => {
       vbox(g, 0.06, 0.14, 0.06, x, 0.07, z, M_ANIMAL.hoof);
     });
-    addCropGreenhouseDome(g);
+    addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind };
     castReceive(g);
     return g;
@@ -10081,9 +10177,9 @@
     else if (kind === 'tree') mesh = makeVoxelTree(level);
     else if (kind === 'rock') mesh = makeVoxelRock(getRockNeighbors(x, z), level, x, z, cell.terrain === 'water');
     else if (kind === 'bridge') mesh = makeVoxelBridge(getBridgeOrientation(x, z), level);
-    else if (kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'carrot' || kind === 'sunflower') mesh = makeVoxelCropKind(kind, level);
-    else if (kind === 'pumpkin') mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makeVoxelPumpkinCarriage() : makeVoxelCropKind('pumpkin', level);
-    else if (kind === 'cow' || kind === 'sheep') mesh = makeVoxelAnimal(kind);
+    else if (kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'carrot' || kind === 'sunflower') mesh = makeVoxelCropKind(kind, level, getCropGreenhouseVisibleSides(x, z));
+    else if (kind === 'pumpkin') mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makeVoxelPumpkinCarriage() : makeVoxelCropKind('pumpkin', level, getCropGreenhouseVisibleSides(x, z));
+    else if (kind === 'cow' || kind === 'sheep') mesh = makeVoxelAnimal(kind, getCropGreenhouseVisibleSides(x, z));
     else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
     else if (kind === 'chimney' || kind === 'ripple' || kind === 'shrub' || kind === 'stone' || kind === 'pebble' || kind === 'bridge-rail') mesh = makeVoxelMicroKind(kind, level, x, z);
     else if (kind === 'fence') {
@@ -10403,6 +10499,7 @@
   const OXYGEN_PLANT_MAX_LEVEL = 6;
 
   function maxFloorsForKind(kind) {
+    if (kind === 'tree') return 1;
     return kind === 'oxygen-plant' ? OXYGEN_PLANT_MAX_LEVEL : MAX_FLOORS;
   }
 
@@ -15036,8 +15133,8 @@
       levels: getLevelNeighbors(x, z),
     }, x, z, tileLevelForCell(cell), { showBorder: true });
 
-    if (isTerraformTerrain(cell.terrain)) {
-      addTerraformGreenhouseBox(tile, terrainRiseAt(x, z) + TOP_H);
+    if (isTerraformTerrain(cell.terrain) && !cellHasCropGreenhouseObjectDome(cell)) {
+      addTerraformGreenhouseBox(tile, terrainRiseAt(x, z) + TOP_H, 1, getCropGreenhouseVisibleSides(x, z));
     }
 
     const p = tilePos(x, z);
@@ -15090,6 +15187,8 @@
     const appearanceForRender = normalizeAppearance(cell.appearance);
     const renderStyle = appearanceForRender && appearanceForRender.objectStyle;
     const useVoxelRender = kind === 'voxel-build' || renderStyle !== 'normal';
+    const objectQuarterTurns = naturalObjectQuarterTurns(kind, x, z);
+    const objectGreenhouseSides = getCropGreenhouseVisibleSides(x, z);
 
     let mesh = null;
     let posX = null, posZ = null;
@@ -15108,14 +15207,14 @@
     else if (kind === 'tuft')      mesh = makeTuft();
     else if (kind === 'flower')    mesh = makeFlower();
     else if (kind === 'bush')      mesh = makeBush();
-    else if (kind === 'cow')       mesh = makeCow();
-    else if (kind === 'sheep')     mesh = makeSheep();
-    else if (kind === 'crop')      mesh = makeCrop();
-    else if (kind === 'corn')      mesh = makeCorn();
-    else if (kind === 'wheat')     mesh = makeWheat();
-    else if (kind === 'pumpkin')   mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makePumpkinCarriage() : makePumpkin();
-    else if (kind === 'carrot')    mesh = makeCarrot();
-    else if (kind === 'sunflower') mesh = makeSunflower();
+    else if (kind === 'cow')       mesh = makeCow(objectGreenhouseSides);
+    else if (kind === 'sheep')     mesh = makeSheep(objectGreenhouseSides);
+    else if (kind === 'crop')      mesh = makeCrop(objectGreenhouseSides);
+    else if (kind === 'corn')      mesh = makeCorn(objectGreenhouseSides);
+    else if (kind === 'wheat')     mesh = makeWheat(objectGreenhouseSides);
+    else if (kind === 'pumpkin')   mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makePumpkinCarriage(objectGreenhouseSides) : makePumpkin(objectGreenhouseSides);
+    else if (kind === 'carrot')    mesh = makeCarrot(objectGreenhouseSides);
+    else if (kind === 'sunflower') mesh = makeSunflower(objectGreenhouseSides);
     else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
     else if (kind === 'fence') {
       if (cell.terrain === 'path') {
@@ -15148,7 +15247,7 @@
 
     if (!mesh) return;
     if (!voxelRender && kind !== 'house' && kind !== 'fence' && kind !== 'rock') addEnhancementBits(mesh, kind, level);
-    if (isTerraformKind(kind)) addTerraformGreenhouseBox(mesh, 0, kind === 'tree' ? 2.5 : 1);
+    if (isTerraformKind(kind)) addTerraformGreenhouseBox(mesh, 0, 1, objectGreenhouseSides);
     if (posX === null) {
       const p = tilePos(x, z);
       posX = p.x; posZ = p.z;
@@ -15157,8 +15256,7 @@
     // same kind doesn't look identical in every tile. Deterministic on
     // (x, z) via cellRand so re-renders keep the same orientation.
     if (kind === 'rock' || kind === 'tree' || kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'cow' || kind === 'sheep') {
-      const r = Math.floor(cellRand(x, z, 71) * 4); // 0..3
-      mesh.rotation.y += r * (Math.PI / 2);
+      mesh.rotation.y += objectQuarterTurns * (Math.PI / 2);
     }
     // Apply any user-supplied rotation / within-tile offset (set by
     // the ghost-preview arrow keys at placement time).
@@ -15172,6 +15270,7 @@
     const userOffsetX = (cell.offsetX   || 0);
     const userOffsetZ = (cell.offsetZ   || 0);
     if (userRot) mesh.rotation.y += userRot;
+    alignGridGreenhouseShields(mesh);
     if (userScale !== 1) mesh.scale.multiplyScalar(userScale);
     mesh.userData.objectScaleBase = userScale;
     const objectY = TOP_H + terrainRiseAt(x, z);
@@ -15287,6 +15386,7 @@
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
   const RESOURCE_KEYS = ['gold', 'food', 'water', 'oxygen', 'shelter', 'army'];
+  const OXYGEN_PER_LEVEL = 12;
   // Temporary frontend-only building economics for the mock Resources model.
   // TODO(contract/indexer): replace this table with canonical costs/effects
   // from contract/indexer state or a versioned game-state snapshot.
@@ -15303,6 +15403,7 @@
     'air-command': { label: 'Air Command', role: 'military', cost: { gold: 45 }, effect: { army: 35 } },
     habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 18 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
+    'oxygen-plant': { label: 'Oxygen Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 16 } },
     'crystal-mining-rig': { label: 'Crystal Weapons Platform', role: 'military', cost: { gold: 60 }, effect: { army: 48 } },
     // TODO(contract/indexer): Barracks is reserved for the future army-building
@@ -15328,6 +15429,7 @@
       return buildingType ? RESOURCE_BUILD_RULES[buildingType] : null;
     }
     if (tool.kind === 'voxel-build' && tool.voxelBuildId) return RESOURCE_BUILD_RULES[tool.voxelBuildId] || null;
+    if (tool.kind === 'oxygen-plant') return RESOURCE_BUILD_RULES['oxygen-plant'];
     if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
     return null;
@@ -15343,6 +15445,7 @@
       const id = cell.appearance && cell.appearance.voxelBuildId;
       return id ? RESOURCE_BUILD_RULES[id] || null : null;
     }
+    if (cell.kind === 'oxygen-plant') return RESOURCE_BUILD_RULES['oxygen-plant'];
     if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
     if (!cell.kind && cell.terrain === 'water') return RESOURCE_BUILD_RULES.water;
@@ -15362,12 +15465,13 @@
     if (!rule) return '';
     const parts = [];
     const goldCost = Math.max(0, Math.round((rule.cost && rule.cost.gold) || 0));
-    if (goldCost) parts.push('Gold ' + goldCost);
+    if (goldCost) parts.push('Credits ' + goldCost);
     const effect = rule.effect || {};
-    if (effect.army) parts.push('Army +' + effect.army);
+    if (effect.army) parts.push('Fleet +' + effect.army);
     if (effect.shelter) parts.push('Shelter +' + effect.shelter);
     if (effect.food) parts.push('Food +' + effect.food);
     if (effect.water) parts.push('Water +' + effect.water);
+    if (effect.oxygen) parts.push('Oxygen +' + effect.oxygen);
     return parts.join(' | ');
   }
 
@@ -15740,6 +15844,8 @@
     const isCrop = isCropCell(world[x][z]);
     if (wasCrop && !isCrop) removeCropPosition(x, z);
     if (!wasCrop && isCrop) addCropPosition(x, z);
+    const greenhouseAdjacencyChanged = cellHasCropGreenhouseDome(prev) !== cellHasCropGreenhouseDome(world[x][z])
+      || terrainChanged || kindChanged || terrainFloorsChanged || floorsChanged;
     const wasAirCommand = isAirCommandCell(prev);
     const isAirCommand = isAirCommandCell(world[x][z]);
     if (wasAirCommand && !isAirCommand) removeAirCommandPosition(x, z);
@@ -15781,6 +15887,9 @@
         if (getWorldCell(nx, nz).kind === 'bridge') renderCellObject(nx, nz, { animate: false });
       }
       if (getWorldCell(x, z).kind === 'bridge') renderCellObject(x, z, { animate: false });
+    }
+    if (greenhouseAdjacencyChanged) {
+      refreshCropGreenhouseAdjacency(x, z);
     }
     if (!kindChanged && !floorsChanged && !terrainFloorsChanged && !bTypeChanged && !fenceSideChanged && !appearanceChanged && !transformChanged) {
       if (terrainChanged || tileHeightChanged || forceTile || borderStateChanged) {
@@ -16568,6 +16677,12 @@
   // it eases back to the resting angle.
   const THUMB_BASE_ANGLE = Math.PI / 4;
   const THUMB_SIZE = 96;
+  const THUMB_BUILDING_TARGET_SPAN = 1.28;
+  const THUMB_BUILDING_BASELINE_Y = TOP_H;
+  const THUMB_BUILDING_CAMERA_SIDE = 1.55;
+  const THUMB_BUILDING_CAMERA_TOP = 1.90;
+  const THUMB_BUILDING_CAMERA_BOTTOM = -0.82;
+  const THUMB_BUILDING_LOOK_AT_Y = 0.60;
   let thumbRenderer = null;
   const thumbScenes = new Map();      // toolId -> { scene, camera, canvas, ctx, angle, baseAngle, returning }
   const hoverThumbs = new Set();
@@ -16627,6 +16742,29 @@
     return 'grass';
   }
 
+  function isBuildingThumbTool(tool) {
+    return !!(tool && (tool.kind === 'house' || tool.kind === 'voxel-build' || tool.kind === 'oxygen-plant'));
+  }
+
+  function normalizeBuildingThumbObject(obj) {
+    if (!obj) return null;
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    if (!Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) return null;
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const largest = Math.max(size.x, size.y, size.z, 0.001);
+    const scale = THUMB_BUILDING_TARGET_SPAN / largest;
+    obj.scale.multiplyScalar(scale);
+    obj.updateMatrixWorld(true);
+    const scaledBox = new THREE.Box3().setFromObject(obj);
+    const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+    obj.position.x += -scaledCenter.x;
+    obj.position.z += -scaledCenter.z;
+    obj.position.y += THUMB_BUILDING_BASELINE_Y - scaledBox.min.y;
+    return { size, center, scale };
+  }
+
   function buildToolThumb(tool, canvas) {
     if (!window.THREE) return null;
     ensureThumbRenderer();
@@ -16648,8 +16786,9 @@
 
     const obj = makeThumbObject(tool);
     if (obj) {
-      if (isTerraformTool(tool)) addTerraformGreenhouseBox(obj, 0, tool.kind === 'tree' ? 2 : 1);
+      if (isTerraformTool(tool)) addTerraformGreenhouseBox(obj, 0, 1);
       obj.position.y = TOP_H;
+      if (isBuildingThumbTool(tool)) normalizeBuildingThumbObject(obj);
       scene.add(obj);
     } else if (isTerraformTool(tool)) {
       const box = new THREE.Group();
@@ -16660,22 +16799,18 @@
     // Strip shadows — the thumb renderer has no shadow maps.
     scene.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
 
-    // Buildings need variant-specific framing: the skyscraper/towers need a
-    // taller frustum, while compact variants need a tighter flyout crop.
-    const houseType = tool.kind === 'house' && tool.activeVariant && tool.activeVariant.buildingType;
+    // Thumbnail generation path: makeThumbObject() creates the rendered asset,
+    // normalizeBuildingThumbObject() Box3-centers/scales building thumbnails,
+    // then buildToolThumb()/renderToolThumb() frame it with this shared camera.
     let thumbFrame = { left: -1.3, right: 1.3, top: 1.3, bottom: -1.3, lookAtY: 0.4 };
-    if (tool.kind === 'house') {
-      if (houseType === 'skyscraper') {
-        thumbFrame = { left: -1.7, right: 1.7, top: 2.6, bottom: -1.0, lookAtY: 1.0 };
-      } else if (houseType === 'habitat') {
-        thumbFrame = { left: -1.45, right: 1.45, top: 1.55, bottom: -0.95, lookAtY: 0.48 };
-      } else if (houseType === 'air-command') {
-        thumbFrame = { left: -2.35, right: 2.35, top: 2.45, bottom: -1.0, lookAtY: 0.78 };
-      } else if (houseType === 'tower') {
-        thumbFrame = { left: -1.58, right: 1.58, top: 2.15, bottom: -0.95, lookAtY: 0.85 };
-      } else {
-        thumbFrame = { left: -1.36, right: 1.36, top: 1.65, bottom: -0.95, lookAtY: 0.56 };
-      }
+    if (isBuildingThumbTool(tool)) {
+      thumbFrame = {
+        left: -THUMB_BUILDING_CAMERA_SIDE,
+        right: THUMB_BUILDING_CAMERA_SIDE,
+        top: THUMB_BUILDING_CAMERA_TOP,
+        bottom: THUMB_BUILDING_CAMERA_BOTTOM,
+        lookAtY: THUMB_BUILDING_LOOK_AT_Y,
+      };
     }
     const cam = new THREE.OrthographicCamera(
       thumbFrame.left, thumbFrame.right, thumbFrame.top, thumbFrame.bottom, 0.1, 30,
@@ -17471,6 +17606,8 @@
         // so cap their stacking there instead of running up to MAX_FLOORS.
         const stackMax = selectedTool.kind === 'bridge' ? 4 : maxFloorsForKind(selectedTool.kind);
         const newLevel = Math.min((cell.floors || 1) + 1, stackMax);
+        // Max-level resource buildings, including Oxygen Generation Plant,
+        // reject here before trySpendMockResourcesForPlacement() can deduct Credits.
         if (newLevel === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: newLevel });
@@ -21747,12 +21884,7 @@
         continue;
       }
       const k = obj.userData.kind;
-      if (k === 'tree') {
-        obj.rotation.z = Math.sin(t * 0.85 + obj.userData.swayPhase) * 0.022;
-        obj.rotation.x = Math.cos(t * 0.65 + obj.userData.swayPhase) * 0.012;
-      } else if (k === 'tuft') {
-        obj.rotation.z = Math.sin(t * 1.2 + (obj.userData.gx + obj.userData.gz)) * 0.05;
-      } else if (k === 'oxygen-plant') {
+      if (k === 'oxygen-plant') {
         const pump = obj.userData.oxygenPump;
         const scrubber = pump && pump.scrubber;
         if (scrubber) {
