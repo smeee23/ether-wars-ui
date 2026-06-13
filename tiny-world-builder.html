@@ -9098,16 +9098,21 @@
         .filter(v => (v.y >= 7 && v.y <= 9))
         .map(v => v.y >= 7 ? vox(v.x, v.y - 5, v.z, v.color) : v);
 
-      const heightOffset = 12;
+      const heightOffset = 16;
 
       return [
         ...corners.map(v => vox(v.x, v.y, v.z, v.color)),
         ...corners.map(v => vox(v.x, v.y + 1, v.z, v.color)),
         ...corners.map(v => vox(v.x, v.y + 2, v.z, v.color)),
         ...corners.map(v => vox(v.x, v.y + 3, v.z, v.color)),
-        ...base.map(v => vox(v.x, v.y + 4, v.z, v.color)),
-        ...base.map(v => vox(v.x, v.y + 5, v.z, v.color)),
-        ...upper.map(v => vox(v.x, v.y + 6, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 4, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 5, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 6, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 7, v.z, v.color)),
+        ...corners.map(v => vox(v.x, v.y + 8, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 9, v.z, v.color)),
+        ...base.map(v => vox(v.x, v.y + 10, v.z, v.color)),
+        ...upper.map(v => vox(v.x, v.y + 11, v.z, v.color)),
         ...upper.map(v => vox(v.x, v.y + heightOffset, v.z, v.color)),
       ];
     }
