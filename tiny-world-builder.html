@@ -1395,12 +1395,12 @@
   }
   .tool-group-btn { position: relative; }
   .flyout.tool-menu {
-    padding: px 6px 6px;
+    padding: 4px 6px 6px;
     gap: 4px;
   }
   .flyout .tool.flyout-tool {
-    width: 88px;
-    height: 76px;
+    width: 108px;
+    height: 96px;
     font-size: 10.5px;
     padding: 1px 3px 5px;
     justify-content: flex-start;
@@ -1409,6 +1409,7 @@
   .flyout .tool.flyout-tool .tool-thumb {
     width: 42px;
     height: 42px;
+    flex: 0 0 auto;
   }
   /* Lock label/kbd line-height so the button stays single-line regardless
      of the page font's default leading. */
@@ -4089,11 +4090,6 @@
       <span id="world-menu-label">My world</span>
       <svg class="brand-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
     </button>
-  </div>
-
-  <div class="token-pill" title="Solana token">
-    <span class="ticker">Land Address:</span>
-    <span class="ca">0x7bK4jRMa3aY85wJMQEQqWsmY9mmrRT32AFWZ23cBpump</span>
   </div>
 
   <!-- View modes popup -->
@@ -9098,7 +9094,7 @@
         .filter(v => (v.y >= 7 && v.y <= 9))
         .map(v => v.y >= 7 ? vox(v.x, v.y - 5, v.z, v.color) : v);
 
-      const heightOffset = 16;
+      const heightOffset = 17;
 
       return [
         ...corners.map(v => vox(v.x, v.y, v.z, v.color)),
@@ -9576,7 +9572,10 @@
     const unit = stamp.footprint / Math.max(spanX, spanZ);
     const topY = (maxY - minY + 1) * unit;
     const shieldSide = unit * 5;
-    const shieldHeight = topY;
+
+    const shieldBottomY = topY * 0.5;
+    const shieldHeight = topY - shieldBottomY;
+
     const roofSpanX = spanX * unit;
     const roofSpanZ = spanZ * unit;
     const panelThick = Math.max(0.018, unit * 0.09);
@@ -9595,7 +9594,7 @@
     ];
     for (const spec of sideSpecs) {
       const panel = new THREE.Mesh(getBoxGeometry(spec.w, shieldHeight, spec.d), M.greenhouseGlass);
-      panel.position.set(spec.x, shieldHeight / 2, spec.z);
+      panel.position.set(spec.x, shieldBottomY + shieldHeight / 2, spec.z);
       panel.userData.noShadow = true;
       panel.renderOrder = 4;
       g.add(panel);
@@ -9647,7 +9646,7 @@
     // Level 2 visual addition: four mini plasma guns on the roof corner blocks.
     for (const mount of AIR_COMMAND_ROOF_MOUNT_CORNERS) {
       const turret = makeMiniPlasmaGun();
-      turret.position.set((mount.x - metrics.centerX) * metrics.unit, metrics.roofY - 2.03, (mount.z - metrics.centerZ) * metrics.unit);
+      turret.position.set((mount.x - metrics.centerX) * metrics.unit, metrics.roofY - 1.79, (mount.z - metrics.centerZ) * metrics.unit);
       turret.rotation.y = mount.rot;
       turrets.add(turret);
     }
@@ -16661,7 +16660,7 @@
         { id: 'habitat',    label: 'Habitat',        buildingType: 'habitat',    hint: 'civilian shelter module' },
       ],
     },
-    { id: 'tree',   label: 'Tree',   kind: 'tree',  color: '#6fb442', shortcut: '6', group: 'nature' },
+    { id: 'tree',   label: 'Tree',   kind: 'tree',  terrainOverride: 'grass', color: '#6fb442', shortcut: '6', group: 'nature' },
     { id: 'fence',  label: 'Fence',  kind: 'fence', color: '#8a5a3b', shortcut: '7', group: 'build',
       variants: [
         { id: 'edge',    label: 'Edge',      fenceSide: 'auto',     hint: 'nearest clicked edge' },
@@ -16683,11 +16682,11 @@
     { id: 'pumpkin',   label: 'Pumpkin',   kind: 'pumpkin',   terrainOverride: 'dirt', color: '#e07c2a', shortcut: 'u', group: 'crops' },
     { id: 'carrot',    label: 'Carrot',    kind: 'carrot',    terrainOverride: 'dirt', color: '#e06a2a', shortcut: 'a', group: 'crops' },
     { id: 'sunflower', label: 'Sunflower', kind: 'sunflower', terrainOverride: 'dirt', color: '#f7b730', shortcut: 's', group: 'crops' },
-    { id: 'tuft',   label: 'Tuft',   kind: 'tuft',  color: '#86b53e', shortcut: 't', group: 'nature' },
-    { id: 'flower', label: 'Flower', kind: 'flower', color: '#d24a4f', group: 'nature' },
-    { id: 'bush',   label: 'Bush',   kind: 'bush',  color: '#6fa030', group: 'nature' },
-    { id: 'cow',    label: 'Cow',    kind: 'cow',   color: '#f2eee0', group: 'animals' },
-    { id: 'sheep',  label: 'Sheep',  kind: 'sheep', color: '#e8e2d2', group: 'animals' },
+    { id: 'tuft',   label: 'Tuft',   kind: 'tuft',  terrainOverride: 'grass', color: '#86b53e', shortcut: 't', group: 'nature' },
+    { id: 'flower', label: 'Flower', kind: 'flower', terrainOverride: 'grass', color: '#d24a4f', group: 'nature' },
+    { id: 'bush',   label: 'Bush',   kind: 'bush',  terrainOverride: 'grass', color: '#6fa030', group: 'nature' },
+    { id: 'cow',    label: 'Cow',    kind: 'cow', terrainOverride: 'grass',  color: '#f2eee0', group: 'animals' },
+    { id: 'sheep',  label: 'Sheep',  kind: 'sheep', terrainOverride: 'grass', color: '#e8e2d2', group: 'animals' },
     { id: 'erase',  label: 'Erase',  erase: true, color: 'transparent', eraser: true, shortcut: 'e', group: 'tools' },
   ];
 
@@ -16722,9 +16721,9 @@
   const THUMB_BUILDING_TARGET_SPAN = 1.28;
   const THUMB_BUILDING_BASELINE_Y = TOP_H;
   const THUMB_BUILDING_CAMERA_SIDE = 1.55;
-  const THUMB_BUILDING_CAMERA_TOP = 1.90;
-  const THUMB_BUILDING_CAMERA_BOTTOM = -0.82;
-  const THUMB_BUILDING_LOOK_AT_Y = 0.60;
+  const THUMB_BUILDING_CAMERA_TOP = 2.02;
+  const THUMB_BUILDING_CAMERA_BOTTOM = -1.18;
+  const THUMB_BUILDING_LOOK_AT_Y = 0.52;
   let thumbRenderer = null;
   const thumbScenes = new Map();      // toolId -> { scene, camera, canvas, ctx, angle, baseAngle, returning }
   const hoverThumbs = new Set();
@@ -17127,8 +17126,9 @@
       canvas.className = 'tool-thumb';
       canvas.width = THUMB_SIZE;
       canvas.height = THUMB_SIZE;
-      canvas.style.width = ((opts && opts.flyout) ? 42 : 30) + 'px';
-      canvas.style.height = ((opts && opts.flyout) ? 42 : 30) + 'px';
+      const thumbCssSize = (opts && opts.flyout) ? 42 : 30;
+      canvas.style.width = thumbCssSize + 'px';
+      canvas.style.height = thumbCssSize + 'px';
       btn.appendChild(canvas);
       setTimeout(() => buildToolThumb(t, canvas), 0);
     }
@@ -17680,7 +17680,25 @@
       // rather than replacing it.
       if (selectedTool.kind === 'tuft' && cell.kind && cell.kind !== 'tuft') {
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
-        addCellExtra(x, z, { kind: 'tuft' });
+        if (selectedTool.terrainOverride && cell.terrain !== selectedTool.terrainOverride) {
+          const carriedExtras = (cell.extras || []).slice();
+          carriedExtras.push({ kind: 'tuft', floors: 1 });
+          setCell(x, z, {
+            terrain: selectedTool.terrainOverride,
+            terrainFloors: terrainLevelForCell(cell),
+            kind: cell.kind,
+            floors: cell.floors || 1,
+            buildingType: cell.buildingType,
+            fenceSide: cell.fenceSide,
+            extras: carriedExtras,
+            rotationY: cell.rotationY || 0,
+            offsetX: cell.offsetX || 0,
+            offsetZ: cell.offsetZ || 0,
+            appearance: cell.appearance || null,
+          });
+        } else {
+          addCellExtra(x, z, { kind: 'tuft' });
+        }
         playMockResourcePlacementSuccess(selectedTool);
         return;
       }
@@ -21185,7 +21203,7 @@
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
   const FLIGHT_DUST_SPEED = 5.45;       // m/s while spraying
   const FLIGHT_CRUISE_SPEED = 5.4;      // m/s while transiting / banner pass
-  const FLIGHT_DUST_ALT = 2.1;
+  const FLIGHT_DUST_ALT = 3.5;
   const FLIGHT_GROUND_HOLD_SEC = 4.5;
   const FLIGHT_CRUISE_ALT = 5.6;
   const FLIGHT_REFUEL_MIN = 6.0;
