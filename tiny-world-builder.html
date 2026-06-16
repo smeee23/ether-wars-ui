@@ -3648,10 +3648,6 @@
     to { transform: translate3d(4%, 2%, 0); }
   }
 
-  #space-star-layer {
-    display: none;
-  }
-
   /* -------- profile / saves -------- */
   .saves-list { list-style: none; padding: 0; margin: 10px 0 0; max-height: 300px; overflow-y: auto; }
   .saves-list li {
@@ -3882,7 +3878,6 @@
 <body>
   <div id="app"></div>
   <div id="root" style="position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;"></div>
-  <div id="space-star-layer" aria-hidden="true"></div>
   <div id="cloud-layer"></div>
   <div id="tod-tint" aria-hidden="true"></div>
 
@@ -5589,6 +5584,7 @@
   const DEFAULT_TARGET = new THREE.Vector3(0.35, 0, 0.15);
   const MIN_VIEW_SIZE = 1.55;
   const MAX_VIEW_SIZE_BASE = 64;
+  const CAMERA_FAR = 1100;
   let viewSize = DEFAULT_VIEW_SIZE;
   let cameraMode = DEFAULT_CAMERA_MODE; // 'ortho' | 'perspective'
 
@@ -5596,9 +5592,9 @@
   const orthoCam = new THREE.OrthographicCamera(
     -viewSize * aspect0, viewSize * aspect0,
     viewSize, -viewSize,
-    0.1, 360
+    0.1, CAMERA_FAR
   );
-  const persCam = new THREE.PerspectiveCamera(28, aspect0, 0.1, 360);
+  const persCam = new THREE.PerspectiveCamera(28, aspect0, 0.1, CAMERA_FAR);
   let camera = persCam;
 
   // orbit state
@@ -5746,8 +5742,6 @@
   starsGroup.name = 'world-space-stars';
   starsGroup.userData.nonInteractive = true;
   xrWorldRoot.add(starsGroup);
-  const spaceStarLayer = document.getElementById('space-star-layer');
-  if (spaceStarLayer) spaceStarLayer.hidden = true;
 
   function seededRandom(seed) {
     let s = seed >>> 0;
@@ -5758,47 +5752,34 @@
   }
 
   function createWorldStarfield() {
-    const STAR_COUNT = 420;
-    const STARFIELD_DISTANCE_MIN = 145;
-    const STARFIELD_DISTANCE_MAX = 270;
-    const STARFIELD_CENTER_CLEARANCE = 105;
-    const STARFIELD_MIN_Y = -180;
-    const STARFIELD_MAX_Y = 95;
+    const STAR_COUNT = 920;
+    const STAR_RADIUS_MIN = 520;
+    const STAR_RADIUS_MAX = 760;
+    const STARFIELD_CENTER_CLEARANCE = 200;
     const rand = seededRandom(93217);
     const positions = new Float32Array(STAR_COUNT * 3);
     const colors = new Float32Array(STAR_COUNT * 3);
     const color = new THREE.Color();
-    const camPos = camera.position.clone();
     let i = 0;
     let guard = 0;
 
-    camera.updateMatrixWorld();
-    camera.updateProjectionMatrix();
-
-    while (i < STAR_COUNT && guard < STAR_COUNT * 80) {
+    while (i < STAR_COUNT && guard < STAR_COUNT * 12) {
       guard++;
-      // Seed stars from the default camera's far-view rays, then leave them in
-      // fixed world coordinates. The camera looks down at the board, so a purely
-      // overhead dome is outside the frustum; this keeps stars visible while the
-      // horizontal clearance and depth test prevent ground/building intersections.
-      const sx = (rand() * 2 - 1) * 1.08;
-      const sy = (rand() * 2 - 1) * 0.95;
-      const distance = STARFIELD_DISTANCE_MIN + rand() * (STARFIELD_DISTANCE_MAX - STARFIELD_DISTANCE_MIN);
-      const rayPoint = new THREE.Vector3(sx, sy, 0.5).unproject(camera);
-      const rayDir = rayPoint.sub(camPos).normalize();
-      const p = camPos.clone().addScaledVector(rayDir, distance);
-      const x = p.x;
-      const y = p.y;
-      const z = p.z;
-      if (Math.hypot(x, z) < STARFIELD_CENTER_CLEARANCE) continue;
-      if (y < STARFIELD_MIN_Y || y > STARFIELD_MAX_Y) continue;
+      const radius = STAR_RADIUS_MIN + rand() * (STAR_RADIUS_MAX - STAR_RADIUS_MIN);
+      const theta = rand() * Math.PI * 2;
+      const phi = rand() * Math.PI;
+      const sinPhi = Math.sin(phi);
+      const x = radius * sinPhi * Math.cos(theta);
+      const y = radius * Math.cos(phi);
+      const z = radius * sinPhi * Math.sin(theta);
+      if (Math.hypot(x, y, z) < STARFIELD_CENTER_CLEARANCE) continue;
       const ix = i * 3;
       positions[ix] = x;
       positions[ix + 1] = y;
       positions[ix + 2] = z;
 
       const warmth = 0.82 + rand() * 0.18;
-      const brightness = 0.68 + rand() * 0.36;
+      const brightness = 0.68 + rand() * 0.96;
       color.setRGB(brightness, brightness * (0.92 + warmth * 0.08), brightness * warmth);
       colors[ix] = color.r;
       colors[ix + 1] = color.g;
@@ -5811,7 +5792,7 @@
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setDrawRange(0, i);
     const material = new THREE.PointsMaterial({
-      size: 3.1,
+      size: 2.4,
       sizeAttenuation: false,
       vertexColors: true,
       transparent: false,
@@ -5827,11 +5808,10 @@
     stars.receiveShadow = false;
     stars.userData.nonInteractive = true;
     stars.userData.starCount = i;
-    stars.userData.distanceMin = STARFIELD_DISTANCE_MIN;
-    stars.userData.distanceMax = STARFIELD_DISTANCE_MAX;
+    stars.userData.radiusMin = STAR_RADIUS_MIN;
+    stars.userData.radiusMax = STAR_RADIUS_MAX;
     stars.userData.centerClearance = STARFIELD_CENTER_CLEARANCE;
-    stars.userData.minY = STARFIELD_MIN_Y;
-    stars.userData.maxY = STARFIELD_MAX_Y;
+    stars.userData.shell = 'spherical';
     starsGroup.add(stars);
   }
 
