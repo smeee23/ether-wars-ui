@@ -3649,30 +3649,7 @@
   }
 
   #space-star-layer {
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-    opacity: 0.95;
-    background-image:
-      radial-gradient(circle at 8% 12%, rgba(255,255,255,0.95) 0 1.3px, transparent 1.9px),
-      radial-gradient(circle at 24% 22%, rgba(226,238,255,0.86) 0 1px, transparent 1.7px),
-      radial-gradient(circle at 38% 9%, rgba(255,248,224,0.82) 0 1.2px, transparent 1.9px),
-      radial-gradient(circle at 58% 18%, rgba(255,255,255,0.92) 0 1.4px, transparent 2px),
-      radial-gradient(circle at 78% 8%, rgba(220,234,255,0.84) 0 1px, transparent 1.7px),
-      radial-gradient(circle at 92% 24%, rgba(255,246,220,0.82) 0 1.2px, transparent 1.9px),
-      radial-gradient(circle at 13% 74%, rgba(255,255,255,0.82) 0 1px, transparent 1.8px),
-      radial-gradient(circle at 31% 88%, rgba(224,236,255,0.78) 0 1.2px, transparent 1.9px),
-      radial-gradient(circle at 68% 82%, rgba(255,255,255,0.84) 0 1.1px, transparent 1.8px),
-      radial-gradient(circle at 88% 70%, rgba(255,248,225,0.78) 0 1px, transparent 1.8px);
-    background-size:
-      420px 340px, 360px 310px, 510px 390px, 460px 360px, 390px 330px,
-      540px 420px, 440px 380px, 370px 320px, 500px 400px, 430px 350px;
-    background-position:
-      0 0, 90px 40px, 130px 20px, 30px 120px, 220px 70px,
-      60px 180px, 20px 260px, 180px 230px, 260px 210px, 310px 150px;
-    mask-image: radial-gradient(ellipse at center, transparent 0 30%, rgba(0,0,0,0.22) 44%, #000 62%);
-    -webkit-mask-image: radial-gradient(ellipse at center, transparent 0 30%, rgba(0,0,0,0.22) 44%, #000 62%);
+    display: none;
   }
 
   /* -------- profile / saves -------- */
@@ -5619,9 +5596,9 @@
   const orthoCam = new THREE.OrthographicCamera(
     -viewSize * aspect0, viewSize * aspect0,
     viewSize, -viewSize,
-    0.1, 200
+    0.1, 360
   );
-  const persCam = new THREE.PerspectiveCamera(28, aspect0, 0.1, 200);
+  const persCam = new THREE.PerspectiveCamera(28, aspect0, 0.1, 360);
   let camera = persCam;
 
   // orbit state
@@ -5766,9 +5743,11 @@
 
   // -------- space background --------
   const starsGroup = new THREE.Group();
-  starsGroup.name = 'space-background-stars';
+  starsGroup.name = 'world-space-stars';
   starsGroup.userData.nonInteractive = true;
   xrWorldRoot.add(starsGroup);
+  const spaceStarLayer = document.getElementById('space-star-layer');
+  if (spaceStarLayer) spaceStarLayer.hidden = true;
 
   function seededRandom(seed) {
     let s = seed >>> 0;
@@ -5778,44 +5757,48 @@
     };
   }
 
-  function createStarField() {
-    const STAR_COUNT = 260;
-    const STAR_RADIUS_MIN = 72;
-    const STAR_RADIUS_MAX = 124;
-    const STAR_PLANE_CLEARANCE = 34;
-    const STAR_BOARD_CLEARANCE = 34;
+  function createWorldStarfield() {
+    const STAR_COUNT = 420;
+    const STARFIELD_DISTANCE_MIN = 145;
+    const STARFIELD_DISTANCE_MAX = 270;
+    const STARFIELD_CENTER_CLEARANCE = 105;
+    const STARFIELD_MIN_Y = -180;
+    const STARFIELD_MAX_Y = 95;
     const rand = seededRandom(93217);
     const positions = new Float32Array(STAR_COUNT * 3);
     const colors = new Float32Array(STAR_COUNT * 3);
-    const sunDir = SUN_OFFSET.clone().normalize();
-    const dir = new THREE.Vector3();
     const color = new THREE.Color();
+    const camPos = camera.position.clone();
     let i = 0;
     let guard = 0;
 
+    camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();
+
     while (i < STAR_COUNT && guard < STAR_COUNT * 80) {
       guard++;
-      dir.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
-      if (dir.lengthSq() < 0.001) continue;
-      dir.normalize();
-
-      const sunAlignment = dir.dot(sunDir);
-      const shadeBias = 0.18 + (1 - Math.max(-1, Math.min(1, sunAlignment))) * 0.42;
-      if (rand() > shadeBias) continue;
-
-      const radius = STAR_RADIUS_MIN + rand() * (STAR_RADIUS_MAX - STAR_RADIUS_MIN);
-      const y = dir.y * radius;
-      if (Math.abs(y) < STAR_PLANE_CLEARANCE) continue;
-      const x = dir.x * radius;
-      const z = dir.z * radius;
-      if (Math.hypot(x, z) < STAR_BOARD_CLEARANCE) continue;
+      // Seed stars from the default camera's far-view rays, then leave them in
+      // fixed world coordinates. The camera looks down at the board, so a purely
+      // overhead dome is outside the frustum; this keeps stars visible while the
+      // horizontal clearance and depth test prevent ground/building intersections.
+      const sx = (rand() * 2 - 1) * 1.08;
+      const sy = (rand() * 2 - 1) * 0.95;
+      const distance = STARFIELD_DISTANCE_MIN + rand() * (STARFIELD_DISTANCE_MAX - STARFIELD_DISTANCE_MIN);
+      const rayPoint = new THREE.Vector3(sx, sy, 0.5).unproject(camera);
+      const rayDir = rayPoint.sub(camPos).normalize();
+      const p = camPos.clone().addScaledVector(rayDir, distance);
+      const x = p.x;
+      const y = p.y;
+      const z = p.z;
+      if (Math.hypot(x, z) < STARFIELD_CENTER_CLEARANCE) continue;
+      if (y < STARFIELD_MIN_Y || y > STARFIELD_MAX_Y) continue;
       const ix = i * 3;
       positions[ix] = x;
       positions[ix + 1] = y;
       positions[ix + 2] = z;
 
       const warmth = 0.82 + rand() * 0.18;
-      const brightness = 0.96 + rand() * 0.22;
+      const brightness = 0.68 + rand() * 0.36;
       color.setRGB(brightness, brightness * (0.92 + warmth * 0.08), brightness * warmth);
       colors[ix] = color.r;
       colors[ix + 1] = color.g;
@@ -5826,29 +5809,37 @@
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setDrawRange(0, i);
     const material = new THREE.PointsMaterial({
-      size: 2.15,
+      size: 3.1,
       sizeAttenuation: false,
       vertexColors: true,
-      transparent: true,
-      opacity: 0.96,
+      transparent: false,
+      depthTest: true,
       depthWrite: false,
       fog: false,
     });
     const stars = new THREE.Points(geometry, material);
-    stars.name = 'star-field';
+    stars.name = 'world-starfield';
     stars.frustumCulled = false;
+    stars.renderOrder = -80;
     stars.castShadow = false;
     stars.receiveShadow = false;
     stars.userData.nonInteractive = true;
-    stars.userData.starCount = STAR_COUNT;
+    stars.userData.starCount = i;
+    stars.userData.distanceMin = STARFIELD_DISTANCE_MIN;
+    stars.userData.distanceMax = STARFIELD_DISTANCE_MAX;
+    stars.userData.centerClearance = STARFIELD_CENTER_CLEARANCE;
+    stars.userData.minY = STARFIELD_MIN_Y;
+    stars.userData.maxY = STARFIELD_MAX_Y;
     starsGroup.add(stars);
   }
 
-  createStarField();
-  starsGroup.visible = false;
+  createWorldStarfield();
+  starsGroup.visible = true;
   updateSpaceBackground = function () {
-    starsGroup.position.set(target.x, target.y, target.z);
+    // World-space starfield stays fixed in the scene; it is not parented to
+    // or translated with the camera, so orbit/pan perspective remains natural.
   };
   updateSpaceBackground();
 
@@ -12854,18 +12845,28 @@
   const neighborSlotById = new Map();
   let hoveredNeighborSlotId = null;
 
-  function surroundingLandTintMaterial(color, occupied) {
+  function surroundingLandTintMaterial(color, occupied, role = 'cap') {
     const clean = normalizeHexColor(color) || '#e6e6e6';
-    const opacity = occupied ? 0.74 : 0.075;
-    const key = clean + ':' + opacity;
+    let opacity = occupied ? 0.74 : 0.075;
+    let materialType = 'basic';
+    if (role === 'glow') opacity = occupied ? 0.24 : 0.12;
+    if (role === 'trail') opacity = occupied ? 0.17 : 0.08;
+    if (role === 'accent') {
+      opacity = 1;
+      materialType = 'lambert';
+    }
+    const key = materialType + ':' + clean + ':' + opacity;
     if (!surroundingLandTintMaterials.has(key)) {
-      surroundingLandTintMaterials.set(key, new THREE.MeshBasicMaterial({
-        color: clean,
-        transparent: true,
-        opacity,
-        depthTest: true,
-        depthWrite: false,
-      }));
+      const mat = materialType === 'lambert'
+        ? new THREE.MeshLambertMaterial({ color: clean })
+        : new THREE.MeshBasicMaterial({
+          color: clean,
+          transparent: true,
+          opacity,
+          depthTest: true,
+          depthWrite: false,
+        });
+      surroundingLandTintMaterials.set(key, mat);
     }
     return surroundingLandTintMaterials.get(key);
   }
@@ -12883,39 +12884,91 @@
     return { landX: -GRID / 2 - offset, landZ: along, tintX: -GRID / 2 - offset, tintZ: along };
   }
 
+  function neighborCometDirection(edge, pos) {
+    let dx = pos.landX;
+    let dz = pos.landZ;
+    if (edge === 'north') dz = -Math.abs(dz || 1);
+    if (edge === 'south') dz =  Math.abs(dz || 1);
+    if (edge === 'east') dx =  Math.abs(dx || 1);
+    if (edge === 'west') dx = -Math.abs(dx || 1);
+    const len = Math.max(0.001, Math.sqrt(dx * dx + dz * dz));
+    return { x: dx / len, z: dz / len };
+  }
+
+  // Creates the distant neighbour island visual. It is intentionally visual-only:
+  // hit testing, selection state, stats, and round actions stay on the existing
+  // neighbour slot metadata and invisible hit meshes.
+  function makeNeighborCometIsland(slot, index, color) {
+    const slotLen = GRID * 0.5 * TILE;
+    const outsideDepth = Math.max(10.6, Math.min(3.0, GRID * 0.16)) * TILE;
+    const outsideGap = neighborSlotGap();
+    const pos = slotCenter(slot.edge, index, slotLen, outsideDepth, outsideGap);
+    const outward = neighborCometDirection(slot.edge, pos);
+    const accent = normalizeHexColor(color) || '#e6e6e6';
+    const occupied = !!slot.occupied;
+    const seed = (index + 1) * 31 + (slot.edge || '').length * 17;
+    const islandScale = occupied ? 1 : 0.86;
+    const group = new THREE.Group();
+    group.position.set(pos.landX, TOP_H + 0.42, pos.landZ);
+    group.rotation.y = (seed % 9) * 0.19;
+    group.scale.setScalar(islandScale);
+    group.name = 'neighbor-comet-island-' + slot.id;
+    group.userData = { visualOnly: true, neighborSlot: slot.id };
+
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 1.02, 0.18, 7, 1), occupied ? M.surroundingLandTop : M.stone);
+    top.position.y = 0.06;
+    top.scale.set(1.18, 1, 0.88);
+    group.add(top);
+
+    const underside = new THREE.Mesh(new THREE.ConeGeometry(0.96, 1.05, 7, 1), M.surroundingLandSide);
+    underside.position.y = -0.58;
+    underside.rotation.y = 0.18;
+    underside.rotation.x = Math.PI;   
+    underside.scale.set(1.08, 1, 0.82);
+    group.add(underside);
+
+    for (let i = 0; i < 5; i++) {
+      const a = i * 1.47 + seed * 0.11;
+      const r = 0.28 + (i % 3) * 0.12;
+      const shard = new THREE.Mesh(new THREE.ConeGeometry(0.10 + (i % 2) * 0.035, 0.34 + (i % 3) * 0.07, 5, 1), M.rockDk);
+      shard.position.set(Math.cos(a) * r, -0.48 - i * 0.035, Math.sin(a) * r * 0.72);
+      shard.rotation.set(0.35 + i * 0.18, a, 0.16);
+      group.add(shard);
+    }
+
+    const beacon = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.42, 5, 1), surroundingLandTintMaterial(accent, occupied, 'accent'));
+    beacon.position.set(-0.18, 0.42, 0.02);
+    beacon.rotation.y = 0.32;
+    group.add(beacon);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.018, 6, 28), surroundingLandTintMaterial(accent, occupied, 'glow'));
+    ring.rotation.x = Math.PI / 2;
+    ring.rotation.z = 0.18;
+    ring.position.y = 0.08;
+    ring.scale.set(1.12, 0.76, 1);
+    ring.userData.noShadow = true;
+    group.add(ring);
+
+    for (let i = 0; i < 4; i++) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.16 - i * 0.022, 6, 4), surroundingLandTintMaterial(accent, occupied, 'trail'));
+      const spread = (i % 2 ? -1 : 1) * (0.08 + i * 0.025);
+      puff.position.set(outward.x * (1.10 + i * 0.38) - outward.z * spread, -0.02 - i * 0.045, outward.z * (1.10 + i * 0.38) + outward.x * spread);
+      puff.scale.set(1.35 + i * 0.18, 0.48, 0.72);
+      puff.userData.noShadow = true;
+      group.add(puff);
+    }
+
+    castReceive(group);
+    return group;
+  }
+
   function makeSurroundingLandSlot(slot) {
     const edge = slot.edge;
     const index = slot.index === 1 ? 1 : 0;
-    const slotLen = GRID * 0.5 * TILE;
-    const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
-    const outsideGap = neighborSlotGap();
-    const isHorizontal = edge === 'north' || edge === 'south';
-    const landW = isHorizontal ? slotLen : outsideDepth;
-    const landD = isHorizontal ? outsideDepth : slotLen;
-    const tintW = isHorizontal ? slotLen : outsideDepth;
-    const tintD = isHorizontal ? outsideDepth : slotLen;
-    const pos = slotCenter(edge, index, slotLen, outsideDepth, outsideGap);
     const group = new THREE.Group();
     group.name = 'surrounding-land-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
-
-    const dirt = new THREE.Mesh(getOpenBoxGeometry(landW, DIRT_H, landD, true, false, false, false, false, false), M.surroundingLandSide);
-    dirt.position.set(pos.landX, -DIRT_H * 0.5, pos.landZ);
-    group.add(dirt);
-
-    const top = new THREE.Mesh(getOpenBoxGeometry(landW, TOP_H, landD, false, true, false, false, false, false), M.surroundingLandTop);
-    top.position.set(pos.landX, TOP_H * 0.5, pos.landZ);
-    group.add(top);
-
-    const tint = new THREE.Mesh(getBoxGeometry(tintW, 0.018, tintD), surroundingLandTintMaterial(slot.color, !!slot.occupied));
-    tint.position.set(pos.tintX, TOP_H + 0.034, pos.tintZ);
-    // Draw early in the transparent pass so airborne transparent objects
-    // such as voxel clouds are not tinted over by the perimeter overlay.
-    tint.renderOrder = -10;
-    tint.userData.noShadow = true;
-    group.add(tint);
-
-    groundReceiveOnly(group);
+    group.add(makeNeighborCometIsland(slot, index, slot.color));
     return group;
   }
 
@@ -12945,14 +12998,16 @@
     hit.userData.noShadow = true;
     group.add(hit);
 
-    const highlight = new THREE.Mesh(getBoxGeometry(hitW, 0.028, hitD), new THREE.MeshBasicMaterial({
+    const highlight = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.026, 6, 36), new THREE.MeshBasicMaterial({
       color: normalizeHexColor(slot.color) || '#ffffff',
       transparent: true,
       opacity: 0,
       depthTest: true,
       depthWrite: false,
     }));
-    highlight.position.set(pos.landX, TOP_H + 0.075, pos.landZ);
+    highlight.position.set(pos.landX, TOP_H + 0.52, pos.landZ);
+    highlight.rotation.x = Math.PI / 2;
+    highlight.scale.set(isHorizontal ? 1.06 : 0.82, isHorizontal ? 0.82 : 1.06, 1);
     highlight.renderOrder = -6;
     highlight.userData.neighborHighlight = true;
     highlight.userData.noShadow = true;
@@ -12966,7 +13021,7 @@
     for (const [id, mesh] of neighborHighlightById) {
       const active = id === activeNeighborSlotId;
       const hovered = id === hoveredNeighborSlotId;
-      mesh.material.opacity = active ? 8.99 : hovered ? 0.44 : 0;
+      mesh.material.opacity = active ? 0.82 : hovered ? 0.44 : 0;
       mesh.visible = mesh.material.opacity > 0;
     }
   }
@@ -26999,7 +27054,7 @@
         if (hemi.intensity > 0.75) hemi.intensity = 0.75;
         hemi.color.setHex(tod.hemiSky);
         hemi.groundColor.setHex(lerpColor(tod.hemiGround, seasonGround, 0.45));
-        const ambBoost = (tod.sunI < 0.5) ? 3.0 : 1.0;
+        const ambBoost = (tod.sunI < 0.5) ? 1.0 : 1.0;
         ambient.intensity = Math.max(0, lightBase.ambI * ambBoost);
         // 3D scene background — drives the colour visible past the world
         // edge.  This is what makes 'night' actually look dark instead of

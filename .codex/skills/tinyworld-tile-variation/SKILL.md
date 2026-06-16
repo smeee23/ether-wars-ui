@@ -16,6 +16,9 @@ Expected behavior:
 - Oxygen Generation Plant is a specific exception: re-clicking increases
   `floors` up to `OXYGEN_PLANT_MAX_LEVEL` (6), then stops.
 - Tree is a specific exception: re-clicking/building is capped at level 1.
+- Natural flora tools (Tree, Tuft, Flower, Bush) should force grass beneath
+  them through `terrainOverride: 'grass'`, including Tuft's decorative-extra
+  placement path.
 - Terrain tools on empty terrain cells should stack height using `terrainFloors`.
 - The Erase/trash tool peels one level at a time: extras first, then object
   `floors`, then the object itself at level 1, then terrain height/material.
