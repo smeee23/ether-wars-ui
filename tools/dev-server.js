@@ -3,12 +3,16 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 const { URL } = require('url');
 
 const root = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || process.argv[2] || 3000);
 const aiLogDir = path.resolve(root, '.tinyworld-ai-logs');
 const aiLogFile = path.resolve(aiLogDir, 'ai-debug.jsonl');
+const s3Python = fs.existsSync(path.resolve(root, '.venv/bin/python'))
+  ? path.resolve(root, '.venv/bin/python')
+  : 'python3';
 
 function loadEnvFile() {
   const envPath = path.resolve(root, '.env');
@@ -130,6 +134,21 @@ function sanitizeForLog(value, depth = 0) {
   return out;
 }
 
+function sanitizeForPublicJson(value, depth = 0) {
+  if (depth > 12) return null;
+  if (value == null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(item => sanitizeForPublicJson(item, depth + 1));
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (/authorization|api[_-]?key|access[_-]?key|token|secret|password/i.test(key)) {
+      out[key] = '[redacted]';
+      continue;
+    }
+    out[key] = sanitizeForPublicJson(item, depth + 1);
+  }
+  return out;
+}
+
 function appendAiLog(entry) {
   try {
     fs.mkdirSync(aiLogDir, { recursive: true });
@@ -143,6 +162,214 @@ function appendAiLog(entry) {
   } catch (err) {
     console.warn('[ai-log] failed to write log:', err.message || err);
     return entry.id || null;
+  }
+}
+
+function readAwsMockStats() {
+  return new Promise((resolve, reject) => {
+    const args = [
+      path.resolve(root, 'S3ReadWrite.py'),
+      '--read-json',
+      '--bucket',
+      'justcausepools',
+      '--key',
+      'etherwars/mockstats.json',
+    ];
+    execFile(s3Python, args, {
+      cwd: root,
+      env: process.env,
+      timeout: 15000,
+      maxBuffer: 1024 * 1024,
+    }, (err, stdout, stderr) => {
+      if (err) {
+        const detail = String(stderr || err.message || 'S3 mock stats read failed').trim();
+        reject(new Error(detail));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (_) {
+        reject(new Error('S3 mock stats response was not strict JSON'));
+      }
+    });
+  });
+}
+
+function writeAwsJson(bucket, key, data) {
+  return new Promise((resolve, reject) => {
+    const tmpFile = path.join('/tmp', `tinyworld-inter-round-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`);
+    try {
+      fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
+    } catch (err) {
+      reject(err);
+      return;
+    }
+
+    const args = [
+      path.resolve(root, 'S3ReadWrite.py'),
+      '--write-json',
+      tmpFile,
+      '--bucket',
+      bucket,
+      '--key',
+      key,
+    ];
+    execFile(s3Python, args, {
+      cwd: root,
+      env: process.env,
+      timeout: 15000,
+      maxBuffer: 1024 * 1024,
+    }, (err, _stdout, stderr) => {
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+      if (err) {
+        const detail = String(stderr || err.message || 'S3 JSON write failed').trim();
+        reject(new Error(detail));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function numberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function nonNegativeIntOrNull(value) {
+  const n = numberOrNull(value);
+  return n === null ? null : Math.max(0, Math.round(n));
+}
+
+function validateInterRoundStatePayload(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { ok: false, status: 400, error: 'Body must be a JSON object' };
+  }
+  const playerId = String(body.playerId || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(playerId)) {
+    return { ok: false, status: 400, error: 'playerId is required and must be URL-safe' };
+  }
+  const phase = String(body.phase || '').trim().toLowerCase();
+  if (phase !== 'commit') {
+    return { ok: false, status: 409, error: 'interRoundState can only be saved during commit phase' };
+  }
+  if (!body.lastRevealState || typeof body.lastRevealState !== 'object' || Array.isArray(body.lastRevealState)) {
+    return { ok: false, status: 400, error: 'lastRevealState is required' };
+  }
+  if (!body.interRoundState || typeof body.interRoundState !== 'object' || Array.isArray(body.interRoundState)) {
+    return { ok: false, status: 400, error: 'interRoundState is required' };
+  }
+
+  const lastRevealState = body.lastRevealState;
+  const requiredResources = ['credits', 'food', 'water', 'oxygen', 'shelter', 'fleet'];
+  for (const key of requiredResources) {
+    if (nonNegativeIntOrNull(lastRevealState[key]) === null) {
+      return { ok: false, status: 400, error: `lastRevealState.${key} is required` };
+    }
+  }
+
+  const roundNumber = nonNegativeIntOrNull(body.roundNumber);
+  const lastRoundNumber = nonNegativeIntOrNull(lastRevealState.roundNumber);
+  if (!roundNumber || !lastRoundNumber || roundNumber !== lastRoundNumber) {
+    return { ok: false, status: 409, error: 'roundNumber must match lastRevealState.roundNumber' };
+  }
+
+  const credits = nonNegativeIntOrNull(lastRevealState.credits);
+  const interRoundState = body.interRoundState;
+  const roundAction = interRoundState.roundAction || {};
+  const wager = nonNegativeIntOrNull(roundAction.wagerAmount ?? interRoundState.wagerAmount) || 0;
+  const proposedResources = interRoundState.proposedResources || {};
+  const proposedCredits = nonNegativeIntOrNull(proposedResources.credits);
+  const proposedAllocations = interRoundState.proposedAllocations || {};
+  const explicitSpend = nonNegativeIntOrNull(proposedAllocations.creditSpend);
+  const inferredSpend = proposedCredits === null ? 0 : Math.max(0, credits - proposedCredits);
+  const creditSpend = explicitSpend === null ? inferredSpend : explicitSpend;
+
+  if (creditSpend > credits) {
+    return { ok: false, status: 409, error: 'proposed credit spend exceeds lastRevealState.credits' };
+  }
+  if (wager > credits) {
+    return { ok: false, status: 409, error: 'attack wager exceeds lastRevealState.credits' };
+  }
+  if (String(roundAction.selectedAction || '').toLowerCase() === 'attack' && wager <= 0) {
+    return { ok: false, status: 409, error: 'attack action requires a positive wager' };
+  }
+
+  const bucket = 'justcausepools';
+  const key = `etherwars/players/${playerId}/round-${roundNumber}/interRoundState.json`;
+  if (!key.startsWith('etherwars/players/') || !key.endsWith('/interRoundState.json')) {
+    return { ok: false, status: 400, error: 'Unsafe S3 key' };
+  }
+
+  const updatedAt = new Date().toISOString();
+  const safeBody = sanitizeForPublicJson({
+    ...body,
+    phase,
+    playerId,
+    roundNumber,
+    updatedAt,
+    serverValidation: {
+      status: 'accepted',
+      creditSpend,
+      wager,
+      checkedAt: updatedAt,
+    },
+  });
+  return { ok: true, bucket, key, updatedAt, body: safeBody };
+}
+
+async function handleMockStats(req, res) {
+  if (req.method !== 'GET') {
+    send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+    return;
+  }
+  try {
+    const data = await readAwsMockStats();
+    send(res, 200, JSON.stringify(sanitizeForPublicJson(data)), {
+      'Content-Type': 'application/json; charset=utf-8',
+    });
+  } catch (err) {
+    console.warn('[mockstats] failed:', err.message || String(err));
+    send(res, 502, JSON.stringify({
+      ok: false,
+      error: 'Unable to read Ether Wars mock stats from S3',
+    }), {
+      'Content-Type': 'application/json; charset=utf-8',
+    });
+  }
+}
+
+async function handleInterRoundState(req, res) {
+  if (req.method !== 'POST') {
+    send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+    return;
+  }
+  try {
+    const body = await readJsonBody(req, 2 * 1024 * 1024);
+    const result = validateInterRoundStatePayload(body);
+    if (!result.ok) {
+      send(res, result.status, JSON.stringify({ ok: false, error: result.error }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+      return;
+    }
+    await writeAwsJson(result.bucket, result.key, result.body);
+    send(res, 200, JSON.stringify({
+      ok: true,
+      bucket: result.bucket,
+      key: result.key,
+      updatedAt: result.updatedAt,
+    }), {
+      'Content-Type': 'application/json; charset=utf-8',
+    });
+  } catch (err) {
+    console.warn('[inter-round-state] failed:', err.message || String(err));
+    send(res, 500, JSON.stringify({
+      ok: false,
+      error: 'Unable to save Ether Wars interRoundState',
+    }), {
+      'Content-Type': 'application/json; charset=utf-8',
+    });
   }
 }
 
@@ -580,6 +807,14 @@ const server = http.createServer((req, res) => {
       return;
     }
     send(res, 405, 'Method Not Allowed', { Allow: 'GET, POST' });
+    return;
+  }
+  if (parsedUrl.pathname === '/api/mockstats') {
+    handleMockStats(req, res);
+    return;
+  }
+  if (parsedUrl.pathname === '/api/inter-round-state') {
+    handleInterRoundState(req, res);
     return;
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {

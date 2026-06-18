@@ -19,6 +19,48 @@ The app has browser-local integration points, not a backend API:
 - Runtime vehicles must not pass through each other. Keep traffic behavior in the runtime layer: collision radius + yield radius, brake when another vehicle is inside the envelope, and reroute around occupied road cells after a short blockage when an alternate road path exists.
 - Placed objects on paths are live traffic blockers. `isVehicleDrivableCell` should allow path cells only when the main `kind`/extras do not occupy the tile, while bridge cells remain drivable. Call `refreshVehiclesForWorldObstacleChange` from world edit paths so active auto vehicles reroute immediately when the user drops or removes an obstacle.
 
+Future AWS/indexer round-state architecture:
+
+- `S3ReadWrite.py` is the repo-local Ether Wars S3 utility. It must load local
+  `.env` values without printing them, prefer standard `AWS_*` credential
+  environment variables, only support explicit object read/write operations, and
+  keep `.env` ignored.
+- The local dev bridge exposes `GET /api/mockstats` from `tools/dev-server.js`.
+  It shells through the project Python/venv to `S3ReadWrite.py` and returns the
+  strict JSON from `s3://justcausepools/etherwars/mockstats.json`. Keep AWS
+  keys out of `tiny-world-builder.html` and all browser-visible JavaScript.
+- The local dev bridge also exposes explicit, user-triggered
+  `POST /api/inter-round-state` writes. Keep this path read/write bounded:
+  validate commit phase, player id, round number, basic resource bounds, and
+  only write to
+  `etherwars/players/{playerId}/round-{roundNumber}/interRoundState.json`.
+  Never call it from `setCell()` or other per-edit paths.
+- Reveal round ends.
+- Indexer reads contract results.
+- AWS stores `lastRevealState`, the authoritative starting point for the next commit round:
+  - credits
+  - food
+  - water
+  - oxygen
+  - shelter
+  - fleet / army
+  - population
+  - round number
+  - player status
+  - previous world snapshot
+- Commit round begins.
+- User edits the visual world, chooses attack/defend/build actions, and allocates credits.
+- AWS stores `interRoundState`, the proposed/pending state for the current commit round:
+  - proposed world
+  - proposed allocations
+  - proposed wager
+  - validation result
+- User commits the action hash on-chain.
+- During reveal, the contract verifies the revealed action against the allowed starting resources from `lastRevealState`.
+- Indexer stores the new authoritative `lastRevealState` after contract results finalize.
+
+When adding reconciliation, treat AWS/indexer `lastRevealState` values as authoritative. The client `world` remains visual intent, and any mock/local resource object is only a fallback or optimistic/pending layer. Compare world-derived resources against authoritative resources to show mismatches, but do not silently mutate authoritative balances from local visual edits.
+
 Examples live under `plugins/examples/`:
 
 - `webhook-receiver.js` captures outbound webhook batches.

@@ -627,6 +627,8 @@
     line-height: 1.25;
     color: var(--muted);
   }
+  .neighbor-action-note.success { color: #3d7a2a; }
+  .neighbor-action-note.error { color: #b84838; }
   .neighbor-action-note[hidden],
   .neighbor-action-extra[hidden] {
     display: none;
@@ -644,6 +646,7 @@
   }
   .neighbor-action-buttons {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
   }
   .crowd-actions .btn,
@@ -4047,7 +4050,9 @@
         <div class="neighbor-action-buttons">
           <button class="btn" id="neighbor-commit-action" type="button">Commit</button>
           <button class="btn" id="neighbor-reveal-action" type="button">Reveal</button>
+          <button class="btn" id="neighbor-save-aws-draft" type="button">Save AWS Draft</button>
         </div>
+        <div class="neighbor-action-note" id="neighbor-aws-draft-status" hidden></div>
       </div>
     </div>
   </div>
@@ -4799,6 +4804,9 @@
     shelter: 50,
     army: 50,
   };
+  let awsGameState = null;
+  let authoritativeGameState = null;
+  let lastSavedInterRoundStateKey = null;
   const COLONY_STATUS_KEYS = ['army', 'food', 'water', 'oxygen', 'shelter'];
   const HOME_GRID_DEFAULT = 15;
   const HOME_GRID_MIN = HOME_GRID_DEFAULT;
@@ -13049,6 +13057,8 @@
   const neighborWagerGoldEl = document.getElementById('neighbor-wager-gold');
   const neighborWagerGoldValueEl = document.getElementById('neighbor-wager-gold-value');
   const neighborWagerNoteEl = document.getElementById('neighbor-wager-note');
+  const neighborSaveAwsDraftEl = document.getElementById('neighbor-save-aws-draft');
+  const neighborAwsDraftStatusEl = document.getElementById('neighbor-aws-draft-status');
   const neighborSlotButtonById = new Map();
   let activeNeighborSlotId = null;
   // Temporary frontend-only round action state.
@@ -13219,6 +13229,28 @@
     neighborWagerGoldEl.addEventListener('input', () => {
       roundActionState.wagerAmount = Math.round(Number(neighborWagerGoldEl.value) || 0);
       syncRoundActionControls(false);
+    });
+  }
+  function setAwsDraftStatus(message, tone) {
+    if (!neighborAwsDraftStatusEl) return;
+    neighborAwsDraftStatusEl.hidden = !message;
+    neighborAwsDraftStatusEl.textContent = message || '';
+    neighborAwsDraftStatusEl.classList.toggle('success', tone === 'success');
+    neighborAwsDraftStatusEl.classList.toggle('error', tone === 'error');
+  }
+  if (neighborSaveAwsDraftEl) {
+    neighborSaveAwsDraftEl.addEventListener('click', async () => {
+      neighborSaveAwsDraftEl.disabled = true;
+      setAwsDraftStatus('Saving AWS draft...', '');
+      try {
+        const result = await saveInterRoundStateToAws();
+        setAwsDraftStatus('Saved AWS draft: ' + result.key, 'success');
+      } catch (err) {
+        console.warn('[aws-inter-round-state] save failed:', err.message || err);
+        setAwsDraftStatus('AWS draft save failed: ' + (err.message || err), 'error');
+      } finally {
+        neighborSaveAwsDraftEl.disabled = false;
+      }
     });
   }
   window.__tinyworldNeighborSlots = SURROUNDING_NEIGHBOR_SLOTS;
@@ -15484,6 +15516,186 @@
   const ROUND_REVEAL_START_HOUR = 18;
   let roundPhaseTimerId = null;
 
+  function coerceNonNegativeStat(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.round(n)) : null;
+  }
+
+  function normalizeAwsPhase(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (text === 'commit') return 'Commit';
+    if (text === 'reveal') return 'Reveal';
+    return null;
+  }
+
+  function validateAwsMockStats(data) {
+    if (!data || typeof data !== 'object') return null;
+    if (typeof data.source !== 'string' || !data.source) return null;
+    const phase = normalizeAwsPhase(data.phase);
+    if (!phase) return null;
+    const lastRevealState = data.lastRevealState;
+    if (!lastRevealState || typeof lastRevealState !== 'object') return null;
+
+    const required = ['credits', 'food', 'water', 'oxygen', 'shelter', 'fleet'];
+    const resourcesFromState = {};
+    for (const key of required) {
+      const value = coerceNonNegativeStat(lastRevealState[key]);
+      if (value === null) return null;
+      resourcesFromState[key] = value;
+    }
+    const roundNumber = coerceNonNegativeStat(lastRevealState.roundNumber);
+    const entriesRemaining = coerceNonNegativeStat(lastRevealState.entriesRemaining);
+    const maxEntries = coerceNonNegativeStat(lastRevealState.maxEntries);
+
+    return {
+      source: data.source,
+      playerId: data.playerId || null,
+      phase,
+      lastRevealState,
+      interRoundState: data.interRoundState || null,
+      resources: {
+        gold: resourcesFromState.credits,
+        food: resourcesFromState.food,
+        water: resourcesFromState.water,
+        oxygen: resourcesFromState.oxygen,
+        shelter: resourcesFromState.shelter,
+        army: resourcesFromState.fleet,
+      },
+      gameState: {
+        roundNumber: Math.max(1, roundNumber === null ? 1 : roundNumber),
+        entriesRemaining: Math.max(0, entriesRemaining === null ? PLAYER_GAME_STATE_MOCK.entriesRemaining : entriesRemaining),
+        maxEntries: Math.max(0, maxEntries === null ? PLAYER_GAME_STATE_MOCK.maxEntries : maxEntries),
+        playerStatus: lastRevealState.playerStatus || null,
+      },
+    };
+  }
+
+  function applyAwsMockStats(data) {
+    const validated = validateAwsMockStats(data);
+    if (!validated) return false;
+    awsGameState = validated;
+    authoritativeGameState = validated;
+    window.__tinyworldAwsGameState = validated;
+    window.__tinyworldAuthoritativeGameState = validated;
+    window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, validated.gameState);
+    for (const key of RESOURCE_KEYS) {
+      resources[key] = validated.resources[key];
+    }
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
+  function currentResourceSnapshotForAws() {
+    return {
+      credits: coerceNonNegativeStat(resources.gold) || 0,
+      food: coerceNonNegativeStat(resources.food) || 0,
+      water: coerceNonNegativeStat(resources.water) || 0,
+      oxygen: coerceNonNegativeStat(resources.oxygen) || 0,
+      shelter: coerceNonNegativeStat(resources.shelter) || 0,
+      fleet: coerceNonNegativeStat(resources.army) || 0,
+    };
+  }
+
+  function buildInterRoundStateDraft() {
+    const auth = authoritativeGameState || awsGameState;
+    const lastRevealState = auth && auth.lastRevealState;
+    if (!lastRevealState) throw new Error('AWS mock stats have not hydrated yet.');
+    const roundNumber = coerceNonNegativeStat(lastRevealState.roundNumber);
+    if (!roundNumber) throw new Error('Missing authoritative round number.');
+
+    const actionState = (typeof roundActionState !== 'undefined' && roundActionState) || {};
+    const selectedAction = actionState.selectedAction || 'defend';
+    const wagerAmount = coerceNonNegativeStat(actionState.wagerAmount) || 0;
+    const playerId = auth.playerId || 'player-1';
+    const proposedResources = currentResourceSnapshotForAws();
+    const lastCredits = coerceNonNegativeStat(lastRevealState.credits) || 0;
+    const creditSpend = Math.max(0, lastCredits - proposedResources.credits);
+    const updatedAt = new Date().toISOString();
+    const worldSnapshot = {
+      v: STORAGE_VERSION,
+      gridSize: GRID,
+      cells: snapshotCells(),
+      toolId: selectedTool && selectedTool.id,
+      cameraMode,
+    };
+
+    return {
+      source: 'tiny-world-builder',
+      playerId,
+      phase: 'commit',
+      roundNumber,
+      lastRevealState,
+      interRoundState: {
+        proposedWorld: worldSnapshot,
+        proposedResources,
+        proposedAllocations: {
+          creditSpend,
+          wagerAmount,
+        },
+        roundAction: {
+          selectedAction,
+          wagerAmount,
+          selectedTargetNeighborId: actionState.selectedTargetNeighborId || null,
+        },
+        validation: {
+          status: 'pending',
+          checks: [
+            'client-draft-only',
+            'server-validates-basic-resource-bounds',
+          ],
+        },
+      },
+      updatedAt,
+    };
+  }
+
+  async function saveInterRoundStateToAws() {
+    const draft = buildInterRoundStateDraft();
+    const response = await fetch('/api/inter-round-state', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(draft),
+    });
+    const text = await response.text();
+    let result = null;
+    try { result = text ? JSON.parse(text) : null; } catch (_) {
+      result = { ok: false, error: text || response.statusText };
+    }
+    if (!response.ok || !result || !result.ok) {
+      throw new Error((result && result.error) || ('HTTP ' + response.status));
+    }
+    lastSavedInterRoundStateKey = result.key;
+    window.__tinyworldLastSavedInterRoundStateKey = result.key;
+    console.info('[aws-inter-round-state] saved draft', result.key);
+    return result;
+  }
+
+  window.buildInterRoundStateDraft = buildInterRoundStateDraft;
+  window.saveInterRoundStateToAws = saveInterRoundStateToAws;
+
+  async function fetchAwsMockStats() {
+    try {
+      const response = await fetch('/api/mockstats', {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      if (!applyAwsMockStats(data)) throw new Error('Unexpected mock stats shape');
+      console.info('[aws-mockstats] hydrated authoritative game state.');
+      return awsGameState;
+    } catch (err) {
+      console.warn('[aws-mockstats] hydrate failed; using local mock resources:', err.message || err);
+      return null;
+    }
+  }
+
+  window.fetchAwsMockStats = fetchAwsMockStats;
+
   function resourceRuleForTool(tool) {
     if (!tool) return null;
     if (tool.terrain === 'water') return RESOURCE_BUILD_RULES.water;
@@ -15656,7 +15868,7 @@
   }
 
   function getPlayerGameState() {
-    return window.__tinyworldPlayerGameState || PLAYER_GAME_STATE_MOCK;
+    return window.__tinyworldPlayerGameState || (authoritativeGameState && authoritativeGameState.gameState) || PLAYER_GAME_STATE_MOCK;
   }
 
   function formatRoundCountdown(ms) {
@@ -15695,7 +15907,7 @@
     const phaseEl = document.getElementById('player-stat-round-phase');
     const nextLabelEl = document.getElementById('player-stat-next-phase-label');
     const countdownEl = document.getElementById('player-stat-next-phase-countdown');
-    if (phaseEl) phaseEl.textContent = info.phase;
+    if (phaseEl) phaseEl.textContent = (authoritativeGameState && authoritativeGameState.phase) || info.phase;
     if (nextLabelEl) nextLabelEl.textContent = 'Next ' + info.nextPhase;
     if (countdownEl) countdownEl.textContent = info.formattedCountdown;
   }
@@ -26385,6 +26597,7 @@
     initCrowdLayer();
     schedulePlayerStatsUpdate();
     startRoundPhaseTimer();
+    fetchAwsMockStats();
     onResize();
     renderer.setAnimationLoop(animate);
     const vehicleDemoRequest = getVehicleDemoUrlRequest();

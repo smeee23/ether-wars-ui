@@ -17,6 +17,15 @@ Use this while the Resources model is frontend/mock-state only.
 - Placement feedback should stay in the mock resource layer: use `flashPlayerResourceStats()` from spend/refund helpers rather than scattering DOM animation calls through tool placement branches.
 - Resource-backed blocked actions, including insufficient gold and max-height repeat clicks, should use `rejectMockResourceBuildAction(tool)` so Gold gets the same red jiggle and rejection sound.
 - Mock round-action UI can read `resources.gold` for attack wagers, but must remain frontend-only until commit/reveal and contract/indexer state are explicitly added.
+- `fetchAwsMockStats()` may hydrate the mock `resources` object from
+  `GET /api/mockstats`. Treat that as a read-only authoritative snapshot:
+  `credits` maps to local `gold`, `fleet` maps to local `army`, and placement /
+  erase helpers still mutate the frontend mock resources after hydration.
+- `buildInterRoundStateDraft()` may snapshot the current visual world and
+  frontend mock resources into a proposed `interRoundState`, but saving must
+  remain explicit through `saveInterRoundStateToAws()` / `POST
+  /api/inter-round-state`; do not write to S3 from `setCell()` or resource
+  spend/refund helpers.
 - Leave contract, wallet, indexer, and elimination behavior out until explicitly requested.
 
 Validation:
