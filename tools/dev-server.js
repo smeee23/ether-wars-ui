@@ -3,6 +3,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 const { URL } = require('url');
 
@@ -241,6 +242,194 @@ function nonNegativeIntOrNull(value) {
   return n === null ? null : Math.max(0, Math.round(n));
 }
 
+const COMMIT_PREVIEW_HASH_ALGORITHM = 'sha256-dev-only-not-solidity-keccak256';
+const COMMIT_PREVIEW_SALT_PLACEHOLDER = 'dev-salt-placeholder-replace-before-real-commit';
+const COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER = '0x0000000000000000000000000000000000000000';
+const COMMIT_ACTION_CODES = { defend: 0, attack: 1, build: 2 };
+const COMMIT_RESOURCE_KEYS = ['credits', 'food', 'water', 'oxygen', 'shelter', 'fleet'];
+const COMMIT_BASE_TERRAIN = 'stone';
+
+function stableCommitJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return '[' + value.map(stableCommitJson).join(',') + ']';
+  return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stableCommitJson(value[key])).join(',') + '}';
+}
+
+function commitHashObject(value) {
+  return '0x' + crypto.createHash('sha256').update(stableCommitJson(value), 'utf8').digest('hex');
+}
+
+function normalizeHexColor(value) {
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  if (/^#[0-9a-f]{6}$/i.test(s)) return s.toLowerCase();
+  if (/^[0-9a-f]{6}$/i.test(s)) return ('#' + s).toLowerCase();
+  return null;
+}
+
+function normalizeCommitAppearance(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const bodyColor = normalizeHexColor(value.bodyColor || value.body || value.wallColor || value.walls);
+  const topColor = normalizeHexColor(value.topColor || value.top || value.roofColor || value.roof);
+  const rawVoxelBuildId = value.voxelBuildId || value.voxelBuild || value.stampId || value.stamp;
+  const voxelBuildId = (typeof rawVoxelBuildId === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(rawVoxelBuildId))
+    ? rawVoxelBuildId
+    : null;
+  const rawScale = Array.isArray(value.objectScale) || Array.isArray(value.scale)
+    ? null
+    : (value.objectScale !== undefined ? value.objectScale : value.scale);
+  const objectScaleNumber = rawScale === null ? NaN : Number(rawScale);
+  const objectScale = Number.isFinite(objectScaleNumber)
+    ? Math.max(0.25, Math.min(4, objectScaleNumber))
+    : null;
+  const rawObjectStyle = String(value.objectStyle || value.style || '').toLowerCase();
+  const objectStyle = rawObjectStyle === 'normal' || rawObjectStyle === 'voxel'
+    ? rawObjectStyle
+    : null;
+  const out = {};
+  if (bodyColor) out.bodyColor = bodyColor;
+  if (topColor) out.topColor = topColor;
+  if (voxelBuildId) out.voxelBuildId = voxelBuildId;
+  if (objectScale !== null && Math.abs(objectScale - 1) > 0.001) out.objectScale = +objectScale.toFixed(3);
+  if (objectStyle) out.objectStyle = objectStyle;
+  return Object.keys(out).length ? out : null;
+}
+
+function normalizeCommitCell(entry) {
+  let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance;
+  if (Array.isArray(entry)) {
+    [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance] = entry;
+  } else if (entry && typeof entry === 'object') {
+    ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance } = entry);
+  }
+  x = Math.round(Number(x));
+  z = Math.round(Number(z));
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+  let rotationY = 0, offsetX = 0, offsetZ = 0;
+  if (Array.isArray(transform)) {
+    rotationY = Number(transform[0]) || 0;
+    offsetX = Number(transform[1]) || 0;
+    offsetZ = Number(transform[2]) || 0;
+  } else if (transform && typeof transform === 'object') {
+    rotationY = Number(transform.rotationY) || 0;
+    offsetX = Number(transform.offsetX) || 0;
+    offsetZ = Number(transform.offsetZ) || 0;
+  }
+  const normalizedExtras = Array.isArray(extras)
+    ? extras.map(e => ({
+        kind: (e && (e.kind || e.k)) || null,
+        fenceSide: (e && (e.fenceSide || e.s)) || null,
+        floors: Math.max(1, Math.round(Number(e && (e.floors || e.f)) || 1)),
+      })).filter(e => e.kind).sort((a, b) => (
+        String(a.kind).localeCompare(String(b.kind))
+        || String(a.fenceSide || '').localeCompare(String(b.fenceSide || ''))
+        || a.floors - b.floors
+      ))
+    : [];
+  return {
+    x,
+    z,
+    terrain: terrain || COMMIT_BASE_TERRAIN,
+    terrainFloors: Math.max(1, Math.round(Number(terrainFloors) || 1)),
+    kind: kind || null,
+    floors: Math.max(1, Math.round(Number(floors) || 1)),
+    buildingType: buildingType || null,
+    fenceSide: fenceSide || null,
+    extras: normalizedExtras,
+    transform: {
+      rotationY,
+      offsetX,
+      offsetZ,
+    },
+    appearance: normalizeCommitAppearance(appearance),
+  };
+}
+
+function normalizeCommitWorldSnapshot(worldSnapshot) {
+  const cells = Array.isArray(worldSnapshot && worldSnapshot.cells)
+    ? worldSnapshot.cells.map(normalizeCommitCell).filter(Boolean)
+    : [];
+  cells.sort((a, b) => (a.x - b.x) || (a.z - b.z));
+  return {
+    schema: 'etherlands.world.v1',
+    gridSize: Math.max(1, Math.round(Number(worldSnapshot && worldSnapshot.gridSize) || 15)),
+    cells,
+  };
+}
+
+function normalizeCommitResourceAllocation(proposedResources, proposedAllocations) {
+  const resourcesOut = {};
+  for (const key of COMMIT_RESOURCE_KEYS) {
+    resourcesOut[key] = nonNegativeIntOrNull(proposedResources && proposedResources[key]) || 0;
+  }
+  return {
+    resources: resourcesOut,
+    allocations: {
+      creditSpend: nonNegativeIntOrNull(proposedAllocations && proposedAllocations.creditSpend) || 0,
+      wagerAmount: nonNegativeIntOrNull(proposedAllocations && proposedAllocations.wagerAmount) || 0,
+    },
+  };
+}
+
+function buildCommitPreimageFromInterRoundState(body, opts = {}) {
+  const interRoundState = body.interRoundState || {};
+  const roundAction = interRoundState.roundAction || {};
+  const proposedAllocations = interRoundState.proposedAllocations || {};
+  const actionType = String(roundAction.selectedAction || 'defend').toLowerCase();
+  const wagerAmount = nonNegativeIntOrNull(roundAction.wagerAmount ?? proposedAllocations.wagerAmount) || 0;
+  return {
+    schema: 'etherlands.commit-preimage.v1',
+    playerId: String(body.playerId || 'player-1'),
+    playerAddress: String(opts.playerAddress || COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER),
+    roundNumber: nonNegativeIntOrNull(body.roundNumber) || 0,
+    actionType,
+    actionTypeCode: Object.prototype.hasOwnProperty.call(COMMIT_ACTION_CODES, actionType) ? COMMIT_ACTION_CODES[actionType] : 0,
+    targetNeighborId: roundAction.selectedTargetNeighborId ? String(roundAction.selectedTargetNeighborId) : '',
+    wagerAmount,
+    proposedAllocations: opts.proposedAllocations || normalizeCommitResourceAllocation(interRoundState.proposedResources || {}, proposedAllocations).allocations,
+    resourceAllocationHash: opts.resourceAllocationHash,
+    worldSnapshotHash: opts.worldSnapshotHash,
+    salt: String(opts.salt || COMMIT_PREVIEW_SALT_PLACEHOLDER),
+  };
+}
+
+function buildCommitPreviewFromInterRoundState(body) {
+  const interRoundState = body.interRoundState || {};
+  const normalizedWorld = normalizeCommitWorldSnapshot(interRoundState.proposedWorld || {});
+  const normalizedResources = normalizeCommitResourceAllocation(interRoundState.proposedResources || {}, interRoundState.proposedAllocations || {});
+  const worldSnapshotHash = commitHashObject(normalizedWorld);
+  const resourceAllocationHash = commitHashObject(normalizedResources);
+  const preimage = buildCommitPreimageFromInterRoundState(body, {
+    worldSnapshotHash,
+    resourceAllocationHash,
+    proposedAllocations: normalizedResources.allocations,
+  });
+  return {
+    preimage,
+    worldSnapshotHash,
+    resourceAllocationHash,
+    commitHash: commitHashObject(preimage),
+    hashAlgorithm: COMMIT_PREVIEW_HASH_ALGORITHM,
+    isDevOnly: true,
+  };
+}
+
+function validateCommitPreview(body) {
+  const preview = body.interRoundState && body.interRoundState.commitPreview;
+  if (!preview) return { ok: true, recomputed: buildCommitPreviewFromInterRoundState(body), matched: false };
+  const recomputed = buildCommitPreviewFromInterRoundState(body);
+  const fields = ['worldSnapshotHash', 'resourceAllocationHash', 'commitHash', 'hashAlgorithm', 'isDevOnly'];
+  for (const field of fields) {
+    if (preview[field] !== recomputed[field]) {
+      return { ok: false, error: `commitPreview.${field} does not match recomputed draft hash` };
+    }
+  }
+  if (stableCommitJson(preview.preimage) !== stableCommitJson(recomputed.preimage)) {
+    return { ok: false, error: 'commitPreview.preimage does not match recomputed draft preimage' };
+  }
+  return { ok: true, recomputed, matched: true };
+}
+
 function validateInterRoundStatePayload(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { ok: false, status: 400, error: 'Body must be a JSON object' };
@@ -295,6 +484,11 @@ function validateInterRoundStatePayload(body) {
     return { ok: false, status: 409, error: 'attack action requires a positive wager' };
   }
 
+  const commitPreviewValidation = validateCommitPreview(body);
+  if (!commitPreviewValidation.ok) {
+    return { ok: false, status: 409, error: commitPreviewValidation.error };
+  }
+
   const bucket = 'justcausepools';
   const key = `etherwars/players/${playerId}/round-${roundNumber}/interRoundState.json`;
   if (!key.startsWith('etherwars/players/') || !key.endsWith('/interRoundState.json')) {
@@ -304,6 +498,10 @@ function validateInterRoundStatePayload(body) {
   const updatedAt = new Date().toISOString();
   const safeBody = sanitizeForPublicJson({
     ...body,
+    interRoundState: {
+      ...interRoundState,
+      commitPreview: commitPreviewValidation.recomputed,
+    },
     phase,
     playerId,
     roundNumber,
@@ -312,6 +510,7 @@ function validateInterRoundStatePayload(body) {
       status: 'accepted',
       creditSpend,
       wager,
+      commitPreviewStatus: commitPreviewValidation.matched ? 'matched' : 'server-generated',
       checkedAt: updatedAt,
     },
   });
