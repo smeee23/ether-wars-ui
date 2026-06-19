@@ -415,6 +415,24 @@
   .neighbor-stats-panel[hidden] {
     display: none;
   }
+  .neighbor-selector-row {
+    display: grid;
+    grid-template-columns: 58px 1fr;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .neighbor-selector-row select {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid rgba(120, 130, 150, 0.24);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+    color: var(--ink);
+    font: inherit;
+    padding: 4px 6px;
+  }
   .crowd-panel h3 {
     margin: 0;
     font-size: 12px;
@@ -4035,6 +4053,11 @@
       <div class="stats-panel-header">
         <h3 id="neighbor-stats-title">Neighbor</h3>
       </div>
+      <label class="neighbor-selector-row">View
+        <select id="neighbor-stats-selector">
+          <option value="">Select neighbor...</option>
+        </select>
+      </label>
       <div class="player-stat player-stat-numeric">
         <span>Credits</span>
         <span class="player-stat-value" id="neighbor-stat-gold">0</span>
@@ -13094,6 +13117,7 @@
     SURROUNDING_NEIGHBOR_SLOTS.length = 0;
     for (const slot of slots) SURROUNDING_NEIGHBOR_SLOTS.push(slot);
     buildSurroundingLand();
+    renderNeighborSelector();
     rebuildNeighborSlotButtons();
     ensureSelectedNeighborStats();
     if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
@@ -13103,6 +13127,7 @@
   const neighborSlotButtonsEl = document.getElementById('neighbor-slot-buttons');
   const neighborStatsPanelEl = document.getElementById('neighbor-stats-panel');
   const neighborStatsTitleEl = document.getElementById('neighbor-stats-title');
+  const neighborStatsSelectorEl = document.getElementById('neighbor-stats-selector');
   const neighborRoundActionEl = document.getElementById('neighbor-round-action');
   const neighborAttackControlsEl = document.getElementById('neighbor-attack-controls');
   const neighborAttackTargetEl = document.getElementById('neighbor-attack-target');
@@ -13156,6 +13181,36 @@
 
   function defaultSelectedNeighborSlot() {
     return activeNeighborSlots()[0] || SURROUNDING_NEIGHBOR_SLOTS.find(Boolean) || null;
+  }
+
+  function neighborDisplayLabel(slot) {
+    if (!slot) return 'Neighbor';
+    return slot.label || slot.name || slot.username || slot.playerName || slot.id || 'Neighbor';
+  }
+
+  function renderNeighborSelector() {
+    if (!neighborStatsSelectorEl) return;
+    const current = activeNeighborSlotId || '';
+    neighborStatsSelectorEl.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select neighbor...';
+    neighborStatsSelectorEl.appendChild(placeholder);
+    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
+      if (!slot || !slot.id) continue;
+      const opt = document.createElement('option');
+      opt.value = slot.id;
+      opt.textContent = neighborDisplayLabel(slot);
+      if (!slot.occupied) opt.textContent += ' (open)';
+      neighborStatsSelectorEl.appendChild(opt);
+    }
+    neighborStatsSelectorEl.disabled = SURROUNDING_NEIGHBOR_SLOTS.length === 0;
+    neighborStatsSelectorEl.value = neighborSlotById.has(current) ? current : '';
+  }
+
+  function syncNeighborSelector() {
+    if (!neighborStatsSelectorEl) return;
+    neighborStatsSelectorEl.value = activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId) ? activeNeighborSlotId : '';
   }
 
   function currentGoldAmount() {
@@ -13239,6 +13294,7 @@
     for (const [id, btn] of neighborSlotButtonById) {
       btn.classList.toggle('active', id === activeNeighborSlotId);
     }
+    syncNeighborSelector();
     updateNeighborSlotHighlights();
   }
 
@@ -13246,7 +13302,7 @@
     if (!slot || !neighborStatsPanelEl) return;
     const stats = statsForNeighborSlot(slot);
     activeNeighborSlotId = slot.id;
-    if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = slot.label || 'Neighbor';
+    if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = neighborDisplayLabel(slot);
     const population = Math.max(0, Math.round(Number(stats.population) || 0));
     setNeighborStat('gold', stats.gold, 0);
     setNeighborStat('population', population, 0);
@@ -13257,6 +13313,19 @@
     if (neighborEl) neighborEl.textContent = stats.neighbor || '-';
     syncRoundActionControls(true);
     updateNeighborSlotActiveButtons();
+  }
+
+  function setActiveNeighborById(neighborId, source = 'dropdown') {
+    const id = String(neighborId || '');
+    const slot = id ? neighborSlotById.get(id) : null;
+    if (!slot) {
+      activeNeighborSlotId = null;
+      updateNeighborSlotActiveButtons();
+      return false;
+    }
+    openNeighborStats(slot);
+    if (source === 'dropdown') setHoveredNeighborSlot(slot);
+    return true;
   }
 
   function ensureSelectedNeighborStats() {
@@ -13275,6 +13344,11 @@
     neighborRoundActionEl.addEventListener('change', () => {
       roundActionState.selectedAction = neighborRoundActionEl.value || 'defend';
       syncRoundActionControls(true);
+    });
+  }
+  if (neighborStatsSelectorEl) {
+    neighborStatsSelectorEl.addEventListener('change', () => {
+      setActiveNeighborById(neighborStatsSelectorEl.value, 'dropdown');
     });
   }
   if (neighborAttackTargetEl) {
@@ -13363,6 +13437,7 @@
   window.__tinyworldRoundActionState = roundActionState;
   window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
   buildSurroundingLand();
+  renderNeighborSelector();
   rebuildNeighborSlotButtons();
   ensureSelectedNeighborStats();
 
@@ -18641,7 +18716,7 @@
     if (pointerDown && !didDrag && dragMode !== 'pan' && dragMode !== 'select-area') {
       const neighborSlot = pickNeighborSlot(e.clientX, e.clientY);
       if (neighborSlot) {
-        openNeighborStats(neighborSlot);
+        setActiveNeighborById(neighborSlot.id, 'scene');
         setHoveredNeighborSlot(neighborSlot);
       } else if (currentHover) {
         // Plain click on the select tool is a no-op; the user must hold
