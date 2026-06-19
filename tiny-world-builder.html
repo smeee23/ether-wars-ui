@@ -12947,81 +12947,59 @@
     return { landX: -GRID / 2 - offset, landZ: along, tintX: -GRID / 2 - offset, tintZ: along };
   }
 
-  function neighborCometDirection(edge, pos) {
-    let dx = pos.landX;
-    let dz = pos.landZ;
-    if (edge === 'north') dz = -Math.abs(dz || 1);
-    if (edge === 'south') dz =  Math.abs(dz || 1);
-    if (edge === 'east') dx =  Math.abs(dx || 1);
-    if (edge === 'west') dx = -Math.abs(dx || 1);
-    const len = Math.max(0.001, Math.sqrt(dx * dx + dz * dz));
-    return { x: dx / len, z: dz / len };
+  function neighborStarSlotLen() {
+    return GRID * 0.5 * TILE;
   }
 
-  // Creates the distant neighbour island visual. It is intentionally visual-only:
+  function neighborStarOutsideDepth() {
+    return Math.max(10.6, Math.min(3.0, GRID * 0.16)) * TILE;
+  }
+
+  function neighborHitOutsideDepth() {
+    return Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
+  }
+
+  function neighborStarPosition(edge, index) {
+    return slotCenter(edge, index, neighborStarSlotLen(), neighborStarOutsideDepth(), neighborSlotGap());
+  }
+
+  // Creates the distant neighbour star visual. It is intentionally visual-only:
   // hit testing, selection state, stats, and round actions stay on the existing
   // neighbour slot metadata and invisible hit meshes.
-  function makeNeighborCometIsland(slot, index, color) {
-    const slotLen = GRID * 0.5 * TILE;
-    const outsideDepth = Math.max(10.6, Math.min(3.0, GRID * 0.16)) * TILE;
-    const outsideGap = neighborSlotGap();
-    const pos = slotCenter(slot.edge, index, slotLen, outsideDepth, outsideGap);
-    const outward = neighborCometDirection(slot.edge, pos);
+  function makeNeighborStarVisual(slot, index, color) {
+    const pos = neighborStarPosition(slot.edge, index);
     const accent = normalizeHexColor(color) || '#e6e6e6';
     const occupied = !!slot.occupied;
     const seed = (index + 1) * 31 + (slot.edge || '').length * 17;
-    const islandScale = occupied ? 1 : 0.86;
     const group = new THREE.Group();
-    group.position.set(pos.landX, TOP_H + 0.42, pos.landZ);
+    group.position.set(pos.landX, TOP_H + 0.62, pos.landZ);
     group.rotation.y = (seed % 9) * 0.19;
-    group.scale.setScalar(islandScale);
-    group.name = 'neighbor-comet-island-' + slot.id;
+    group.name = 'neighbor-star-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
 
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.92, 1.02, 0.18, 7, 1), occupied ? M.surroundingLandTop : M.stone);
-    top.position.y = 0.06;
-    top.scale.set(1.18, 1, 0.88);
-    group.add(top);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 0.16 : 0.11, 10, 8), surroundingLandTintMaterial(accent, true, 'accent'));
+    core.userData.noShadow = true;
+    group.add(core);
 
-    const underside = new THREE.Mesh(new THREE.ConeGeometry(0.96, 1.05, 7, 1), M.surroundingLandSide);
-    underside.position.y = -0.58;
-    underside.rotation.y = 0.18;
-    underside.rotation.x = Math.PI;   
-    underside.scale.set(1.08, 1, 0.82);
-    group.add(underside);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 0.56 : 0.42, 12, 8), surroundingLandTintMaterial(accent, occupied, 'glow'));
+    glow.userData.noShadow = true;
+    group.add(glow);
 
-    for (let i = 0; i < 5; i++) {
-      const a = i * 1.47 + seed * 0.11;
-      const r = 0.28 + (i % 3) * 0.12;
-      const shard = new THREE.Mesh(new THREE.ConeGeometry(0.10 + (i % 2) * 0.035, 0.34 + (i % 3) * 0.07, 5, 1), M.rockDk);
-      shard.position.set(Math.cos(a) * r, -0.48 - i * 0.035, Math.sin(a) * r * 0.72);
-      shard.rotation.set(0.35 + i * 0.18, a, 0.16);
-      group.add(shard);
-    }
-
-    const beacon = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.42, 5, 1), surroundingLandTintMaterial(accent, occupied, 'accent'));
-    beacon.position.set(-0.18, 0.42, 0.02);
-    beacon.rotation.y = 0.32;
-    group.add(beacon);
+    const flare = new THREE.Mesh(new THREE.TorusGeometry(occupied ? 0.34 : 0.26, 0.012, 4, 18), surroundingLandTintMaterial(accent, occupied, 'trail'));
+    flare.rotation.x = Math.PI / 2;
+    flare.rotation.z = 0.8 + seed * 0.03;
+    flare.scale.set(1.95, 0.24, 1);
+    flare.userData.noShadow = true;
+    group.add(flare);
 
     const ring = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.018, 6, 28), surroundingLandTintMaterial(accent, occupied, 'glow'));
     ring.rotation.x = Math.PI / 2;
     ring.rotation.z = 0.18;
-    ring.position.y = 0.08;
+    ring.position.y = -0.04;
     ring.scale.set(1.12, 0.76, 1);
     ring.userData.noShadow = true;
     group.add(ring);
 
-    for (let i = 0; i < 4; i++) {
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(0.16 - i * 0.022, 6, 4), surroundingLandTintMaterial(accent, occupied, 'trail'));
-      const spread = (i % 2 ? -1 : 1) * (0.08 + i * 0.025);
-      puff.position.set(outward.x * (1.10 + i * 0.38) - outward.z * spread, -0.02 - i * 0.045, outward.z * (1.10 + i * 0.38) + outward.x * spread);
-      puff.scale.set(1.35 + i * 0.18, 0.48, 0.72);
-      puff.userData.noShadow = true;
-      group.add(puff);
-    }
-
-    castReceive(group);
     return group;
   }
 
@@ -13031,20 +13009,19 @@
     const group = new THREE.Group();
     group.name = 'surrounding-land-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
-    group.add(makeNeighborCometIsland(slot, index, slot.color));
+    group.add(makeNeighborStarVisual(slot, index, slot.color));
     return group;
   }
 
   function makeNeighborHitSlot(slot) {
     const edge = slot.edge;
     const index = slot.index === 1 ? 1 : 0;
-    const slotLen = GRID * 0.5 * TILE;
-    const outsideDepth = Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
-    const outsideGap = neighborSlotGap();
+    const slotLen = neighborStarSlotLen();
+    const outsideDepth = neighborHitOutsideDepth();
     const isHorizontal = edge === 'north' || edge === 'south';
     const hitW = isHorizontal ? slotLen : outsideDepth;
     const hitD = isHorizontal ? outsideDepth : slotLen;
-    const pos = slotCenter(edge, index, slotLen, outsideDepth, outsideGap);
+    const pos = neighborStarPosition(edge, index);
     const group = new THREE.Group();
     group.name = 'neighbor-hit-' + slot.id;
     group.userData = {
