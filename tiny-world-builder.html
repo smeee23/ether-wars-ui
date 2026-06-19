@@ -12934,36 +12934,45 @@
     return surroundingLandTintMaterials.get(key);
   }
 
-  function neighborSlotGap() {
-    return Math.max(8, GRID * 0.75) * TILE;
+  function neighborStarDistance() {
+    return Math.max(24, GRID * 1.6) * TILE;
   }
 
-  function slotCenter(edge, index, slotLen, outsideDepth, outsideGap) {
-    const along = -GRID / 2 + slotLen * (index + 0.5);
-    const offset = outsideDepth / 2 + outsideGap;
-    if (edge === 'north') return { landX: along, landZ: -GRID / 2 - offset, tintX: along, tintZ: -GRID / 2 - offset };
-    if (edge === 'south') return { landX: along, landZ:  GRID / 2 + offset, tintX: along, tintZ:  GRID / 2 + offset };
-    if (edge === 'east')  return { landX:  GRID / 2 + offset, landZ: along, tintX:  GRID / 2 + offset, tintZ: along };
-    return { landX: -GRID / 2 - offset, landZ: along, tintX: -GRID / 2 - offset, tintZ: along };
-  }
-
-  function neighborStarSlotLen() {
-    return GRID * 0.5 * TILE;
-  }
-
-  function neighborStarOutsideDepth() {
-    return Math.max(10.6, Math.min(3.0, GRID * 0.16)) * TILE;
-  }
-
-  function neighborHitOutsideDepth() {
-    return Math.max(1.6, Math.min(3.0, GRID * 0.16)) * TILE;
+  function neighborStarHeight() {
+    return TOP_H + Math.max(7.5, GRID * 0.45) * TILE;
   }
 
   function neighborStarPosition(edge, index) {
-    return slotCenter(edge, index, neighborStarSlotLen(), neighborStarOutsideDepth(), neighborSlotGap());
+    const distance = neighborStarDistance();
+    const spread = distance * 0.48;
+    const upper = index !== 1;
+    if (edge === 'north') return { landX: upper ? -spread : spread, landY: neighborStarHeight(), landZ: -distance };
+    if (edge === 'south') return { landX: upper ? -spread : spread, landY: neighborStarHeight(), landZ: distance };
+    if (edge === 'east') return { landX: distance, landY: neighborStarHeight(), landZ: upper ? -spread : spread };
+    return { landX: -distance, landY: neighborStarHeight(), landZ: upper ? -spread : spread };
   }
 
-  // Creates the distant neighbour star visual. It is intentionally visual-only:
+  function neighborStarPointMaterial(color, occupied) {
+    const clean = normalizeHexColor(color) || '#e6e6e6';
+    const opacity = occupied ? 1 : 0.72;
+    const key = 'point:' + clean + ':' + opacity;
+    if (!surroundingLandTintMaterials.has(key)) {
+      surroundingLandTintMaterials.set(key, new THREE.PointsMaterial({
+        color: clean,
+        size: occupied ? 7.2 : 5.2,
+        sizeAttenuation: false,
+        transparent: true,
+        opacity,
+        depthTest: true,
+        depthWrite: false,
+        fog: false,
+      }));
+    }
+    return surroundingLandTintMaterials.get(key);
+  }
+
+  // Creates fixed neighbour stars that read like intentional starfield points.
+  // It is intentionally visual-only:
   // hit testing, selection state, stats, and round actions stay on the existing
   // neighbour slot metadata and invisible hit meshes.
   function makeNeighborStarVisual(slot, index, color) {
@@ -12972,31 +12981,33 @@
     const occupied = !!slot.occupied;
     const seed = (index + 1) * 31 + (slot.edge || '').length * 17;
     const group = new THREE.Group();
-    group.position.set(pos.landX, TOP_H + 0.62, pos.landZ);
+    group.position.set(pos.landX, pos.landY, pos.landZ);
     group.rotation.y = (seed % 9) * 0.19;
     group.name = 'neighbor-star-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
 
-    const core = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 0.16 : 0.11, 10, 8), surroundingLandTintMaterial(accent, true, 'accent'));
-    core.userData.noShadow = true;
-    group.add(core);
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
+    const star = new THREE.Points(starGeo, neighborStarPointMaterial(accent, occupied));
+    star.frustumCulled = false;
+    star.renderOrder = -7;
+    star.userData.noShadow = true;
+    group.add(star);
 
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 0.56 : 0.42, 12, 8), surroundingLandTintMaterial(accent, occupied, 'glow'));
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 0.24 : 0.18, 8, 6), surroundingLandTintMaterial(accent, occupied, 'glow'));
     glow.userData.noShadow = true;
     group.add(glow);
 
-    const flare = new THREE.Mesh(new THREE.TorusGeometry(occupied ? 0.34 : 0.26, 0.012, 4, 18), surroundingLandTintMaterial(accent, occupied, 'trail'));
+    const flare = new THREE.Mesh(new THREE.TorusGeometry(occupied ? 0.28 : 0.22, 0.006, 4, 18), surroundingLandTintMaterial(accent, occupied, 'trail'));
     flare.rotation.x = Math.PI / 2;
     flare.rotation.z = 0.8 + seed * 0.03;
-    flare.scale.set(1.95, 0.24, 1);
+    flare.scale.set(1.72, 0.2, 1);
     flare.userData.noShadow = true;
     group.add(flare);
 
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.15, 0.018, 6, 28), surroundingLandTintMaterial(accent, occupied, 'glow'));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.012, 6, 28), surroundingLandTintMaterial(accent, occupied, 'glow'));
     ring.rotation.x = Math.PI / 2;
     ring.rotation.z = 0.18;
-    ring.position.y = -0.04;
-    ring.scale.set(1.12, 0.76, 1);
     ring.userData.noShadow = true;
     group.add(ring);
 
@@ -13016,11 +13027,6 @@
   function makeNeighborHitSlot(slot) {
     const edge = slot.edge;
     const index = slot.index === 1 ? 1 : 0;
-    const slotLen = neighborStarSlotLen();
-    const outsideDepth = neighborHitOutsideDepth();
-    const isHorizontal = edge === 'north' || edge === 'south';
-    const hitW = isHorizontal ? slotLen : outsideDepth;
-    const hitD = isHorizontal ? outsideDepth : slotLen;
     const pos = neighborStarPosition(edge, index);
     const group = new THREE.Group();
     group.name = 'neighbor-hit-' + slot.id;
@@ -13032,8 +13038,8 @@
       index: index,
     };
 
-    const hit = new THREE.Mesh(getBoxGeometry(hitW, 0.08, hitD), neighborHitMaterial);
-    hit.position.set(pos.landX, TOP_H + 0.08, pos.landZ);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), neighborHitMaterial);
+    hit.position.set(pos.landX, pos.landY, pos.landZ);
     hit.userData = Object.assign({}, group.userData);
     hit.userData.noShadow = true;
     group.add(hit);
@@ -13045,9 +13051,9 @@
       depthTest: true,
       depthWrite: false,
     }));
-    highlight.position.set(pos.landX, TOP_H + 0.52, pos.landZ);
+    highlight.position.set(pos.landX, pos.landY, pos.landZ);
     highlight.rotation.x = Math.PI / 2;
-    highlight.scale.set(isHorizontal ? 1.06 : 0.82, isHorizontal ? 0.82 : 1.06, 1);
+    highlight.scale.set(1, 1, 1);
     highlight.renderOrder = -6;
     highlight.userData.neighborHighlight = true;
     highlight.userData.noShadow = true;
