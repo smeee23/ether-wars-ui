@@ -242,8 +242,7 @@ function nonNegativeIntOrNull(value) {
   return n === null ? null : Math.max(0, Math.round(n));
 }
 
-const COMMIT_PREVIEW_HASH_ALGORITHM = 'sha256-dev-only-not-solidity-keccak256';
-const COMMIT_PREVIEW_SALT_PLACEHOLDER = 'dev-salt-placeholder-replace-before-real-commit';
+const COMMIT_PREVIEW_HASH_ALGORITHM = 'keccak256-abi';
 const COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER = '0x0000000000000000000000000000000000000000';
 const COMMIT_ACTION_CODES = { defend: 0, attack: 1, build: 2 };
 const COMMIT_RESOURCE_KEYS = ['credits', 'food', 'water', 'oxygen', 'shelter', 'fleet'];
@@ -255,8 +254,135 @@ function stableCommitJson(value) {
   return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + stableCommitJson(value[key])).join(',') + '}';
 }
 
+function keccakRot(value, shift) {
+  const n = BigInt(shift);
+  return ((value << n) | (value >> (64n - n))) & 0xffffffffffffffffn;
+}
+
+function keccakF1600(state) {
+  const rotc = [
+    1,3,6,10,15,21,28,36,45,55,2,14,
+    27,41,56,8,25,43,62,18,39,61,20,44,
+  ];
+  const piln = [
+    10,7,11,17,18,3,5,16,8,21,24,4,
+    15,23,19,13,12,2,20,14,22,9,6,1,
+  ];
+  const rc = [
+    0x0000000000000001n,0x0000000000008082n,0x800000000000808an,0x8000000080008000n,
+    0x000000000000808bn,0x0000000080000001n,0x8000000080008081n,0x8000000000008009n,
+    0x000000000000008an,0x0000000000000088n,0x0000000080008009n,0x000000008000000an,
+    0x000000008000808bn,0x800000000000008bn,0x8000000000008089n,0x8000000000008003n,
+    0x8000000000008002n,0x8000000000000080n,0x000000000000800an,0x800000008000000an,
+    0x8000000080008081n,0x8000000000008080n,0x0000000080000001n,0x8000000080008008n,
+  ];
+  const bc = new Array(5);
+  for (let round = 0; round < 24; round++) {
+    for (let i = 0; i < 5; i++) {
+      bc[i] = state[i] ^ state[i + 5] ^ state[i + 10] ^ state[i + 15] ^ state[i + 20];
+    }
+    for (let i = 0; i < 5; i++) {
+      const t = bc[(i + 4) % 5] ^ keccakRot(bc[(i + 1) % 5], 1);
+      for (let j = 0; j < 25; j += 5) state[j + i] ^= t;
+    }
+    let t = state[1];
+    for (let i = 0; i < 24; i++) {
+      const j = piln[i];
+      const current = state[j];
+      state[j] = keccakRot(t, rotc[i]);
+      t = current;
+    }
+    for (let j = 0; j < 25; j += 5) {
+      for (let i = 0; i < 5; i++) bc[i] = state[j + i];
+      for (let i = 0; i < 5; i++) state[j + i] = bc[i] ^ ((~bc[(i + 1) % 5]) & bc[(i + 2) % 5]);
+    }
+    state[0] ^= rc[round];
+  }
+}
+
+function keccak256Bytes(bytes) {
+  const rate = 136;
+  const state = new Array(25).fill(0n);
+  for (let i = 0; i < bytes.length; i++) {
+    const pos = i % rate;
+    state[pos >> 3] ^= BigInt(bytes[i] & 255) << BigInt((pos & 7) * 8);
+    if (pos === rate - 1) keccakF1600(state);
+  }
+  const pos = bytes.length % rate;
+  state[pos >> 3] ^= 0x01n << BigInt((pos & 7) * 8);
+  state[(rate - 1) >> 3] ^= 0x80n << BigInt(((rate - 1) & 7) * 8);
+  keccakF1600(state);
+  const out = [];
+  for (let i = 0; i < 32; i++) out.push(Number((state[i >> 3] >> BigInt((i & 7) * 8)) & 0xffn));
+  return out;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => (b & 255).toString(16).padStart(2, '0')).join('');
+}
+
+function keccak256Hex(bytes) {
+  return '0x' + bytesToHex(keccak256Bytes(bytes));
+}
+
+function keccak256Utf8(text) {
+  return keccak256Hex(Buffer.from(String(text), 'utf8'));
+}
+
 function commitHashObject(value) {
-  return '0x' + crypto.createHash('sha256').update(stableCommitJson(value), 'utf8').digest('hex');
+  return keccak256Utf8(stableCommitJson(value));
+}
+
+function randomBytes32Hex() {
+  return '0x' + crypto.randomBytes(32).toString('hex');
+}
+
+function normalizeBytes32Hex(value) {
+  const text = String(value || '').trim();
+  return /^0x[0-9a-f]{64}$/i.test(text) ? text.toLowerCase() : null;
+}
+
+function normalizeAddressHex(value) {
+  const text = String(value || '').trim();
+  return /^0x[0-9a-f]{40}$/i.test(text) ? text.toLowerCase() : COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER;
+}
+
+function commitUintWord(value) {
+  const n = BigInt(Math.max(0, Math.round(Number(value) || 0)));
+  return n.toString(16).padStart(64, '0');
+}
+
+function commitAddressWord(value) {
+  return normalizeAddressHex(value).slice(2).padStart(64, '0');
+}
+
+function commitBytes32Word(value) {
+  return (normalizeBytes32Hex(value) || ('0x' + '0'.repeat(64))).slice(2);
+}
+
+function commitAbiEncodedHex(preimage) {
+  return '0x' + [
+    commitAddressWord(preimage.playerAddress),
+    commitUintWord(preimage.roundNumber),
+    commitUintWord(preimage.actionTypeCode),
+    commitBytes32Word(preimage.targetId),
+    commitUintWord(preimage.wagerAmount),
+    commitBytes32Word(preimage.resourceAllocationHash),
+    commitBytes32Word(preimage.worldSnapshotHash),
+    commitBytes32Word(preimage.salt),
+  ].join('');
+}
+
+function hexToBytes(hex) {
+  const clean = String(hex || '').replace(/^0x/i, '');
+  const bytes = [];
+  for (let i = 0; i < clean.length; i += 2) bytes.push(parseInt(clean.slice(i, i + 2), 16) || 0);
+  return bytes;
+}
+
+function targetIdForCommit(targetNeighborId) {
+  const target = String(targetNeighborId || '');
+  return target ? keccak256Utf8(target) : '0x' + '0'.repeat(64);
 }
 
 function normalizeHexColor(value) {
@@ -377,29 +503,35 @@ function buildCommitPreimageFromInterRoundState(body, opts = {}) {
   const proposedAllocations = interRoundState.proposedAllocations || {};
   const actionType = String(roundAction.selectedAction || 'defend').toLowerCase();
   const wagerAmount = nonNegativeIntOrNull(roundAction.wagerAmount ?? proposedAllocations.wagerAmount) || 0;
+  const targetNeighborId = roundAction.selectedTargetNeighborId ? String(roundAction.selectedTargetNeighborId) : '';
   return {
     schema: 'etherlands.commit-preimage.v1',
     playerId: String(body.playerId || 'player-1'),
-    playerAddress: String(opts.playerAddress || COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER),
+    playerAddress: normalizeAddressHex(opts.playerAddress || COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER),
     roundNumber: nonNegativeIntOrNull(body.roundNumber) || 0,
     actionType,
     actionTypeCode: Object.prototype.hasOwnProperty.call(COMMIT_ACTION_CODES, actionType) ? COMMIT_ACTION_CODES[actionType] : 0,
-    targetNeighborId: roundAction.selectedTargetNeighborId ? String(roundAction.selectedTargetNeighborId) : '',
+    targetNeighborId,
+    targetId: targetIdForCommit(targetNeighborId),
     wagerAmount,
     proposedAllocations: opts.proposedAllocations || normalizeCommitResourceAllocation(interRoundState.proposedResources || {}, proposedAllocations).allocations,
     resourceAllocationHash: opts.resourceAllocationHash,
     worldSnapshotHash: opts.worldSnapshotHash,
-    salt: String(opts.salt || COMMIT_PREVIEW_SALT_PLACEHOLDER),
+    salt: normalizeBytes32Hex(opts.salt) || randomBytes32Hex(),
   };
 }
 
 function buildCommitPreviewFromInterRoundState(body) {
   const interRoundState = body.interRoundState || {};
+  const submittedPreview = interRoundState.commitPreview || {};
+  const submittedPreimage = submittedPreview.preimage || {};
   const normalizedWorld = normalizeCommitWorldSnapshot(interRoundState.proposedWorld || {});
   const normalizedResources = normalizeCommitResourceAllocation(interRoundState.proposedResources || {}, interRoundState.proposedAllocations || {});
   const worldSnapshotHash = commitHashObject(normalizedWorld);
   const resourceAllocationHash = commitHashObject(normalizedResources);
   const preimage = buildCommitPreimageFromInterRoundState(body, {
+    playerAddress: submittedPreimage.playerAddress,
+    salt: submittedPreimage.salt,
     worldSnapshotHash,
     resourceAllocationHash,
     proposedAllocations: normalizedResources.allocations,
@@ -408,7 +540,7 @@ function buildCommitPreviewFromInterRoundState(body) {
     preimage,
     worldSnapshotHash,
     resourceAllocationHash,
-    commitHash: commitHashObject(preimage),
+    commitHash: keccak256Hex(hexToBytes(commitAbiEncodedHex(preimage))),
     hashAlgorithm: COMMIT_PREVIEW_HASH_ALGORITHM,
     isDevOnly: true,
   };
