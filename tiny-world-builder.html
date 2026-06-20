@@ -6177,6 +6177,7 @@
     water:     new THREE.MeshLambertMaterial({ color: 0x3a8fcc, side: THREE.FrontSide }),
     waterDk:   new THREE.MeshLambertMaterial({ color: 0x2f77ad, side: THREE.FrontSide }),
     waterFoam: new THREE.MeshLambertMaterial({ color: 0xbbe9ff, transparent: true, opacity: 0.74, side: THREE.FrontSide }),
+    waterPlantCap: new THREE.MeshLambertMaterial({ color: 0x69cfff, side: THREE.FrontSide }),
     shore:     new THREE.MeshLambertMaterial({ color: 0xd8c18a, side: THREE.FrontSide }),
 
     rock:      new THREE.MeshLambertMaterial({ color: 0x9b9a8f, side: THREE.FrontSide }),
@@ -8257,10 +8258,18 @@
     return g;
   }
 
-  function makeOxygenGenerationPlant(level = 1) {
+  function isGenerationPlantKind(kind) {
+    return kind === 'oxygen-plant' || kind === 'water-plant';
+  }
+
+  function makeGenerationPlant(level = 1, kind = 'oxygen-plant') {
     const g = new THREE.Group();
     const L = Math.max(1, Math.min(OXYGEN_PLANT_MAX_LEVEL, level || 1));
-    const stackBottomY = 0.14;
+    const waterVariant = kind === 'water-plant';
+    const platformMat = waterVariant ? M.water : M.habitatBand;
+    const ringMat = waterVariant ? M.waterDk : M.habitatTrim;
+    const capMat = waterVariant ? M.waterPlantCap : M.goldbrick;
+    const stackBottomY = 0.04;
     const stackHeight = 0.56 + (L - 1) * 0.18;
     const stackCenterY = stackBottomY + stackHeight / 2;
     const stackTopY = stackBottomY + stackHeight;
@@ -8270,7 +8279,7 @@
     const capY = scrubberBaseY + brickHeight + 0.045;
     let oxygenPump = null;
 
-    const inset = new THREE.Mesh(getBoxGeometry(0.72, 0.035, 0.54), M.habitatBand);
+    const inset = new THREE.Mesh(getBoxGeometry(0.72, 0.035, 0.54), platformMat);
     inset.position.y = 0;
     g.add(inset);
 
@@ -8288,7 +8297,7 @@
       phase: Math.random() * Math.PI * 2,
       speed: Math.PI * 2 / 4.2,
     };
-    const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.065, 0.15), M.goldbrick);
+    const goldCap = new THREE.Mesh(getBoxGeometry(0.15, 0.065, 0.15), capMat);
     goldCap.position.set(0, capY, 0);
     g.add(goldCap);
 
@@ -8300,7 +8309,7 @@
       stackBottomY + stackHeight * 0.50,
       stackBottomY + stackHeight * 0.82,
     ]) {
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.165, 0.035, 12), M.habitatTrim);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.165, 0.165, 0.035, 12), ringMat);
       ring.position.set(0.02, y, 0);
       g.add(ring);
     }
@@ -8308,9 +8317,17 @@
     vent.position.set(0, stackTopY + 0.06, 0);
     g.add(vent);
 
-    g.userData = { kind: 'oxygen-plant', chimneyTops: [], oxygenPump };
+    g.userData = { kind, chimneyTops: [], oxygenPump };
     castReceive(g);
     return g;
+  }
+
+  function makeOxygenGenerationPlant(level = 1) {
+    return makeGenerationPlant(level, 'oxygen-plant');
+  }
+
+  function makeWaterGenerationPlant(level = 1) {
+    return makeGenerationPlant(level, 'water-plant');
   }
 
   const SPACE_TOWER_MIN_LEVEL = 1;
@@ -10251,7 +10268,7 @@
     else if (kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'carrot' || kind === 'sunflower') mesh = makeVoxelCropKind(kind, level, getCropGreenhouseVisibleSides(x, z));
     else if (kind === 'pumpkin') mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makeVoxelPumpkinCarriage() : makeVoxelCropKind('pumpkin', level, getCropGreenhouseVisibleSides(x, z));
     else if (kind === 'cow' || kind === 'sheep') mesh = makeVoxelAnimal(kind, getCropGreenhouseVisibleSides(x, z));
-    else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
+    else if (isGenerationPlantKind(kind)) mesh = makeGenerationPlant(level, kind);
     else if (kind === 'chimney' || kind === 'ripple' || kind === 'shrub' || kind === 'stone' || kind === 'pebble' || kind === 'bridge-rail') mesh = makeVoxelMicroKind(kind, level, x, z);
     else if (kind === 'fence') {
       if (cell.terrain === 'path') {
@@ -10430,7 +10447,7 @@
     obj.traverse(o => {
       if (o.name === 'plasmaTurret' && o.userData && o.userData.trackingHead) plasmaTurretObjects.add(o);
     });
-    if (kind === 'tree' || kind === 'tuft' || (kind === 'oxygen-plant' && obj.userData.oxygenPump)) animatedCellObjects.add(obj);
+    if (kind === 'tree' || kind === 'tuft' || (isGenerationPlantKind(kind) && obj.userData.oxygenPump)) animatedCellObjects.add(obj);
     if (kind === 'house') {
       smokeHouseObjects.add(obj);
       buildingWindowObjects.add(obj);
@@ -10571,7 +10588,7 @@
 
   function maxFloorsForKind(kind) {
     if (kind === 'tree') return 1;
-    return kind === 'oxygen-plant' ? OXYGEN_PLANT_MAX_LEVEL : MAX_FLOORS;
+    return isGenerationPlantKind(kind) ? OXYGEN_PLANT_MAX_LEVEL : MAX_FLOORS;
   }
 
   function maxFloorsForCell(cell, fallbackKind = null) {
@@ -14070,7 +14087,7 @@ function neighborStarVector(edge, index) {
     else if (cell.kind === 'pumpkin')   mesh = makeVoxelCropKind('pumpkin', level);
     else if (cell.kind === 'carrot')    mesh = makeVoxelCropKind('carrot', level);
     else if (cell.kind === 'sunflower') mesh = makeVoxelCropKind('sunflower', level);
-    else if (cell.kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
+    else if (isGenerationPlantKind(cell.kind)) mesh = makeGenerationPlant(level, cell.kind);
     else if (cell.kind === 'chimney' || cell.kind === 'ripple' || cell.kind === 'shrub' || cell.kind === 'stone' || cell.kind === 'pebble' || cell.kind === 'bridge-rail') mesh = makeVoxelMicroKind(cell.kind, level, x + 1000, z + 1000);
     else if (cell.kind === 'fence') {
       if (cell.terrain === 'path') {
@@ -14123,8 +14140,8 @@ function neighborStarVector(edge, index) {
       g = makeFence(normalizeFenceSide(cell.fenceSide), level);
     } else if (kind === 'bridge') {
       g = new THREE.Mesh(getBoxGeometry(1.6, 0.3, 0.8), M.dirtRich);
-    } else if (kind === 'oxygen-plant') {
-      g = makeOxygenGenerationPlant(level);
+    } else if (isGenerationPlantKind(kind)) {
+      g = makeGenerationPlant(level, kind);
     }
     return g;
   }
@@ -15562,7 +15579,7 @@ function neighborStarVector(edge, index) {
     else if (kind === 'pumpkin')   mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makePumpkinCarriage(objectGreenhouseSides) : makePumpkin(objectGreenhouseSides);
     else if (kind === 'carrot')    mesh = makeCarrot(objectGreenhouseSides);
     else if (kind === 'sunflower') mesh = makeSunflower(objectGreenhouseSides);
-    else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(level);
+    else if (isGenerationPlantKind(kind)) mesh = makeGenerationPlant(level, kind);
     else if (kind === 'fence') {
       if (cell.terrain === 'path') {
         // Pick orientation from neighbouring path cells so the gate
@@ -15759,6 +15776,7 @@ function neighborStarVector(edge, index) {
     habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 18 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
     'oxygen-plant': { label: 'Oxygen Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
+    'water-plant': { label: 'Water Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { water: OXYGEN_PER_LEVEL } },
     tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 16 } },
     'crystal-mining-rig': { label: 'Crystal Weapons Platform', role: 'military', cost: { gold: 60 }, effect: { army: 48 } },
     // TODO(contract/indexer): Barracks is reserved for the future army-building
@@ -16270,7 +16288,7 @@ function neighborStarVector(edge, index) {
     }
     if (tool.kind === 'voxel-build' && tool.voxelBuildId) return RESOURCE_BUILD_RULES[tool.voxelBuildId] || null;
     if (tool.kind && OXYGEN_PLANT_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || null;
-    if (tool.kind === 'oxygen-plant') return RESOURCE_BUILD_RULES['oxygen-plant'];
+    if (isGenerationPlantKind(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind];
     if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
     return null;
@@ -16287,7 +16305,7 @@ function neighborStarVector(edge, index) {
       return id ? RESOURCE_BUILD_RULES[id] || null : null;
     }
     if (cell.kind && OXYGEN_PLANT_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || null;
-    if (cell.kind === 'oxygen-plant') return RESOURCE_BUILD_RULES['oxygen-plant'];
+    if (isGenerationPlantKind(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind];
     if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
     if (!cell.kind && cell.terrain === 'water') return RESOURCE_BUILD_RULES.water;
@@ -16933,7 +16951,7 @@ function neighborStarVector(edge, index) {
     else if (kind === 'carrot')    mesh = makeCarrot();
     else if (kind === 'sunflower') mesh = makeSunflower();
     else if (kind === 'bridge')    mesh = makeBridge('x');
-    else if (kind === 'oxygen-plant') mesh = makeOxygenGenerationPlant(1);
+    else if (isGenerationPlantKind(kind)) mesh = makeGenerationPlant(1, kind);
     else if (kind === 'fence') {
       const v = tool.activeVariant;
       const side = (v && v.fenceSide && v.fenceSide !== 'auto') ? v.fenceSide : 'n';
@@ -17485,6 +17503,7 @@ function neighborStarVector(edge, index) {
     { id: 'rock',   label: 'Rock',   kind: 'rock',  color: '#9b9a8f', shortcut: '8', group: 'nature' },
     { id: 'bridge', label: 'Bridge', kind: 'bridge', terrainOverride: 'water', color: '#8b5a32', shortcut: '9', group: 'build' },
     { id: 'oxygen-plant', label: 'Oxygen Generation Plant', kind: 'oxygen-plant', color: '#c7a858', group: 'infra' },
+    { id: 'water-plant', label: 'Water Generation Plant', kind: 'water-plant', color: '#3a8fcc', group: 'infra' },
     { id: 'crystal-mining-rig', label: 'Crystal Weapons Platform', kind: 'voxel-build', voxelBuildId: 'crystal-mining-rig', color: '#7fe8ff', group: 'build' },
     { id: 'crop',      label: 'Crop',      kind: 'crop',      terrainOverride: 'dirt', color: '#86c544', shortcut: 'g', group: 'crops' },
     { id: 'corn',      label: 'Corn',      kind: 'corn',      terrainOverride: 'dirt', color: '#f2c849', shortcut: 'n', group: 'crops' },
@@ -17504,7 +17523,7 @@ function neighborStarVector(edge, index) {
     { id: 'terrain', label: 'Terrain', toolIds: ['path', 'stone', 'lava', 'sand', 'snow', 'rock'], iconTool: 'path' },
     { id: 'plants', label: 'Terraform', toolIds: ['grass', 'dirt', 'water', 'tree', 'tuft', 'flower', 'bush'], iconTool: 'grass' },
     { id: 'build', label: 'Build', toolIds: ['house', 'crystal-mining-rig'], iconTool: 'house' },
-    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'oxygen-plant'], iconTool: 'oxygen-plant' },
+    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'oxygen-plant', 'water-plant'], iconTool: 'oxygen-plant' },
     { id: 'farm', label: 'Farm', toolIds: ['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower'], iconTool: 'wheat' },
     { id: 'life', label: 'Life', toolIds: ['cow', 'sheep'], iconTool: 'cow' },
   ];
@@ -17573,7 +17592,7 @@ function neighborStarVector(edge, index) {
     if (k === 'cow')       return makeVoxelAnimal('cow');
     if (k === 'sheep')     return makeVoxelAnimal('sheep');
     if (k === 'fence')     return makeVoxelFence('n', 1);
-    if (k === 'oxygen-plant') return makeOxygenGenerationPlant(1);
+    if (isGenerationPlantKind(k)) return makeGenerationPlant(1, k);
     if (k === 'house') {
       const v = tool.activeVariant;
       const bType = v && v.buildingType;
@@ -17594,7 +17613,7 @@ function neighborStarVector(edge, index) {
   }
 
   function isBuildingThumbTool(tool) {
-    return !!(tool && (tool.kind === 'house' || tool.kind === 'voxel-build' || tool.kind === 'oxygen-plant'));
+    return !!(tool && (tool.kind === 'house' || tool.kind === 'voxel-build' || isGenerationPlantKind(tool.kind)));
   }
 
   function normalizeBuildingThumbObject(obj) {
@@ -19957,7 +19976,10 @@ function neighborStarVector(edge, index) {
       const bt = normalizeBuildingType(cell.buildingType);
       return bt ? displayNameForBuildingType(bt) : 'House';
     }
-    if (cell.kind === 'oxygen-plant') return 'Oxygen Generation Plant';
+    if (isGenerationPlantKind(cell.kind)) {
+      const rule = RESOURCE_BUILD_RULES[cell.kind];
+      return rule ? rule.label : 'Generation Plant';
+    }
     return cell.kind.charAt(0).toUpperCase() + cell.kind.slice(1);
   }
 
@@ -22820,7 +22842,7 @@ function neighborStarVector(edge, index) {
         continue;
       }
       const k = obj.userData.kind;
-      if (k === 'oxygen-plant') {
+      if (isGenerationPlantKind(k)) {
         const pump = obj.userData.oxygenPump;
         const scrubber = pump && pump.scrubber;
         if (scrubber) {
@@ -22962,6 +22984,7 @@ function neighborStarVector(edge, index) {
           "rock",
           "bridge",
           "oxygen-plant",
+          "water-plant",
           "crop",
           "corn",
           "wheat",
@@ -23325,7 +23348,7 @@ function neighborStarVector(edge, index) {
       },
       kind: {
         type: ['string', 'null'],
-        enum: [null, 'house', 'tree', 'fence', 'rock', 'bridge', 'crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'tuft', 'flower', 'bush', 'cow', 'sheep'],
+        enum: [null, 'house', 'tree', 'fence', 'rock', 'bridge', 'oxygen-plant', 'water-plant', 'crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower', 'tuft', 'flower', 'bush', 'cow', 'sheep'],
       },
       floors: {
         type: 'integer',
@@ -23567,7 +23590,7 @@ function neighborStarVector(edge, index) {
       data.gridSize = legacyGridSize;
     }
     const okTerrain = new Set(['grass','path','dirt','water','stone','lava','sand','snow']);
-    const okKind = new Set([null,'house','tree','fence','rock','bridge','oxygen-plant','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
+    const okKind = new Set([null,'house','tree','fence','rock','bridge','oxygen-plant','water-plant','crop','corn','wheat','pumpkin','carrot','sunflower','tuft','flower','bush','cow','sheep','chimney','ripple','shrub','stone','pebble','bridge-rail','voxel-build']);
     const okBT = new Set([null,'tower','skyscraper','habitat','air-command']);
     const okFenceSide = new Set([null,'n','s','e','w','center-x','center-z']);
     const seen = new Set();
@@ -25195,7 +25218,7 @@ function neighborStarVector(edge, index) {
         }
         else if (kind === 'tree') obj = makeTree();
         else if (kind === 'fence') obj = makeFence(normalizeFenceSide(target.cell.fenceSide), target.cell.floors || 1);
-        else if (kind === 'oxygen-plant') obj = makeOxygenGenerationPlant(target.cell.floors || 1);
+        else if (isGenerationPlantKind(kind)) obj = makeGenerationPlant(target.cell.floors || 1, kind);
         else if (kind === 'voxel-build') obj = makeVoxelBuild(target.cell);
         else if (kind) obj = makeGenericObject(kind);
       } catch (e) { /* fallback */ }
@@ -26169,7 +26192,7 @@ function neighborStarVector(edge, index) {
       const FLAT_REQUIRED = new Set([
         'house','fence','bridge','tree','tuft','flower','bush','cow','sheep',
         'crop','corn','wheat','pumpkin','carrot','sunflower',
-        'chimney','shrub','stone','pebble','bridge-rail','oxygen-plant','voxel-build',
+        'chimney','shrub','stone','pebble','bridge-rail','oxygen-plant','water-plant','voxel-build',
       ]);
       if (normalizedKind === 'house' && (terrain === 'water' || terrain === 'path' || terrain === 'lava')) {
         terrain = BASE_TERRAIN;
@@ -27574,10 +27597,10 @@ function neighborStarVector(edge, index) {
     } else if (kind === 'bridge') {
       ctx.fillStyle = minimapColor('bridgeWood', '#8b5a32');
       ctx.fillRect(cx - s * 0.40, cy - s * 0.10, s * 0.80, s * 0.20);
-    } else if (kind === 'oxygen-plant') {
-      ctx.fillStyle = minimapColor('habitatTrim', '#8f979d');
+    } else if (isGenerationPlantKind(kind)) {
+      ctx.fillStyle = kind === 'water-plant' ? minimapColor('water', '#3a8fcc') : minimapColor('habitatTrim', '#8f979d');
       ctx.fillRect(cx - s * 0.28, cy - s * 0.18, s * 0.56, s * 0.36);
-      ctx.fillStyle = minimapColor('goldBrick', '#c7a858');
+      ctx.fillStyle = kind === 'water-plant' ? minimapColor('waterFoam', '#bbe9ff') : minimapColor('goldBrick', '#c7a858');
       ctx.beginPath();
       ctx.arc(cx - s * 0.14, cy, s * 0.12, 0, Math.PI * 2);
       ctx.arc(cx + s * 0.14, cy, s * 0.12, 0, Math.PI * 2);

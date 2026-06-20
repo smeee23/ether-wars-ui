@@ -49,6 +49,11 @@ Validation:
   through the generic repeat-click `floors` path, and relies on
   `OXYGEN_PLANT_MAX_LEVEL` / `maxFloorsForKind()` to reject max-level clicks
   before spending.
+- Water Generation Plant is the water counterpart to Oxygen Generation Plant:
+  keep its geometry, footprint, level cap, costs, repeat-click upgrades, erase
+  refunds, thumbnails, and save/load behavior mirrored through the shared
+  generation-plant helpers, but route its `RESOURCE_BUILD_RULES` effect to
+  `water`.
 - Grass, Dirt, Tree, Tuft, Flower, and Bush are also oxygen-backed rules in
   `RESOURCE_BUILD_RULES`. Keep them on the same placement/refund helpers as
   Oxygen Generation Plant rather than directly mutating oxygen stats.
