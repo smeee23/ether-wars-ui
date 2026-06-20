@@ -12357,6 +12357,7 @@
     window.dispatchEvent(new CustomEvent('tinyworld:selection-changed', {
       detail: { cells: Array.from(selectedCells) }
     }));
+    if (typeof window.saveLocalGameState === 'function') window.saveLocalGameState();
   }
   function clearSelection() {
     if (!selectedCells.size) return;
@@ -13421,6 +13422,7 @@ function neighborStarVector(edge, index) {
     neighborRoundActionEl.addEventListener('change', () => {
       roundActionState.selectedAction = neighborRoundActionEl.value || 'defend';
       syncRoundActionControls(true);
+      saveLocalGameState();
     });
   }
   if (neighborStatsSelectorEl) {
@@ -13433,12 +13435,14 @@ function neighborStarVector(edge, index) {
     neighborAttackTargetEl.addEventListener('change', () => {
       roundActionState.selectedTargetNeighborId = neighborAttackTargetEl.value || null;
       syncRoundActionControls(false);
+      saveLocalGameState();
     });
   }
   if (neighborWagerGoldEl) {
     neighborWagerGoldEl.addEventListener('input', () => {
       roundActionState.wagerAmount = Math.round(Number(neighborWagerGoldEl.value) || 0);
       syncRoundActionControls(false);
+      saveLocalGameState();
     });
   }
   function setAwsDraftStatus(message, tone) {
@@ -25724,6 +25728,8 @@ function neighborStarVector(edge, index) {
   // changes so old saves don't blow up.
   const STORAGE_KEY = 'tinyworld:v1';
   const STORAGE_VERSION = 4;
+  const LOCAL_GAME_STATE_KEY = 'etherWars.localGameState.v1';
+  const LOCAL_GAME_STATE_SCHEMA_VERSION = 1;
   let saveTimer = null;
   let suppressSave = false;
 
@@ -25885,6 +25891,181 @@ function neighborStarVector(edge, index) {
     if (total > 0) console.info('[grass-filler-migration] removed empty grass filler from saved state');
   })();
 
+  function getSerializableWorldState() {
+    const cells = [];
+    // Walk every populated row + cell, including out-of-home overrides from
+    // clicks on ghost boards. Cells with default base terrain / no kind return
+    // null from serializeCell and are skipped naturally.
+    for (const xKey of Object.keys(world)) {
+      const x = parseInt(xKey, 10);
+      if (!Number.isFinite(x)) continue;
+      const row = world[xKey];
+      if (!row) continue;
+      const insideHomeX = x >= 0 && x < GRID;
+      for (const zKey of Object.keys(row)) {
+        const z = parseInt(zKey, 10);
+        if (!Number.isFinite(z)) continue;
+        const c = row[zKey];
+        if (!c) continue;
+        const insideHome = insideHomeX && z >= 0 && z < GRID;
+        // Outside the home grid we only save cells the user has actually
+        // edited — skips the pre-allocated buffer.
+        if (!insideHome && !c.userEdited) continue;
+        const entry = serializeCell(x, z, c);
+        if (entry) cells.push(entry);
+      }
+    }
+    return {
+      v: STORAGE_VERSION,
+      gridSize: GRID,
+      cells,
+      cameraMode,
+      toolId: selectedTool && selectedTool.id,
+    };
+  }
+
+  function getResourceSnapshot() {
+    const out = {};
+    for (const key of RESOURCE_KEYS) out[key] = coerceNonNegativeStat(resources[key]) || 0;
+    return out;
+  }
+
+  function getSerializableGameState() {
+    const playerState = getPlayerGameState();
+    const worldState = getSerializableWorldState();
+    return {
+      schemaVersion: LOCAL_GAME_STATE_SCHEMA_VERSION,
+      updatedAt: Date.now(),
+      credits: coerceNonNegativeStat(resources.gold) || 0,
+      resources: getResourceSnapshot(),
+      population: Math.max(0, Math.round(crowdCount || 0)),
+      buildings: worldState.cells,
+      worldState,
+      allocations: {
+        roundAction: Object.assign({}, roundActionState),
+      },
+      playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
+      selection: Array.from(selectedCells),
+      camera: {
+        mode: cameraMode,
+        target: { x: target.x, y: target.y, z: target.z },
+        viewSize,
+        azimuth,
+        polar,
+      },
+      toolId: selectedTool && selectedTool.id,
+    };
+  }
+
+  function isValidLocalGameState(state) {
+    if (!state || typeof state !== 'object') return false;
+    if (state.schemaVersion !== LOCAL_GAME_STATE_SCHEMA_VERSION) return false;
+    if (!state.resources || typeof state.resources !== 'object') return false;
+    if (!state.worldState || typeof state.worldState !== 'object' || !Array.isArray(state.worldState.cells)) return false;
+    return true;
+  }
+
+  function saveLocalGameState() {
+    if (suppressSave) return false;
+    try {
+      const state = getSerializableGameState();
+      localStorage.setItem(LOCAL_GAME_STATE_KEY, JSON.stringify(state));
+      console.log('[local save] game state saved', state);
+      return true;
+    } catch (err) {
+      console.warn('[local save] failed to save game state', err);
+      return false;
+    }
+  }
+
+  function loadLocalGameState() {
+    try {
+      const raw = localStorage.getItem(LOCAL_GAME_STATE_KEY);
+      if (!raw) return null;
+      const state = JSON.parse(raw);
+      if (!isValidLocalGameState(state)) {
+        console.warn('[local save] ignoring invalid saved state', state);
+        return null;
+      }
+      console.log('[local save] game state loaded', state);
+      return state;
+    } catch (err) {
+      console.warn('[local save] failed to load saved state', err);
+      return null;
+    }
+  }
+
+  function clearLocalGameState() {
+    try {
+      localStorage.removeItem(LOCAL_GAME_STATE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      console.log('[local save] local game state cleared');
+    } catch (err) {
+      console.warn('[local save] failed to clear local game state', err);
+    }
+  }
+
+  function applyLoadedGameState(state) {
+    if (!isValidLocalGameState(state)) {
+      console.warn('[local save] ignoring invalid saved state', state);
+      return false;
+    }
+    const resourceState = state.resources || {};
+    for (const key of RESOURCE_KEYS) {
+      const value = coerceNonNegativeStat(resourceState[key]);
+      if (value !== null) resources[key] = value;
+    }
+    const credits = coerceNonNegativeStat(state.credits);
+    if (credits !== null) resources.gold = credits;
+    if (state.playerGameState && typeof state.playerGameState === 'object') {
+      window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, state.playerGameState);
+    }
+    if (state.allocations && state.allocations.roundAction) {
+      Object.assign(roundActionState, {
+        selectedAction: state.allocations.roundAction.selectedAction || roundActionState.selectedAction,
+        selectedTargetNeighborId: state.allocations.roundAction.selectedTargetNeighborId || null,
+        wagerAmount: coerceNonNegativeStat(state.allocations.roundAction.wagerAmount) || 0,
+      });
+    }
+    if (Array.isArray(state.selection)) {
+      selectedCells.clear();
+      for (const key of state.selection) {
+        if (typeof key === 'string' && /^-?\d+,-?\d+,-?\d+,-?\d+$/.test(key)) selectedCells.add(key);
+      }
+    }
+    if (state.camera && typeof state.camera === 'object') {
+      const camTarget = state.camera.target || {};
+      if (Number.isFinite(camTarget.x)) target.x = camTarget.x;
+      if (Number.isFinite(camTarget.y)) target.y = camTarget.y;
+      if (Number.isFinite(camTarget.z)) target.z = camTarget.z;
+      if (Number.isFinite(state.camera.viewSize)) viewSize = clampViewSize(state.camera.viewSize);
+      if (Number.isFinite(state.camera.azimuth)) azimuth = state.camera.azimuth;
+      if (Number.isFinite(state.camera.polar)) polar = state.camera.polar;
+    }
+    const ok = applyState(state.worldState, { keepCamera: true });
+    if (!ok) return false;
+    if (state.camera && state.camera.mode && ['ortho', 'topdown', 'perspective', 'fp'].includes(state.camera.mode)) {
+      setCameraMode(state.camera.mode);
+    } else {
+      updateCamera();
+      onResize();
+    }
+    if (state.toolId) {
+      const tool = TOOLS.find(t => t.id === state.toolId);
+      if (tool) selectTool(tool);
+    }
+    notifySelectionChanged();
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
+  window.getSerializableGameState = getSerializableGameState;
+  window.applyLoadedGameState = applyLoadedGameState;
+  window.loadLocalGameState = loadLocalGameState;
+  window.saveLocalGameState = saveLocalGameState;
+  window.clearLocalGameState = clearLocalGameState;
+  window.clearEtherWarsLocalSave = clearLocalGameState;
+
   function saveState() {
     if (typeof window.__requestMinimapRepaint === 'function') window.__requestMinimapRepaint();
     if (typeof schedulePlayerStatsUpdate === 'function') schedulePlayerStatsUpdate();
@@ -25892,38 +26073,12 @@ function neighborStarVector(edge, index) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
-        const cells = [];
-        // Walk every populated row + cell, including out-of-home
-        // overrides from clicks on ghost boards. Cells with default
-        // grass / no kind return null from serializeCell and are
-        // skipped naturally.
-        for (const xKey of Object.keys(world)) {
-          const x = parseInt(xKey, 10);
-          if (!Number.isFinite(x)) continue;
-          const row = world[xKey];
-          if (!row) continue;
-          const insideHomeX = x >= 0 && x < GRID;
-          for (const zKey of Object.keys(row)) {
-            const z = parseInt(zKey, 10);
-            if (!Number.isFinite(z)) continue;
-            const c = row[zKey];
-            if (!c) continue;
-            const insideHome = insideHomeX && z >= 0 && z < GRID;
-            // Outside the home grid we only save cells the user has
-            // actually edited — skips the 20x20 pre-allocated buffer.
-            if (!insideHome && !c.userEdited) continue;
-            const entry = serializeCell(x, z, c);
-            if (entry) cells.push(entry);
-          }
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          v: STORAGE_VERSION,
-          gridSize: GRID,
-          cells,
-          cameraMode,
-          toolId: selectedTool && selectedTool.id,
-        }));
-      } catch (_) {}
+        const worldState = getSerializableWorldState();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(worldState));
+        saveLocalGameState();
+      } catch (err) {
+        console.warn('[local save] failed to save world state', err);
+      }
     }, 200);
   }
 
@@ -26557,6 +26712,8 @@ function neighborStarVector(edge, index) {
   setTimeout(connectSseRelay, 0);
 
   function loadState() {
+    const localGameState = loadLocalGameState();
+    if (localGameState && applyLoadedGameState(localGameState)) return 'local-game-state';
     let data;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -26571,7 +26728,7 @@ function neighborStarVector(edge, index) {
       } catch (_) {}
       resetCameraDefaults();
     }
-    return ok;
+    return ok ? 'legacy-world-state' : false;
   }
 
   // -------- welcome dialog --------
@@ -27153,7 +27310,8 @@ function neighborStarVector(edge, index) {
     //initWelcomeDialog();
     buildToolbar();
     selectTool(DEFAULT_TOOL);
-    if (!loadState()) {
+    const loadedStateSource = loadState();
+    if (!loadedStateSource) {
       loadInitialScene();
       resetCameraDefaults();
     }
@@ -27161,7 +27319,7 @@ function neighborStarVector(edge, index) {
     initCrowdLayer();
     schedulePlayerStatsUpdate();
     startRoundPhaseTimer();
-    fetchAwsMockStats();
+    if (loadedStateSource !== 'local-game-state') fetchAwsMockStats();
     onResize();
     renderer.setAnimationLoop(animate);
     const vehicleDemoRequest = getVehicleDemoUrlRequest();
