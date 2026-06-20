@@ -55,6 +55,14 @@ Interaction rules:
 - Surrounding neighbor territory click meshes are separate hit areas
   (`neighborHitGroup`), carry neighbor metadata instead of `gx/gz`, and route
   to the neighbor stats panel rather than terrain placement.
+- Neighbor selection camera motion should use the same star world-position
+  helper that renders the star and hit mesh, but should pivot around the home
+  board: keep the shared camera `target` on the home board and tween `azimuth`
+  so the selected neighbor sits beyond the playable area instead of becoming
+  the camera target. If the current view is tightly zoomed, tween `viewSize`
+  out to a home-board-based minimum while preserving any already wider zoom,
+  and tween `polar` toward the app's side/profile limit so top-down views still
+  reveal the selected neighbor.
 - Right-drag pans. Space+drag pans. Left-drag orbits.
 
 The home board has a thin dark ground-line border (see

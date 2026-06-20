@@ -12968,6 +12968,12 @@ function neighborStarVector(edge, index) {
     return { landX: v.x, landY: v.y-230, landZ: v.z };
   }
 
+  function neighborSlotWorldPosition(slot) {
+    if (!slot) return null;
+    const pos = neighborStarPosition(slot.edge, slot.index === 1 ? 1 : 0);
+    return new THREE.Vector3(pos.landX, pos.landY, pos.landZ);
+  }
+
   function neighborStarPointMaterial(color, occupied) {
     const clean = normalizeHexColor(color) || '#e6e6e6';
     const opacity = occupied ? 1 : 0.72;
@@ -12992,12 +12998,12 @@ function neighborStarVector(edge, index) {
   // hit testing, selection state, stats, and round actions stay on the existing
   // neighbour slot metadata and invisible hit meshes.
   function makeNeighborStarVisual(slot, index, color) {
-    const pos = neighborStarPosition(slot.edge, index);
+    const pos = neighborSlotWorldPosition(slot);
     const accent = normalizeHexColor(color) || '#e6e6e6';
     const occupied = !!slot.occupied;
     const seed = (index + 1) * 31 + (slot.edge || '').length * 17;
     const group = new THREE.Group();
-    group.position.set(pos.landX, pos.landY, pos.landZ);
+    group.position.copy(pos);
     group.rotation.y = (seed % 9) * 0.19;
     group.name = 'neighbor-star-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
@@ -13041,9 +13047,8 @@ function neighborStarVector(edge, index) {
   }
 
   function makeNeighborHitSlot(slot) {
-    const edge = slot.edge;
     const index = slot.index === 1 ? 1 : 0;
-    const pos = neighborStarPosition(edge, index);
+    const pos = neighborSlotWorldPosition(slot);
     const group = new THREE.Group();
     group.name = 'neighbor-hit-' + slot.id;
     group.userData = {
@@ -13055,7 +13060,7 @@ function neighborStarVector(edge, index) {
     };
 
     const hit = new THREE.Mesh(new THREE.SphereGeometry(32, 8, 6), neighborHitMaterial);
-    hit.position.set(pos.landX, pos.landY, pos.landZ);
+    hit.position.copy(pos);
     hit.userData = Object.assign({}, group.userData);
     hit.userData.noShadow = true;
     group.add(hit);
@@ -13067,7 +13072,7 @@ function neighborStarVector(edge, index) {
       depthTest: true,
       depthWrite: false,
     }));
-    highlight.position.set(pos.landX, pos.landY, pos.landZ);
+    highlight.position.copy(pos);
     highlight.rotation.x = Math.PI / 2;
     highlight.scale.set(1, 1, 1);
     highlight.renderOrder = -6;
@@ -13142,6 +13147,7 @@ function neighborStarVector(edge, index) {
   const neighborAwsDraftStatusEl = document.getElementById('neighbor-aws-draft-status');
   const neighborSlotButtonById = new Map();
   let activeNeighborSlotId = null;
+  let neighborPivotTween = null;
   let lastCommitPreviewHash = '';
   // Temporary frontend-only round action state.
   // TODO(contract/indexer): hydrate this from indexed round state later.
@@ -13297,6 +13303,77 @@ function neighborStarVector(edge, index) {
     updateNeighborSlotHighlights();
   }
 
+  function getHomeBoardCenterWorldPosition() {
+    return DEFAULT_TARGET.clone();
+  }
+
+  function shortestAngleDelta(from, to) {
+    const TAU = Math.PI * 2;
+    let delta = ((to - from) % TAU + TAU) % TAU;
+    if (delta > Math.PI) delta -= TAU;
+    return delta;
+  }
+
+  function neighborPivotViewSize() {
+    const baseView = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE);
+    return clampViewSize(Math.max(viewSize, baseView * 1.45));
+  }
+
+  function neighborPivotProfilePolar() {
+    return 1.25;
+  }
+
+  function pivotCameraTowardNeighbor(slot, source = 'dropdown') {
+    const worldPos = neighborSlotWorldPosition(slot);
+    const homeTarget = getHomeBoardCenterWorldPosition();
+    if (!slot || !worldPos || !homeTarget) return false;
+    const directionToNeighbor = worldPos.clone().sub(homeTarget);
+    directionToNeighbor.y = 0;
+    if (directionToNeighbor.lengthSq() < 0.0001) return false;
+    directionToNeighbor.normalize();
+    const cameraDirection = directionToNeighbor.clone().multiplyScalar(-1);
+    const endAzimuth = Math.atan2(cameraDirection.z, cameraDirection.x);
+    const endPolar = neighborPivotProfilePolar();
+    console.log('[neighbor-focus] Neighbor id/index:', slot.id, slot.index === 1 ? 1 : 0);
+    console.log('[neighbor-focus] Target world position:', worldPos);
+    console.log('[neighbor-focus] Camera animation start');
+    neighborPivotTween = {
+      slotId: slot.id,
+      source,
+      start: target.clone(),
+      end: homeTarget,
+      startAzimuth: azimuth,
+      azimuthDelta: shortestAngleDelta(azimuth, endAzimuth),
+      startPolar: polar,
+      endPolar,
+      startView: viewSize,
+      endView: neighborPivotViewSize(),
+      t: 0,
+      dur: 1.35,
+    };
+    if (typeof homeTween !== 'undefined') homeTween = null;
+    if (typeof playSfx === 'function') playSfx('whoosh');
+    return true;
+  }
+
+  function tickNeighborPivotTween(dt) {
+    if (!neighborPivotTween) return;
+    markCameraMoving();
+    neighborPivotTween.t = Math.min(1, neighborPivotTween.t + dt / neighborPivotTween.dur);
+    const u = easeOutCubic(neighborPivotTween.t);
+    target.lerpVectors(neighborPivotTween.start, neighborPivotTween.end, u);
+    azimuth = neighborPivotTween.startAzimuth + neighborPivotTween.azimuthDelta * u;
+    polar = neighborPivotTween.startPolar + (neighborPivotTween.endPolar - neighborPivotTween.startPolar) * u;
+    viewSize = neighborPivotTween.startView + (neighborPivotTween.endView - neighborPivotTween.startView) * u;
+    onResize();
+    if (renderAutoExpand && typeof ensureGhostBoardsAroundTarget === 'function') ensureGhostBoardsAroundTarget();
+    if (typeof requestMinimapRepaint === 'function') requestMinimapRepaint();
+    if (neighborPivotTween.t >= 1) {
+      console.log('[neighbor-focus] Camera animation end');
+      neighborPivotTween = null;
+    }
+  }
+
   function openNeighborStats(slot) {
     if (!slot || !neighborStatsPanelEl) return;
     const stats = statsForNeighborSlot(slot);
@@ -13314,7 +13391,7 @@ function neighborStarVector(edge, index) {
     updateNeighborSlotActiveButtons();
   }
 
-  function setActiveNeighborById(neighborId, source = 'dropdown') {
+  function setActiveNeighborById(neighborId, source = 'dropdown', opts = {}) {
     const id = String(neighborId || '');
     const slot = id ? neighborSlotById.get(id) : null;
     if (!slot) {
@@ -13324,6 +13401,7 @@ function neighborStarVector(edge, index) {
     }
     openNeighborStats(slot);
     if (source === 'dropdown') setHoveredNeighborSlot(slot);
+    if (opts.focus !== false) pivotCameraTowardNeighbor(slot, source);
     return true;
   }
 
@@ -13347,6 +13425,7 @@ function neighborStarVector(edge, index) {
   }
   if (neighborStatsSelectorEl) {
     neighborStatsSelectorEl.addEventListener('change', () => {
+      console.log('[neighbor-focus] Neighbor selected from menu');
       setActiveNeighborById(neighborStatsSelectorEl.value, 'dropdown');
     });
   }
@@ -19262,6 +19341,7 @@ function neighborStarVector(edge, index) {
     viewSize = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE);
     azimuth = DEFAULT_AZIMUTH;
     polar = DEFAULT_POLAR;
+    neighborPivotTween = null;
     target.copy(DEFAULT_TARGET);
     setCameraMode(DEFAULT_CAMERA_MODE);
   }
@@ -19291,6 +19371,7 @@ function neighborStarVector(edge, index) {
   // without touching world data — used by the Home button.
   let homeTween = null;
   function flyHomeCamera() {
+    neighborPivotTween = null;
     const start = {
       tx: target.x, tz: target.z, view: viewSize,
       az: azimuth, po: polar,
@@ -22662,6 +22743,7 @@ function neighborStarVector(edge, index) {
 
     // tile/object drop-in animations (load + placement)
     if (dropAnims.length) tickDropAnims(dt);
+    if (neighborPivotTween) tickNeighborPivotTween(dt);
     if (homeTween) tickHomeTween(dt);
     tickOpacityTransitions(dt);
     tickSquashAnims(dt);
