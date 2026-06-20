@@ -9131,14 +9131,18 @@
       const minZ = Math.min(...layer7.map(v => v.z));
       const maxZ = Math.max(...layer7.map(v => v.z));
 
-      const corners = layer7
-          .filter(v =>
-              (v.x === minX && v.z === minZ) ||
-              (v.x === minX && v.z === maxZ) ||
-              (v.x === maxX && v.z === minZ) ||
-              (v.x === maxX && v.z === maxZ)
-          )
-          .map(v => vox(v.x, v.y - 5, v.z, v.color));
+      const centerX = (minX + maxX) / 2;
+      const centerZ = (minZ + maxZ) / 2;
+
+      const centerColor = layer7.find(v => v.x === centerX && v.z === centerZ)?.color || C.roofEdge;
+      const centerPosts = [];
+      for (let y = 0; y <= 8; y++) {
+        for (let x = centerX - 1; x <= centerX + 1; x++) {
+          for (let z = centerZ - 1; z <= centerZ + 1; z++) {
+            centerPosts.push(vox(x, 2 + y, z, centerColor));
+          }
+        }
+      }
 
       const base = pagoda()
         .filter(v => v.y == 7 )
@@ -9151,15 +9155,7 @@
       const heightOffset = 17;
 
       return [
-        ...corners.map(v => vox(v.x, v.y, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 1, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 2, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 3, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 4, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 5, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 6, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 7, v.z, v.color)),
-        ...corners.map(v => vox(v.x, v.y + 8, v.z, v.color)),
+        ...centerPosts,
         ...base.map(v => vox(v.x, v.y + 9, v.z, v.color)),
         ...base.map(v => vox(v.x, v.y + 10, v.z, v.color)),
         ...upper.map(v => vox(v.x, v.y + 11, v.z, v.color)),
@@ -15833,7 +15829,7 @@ function neighborStarVector(edge, index) {
     };
   }
 
-  function applyAwsMockStats(data) {
+  function applyAwsMockStats(data, opts = {}) {
     const validated = validateAwsMockStats(data);
     if (!validated) return false;
     awsGameState = validated;
@@ -15841,8 +15837,10 @@ function neighborStarVector(edge, index) {
     window.__tinyworldAwsGameState = validated;
     window.__tinyworldAuthoritativeGameState = validated;
     window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, validated.gameState);
-    for (const key of RESOURCE_KEYS) {
-      resources[key] = validated.resources[key];
+    if (!opts.preserveLocalResources) {
+      for (const key of RESOURCE_KEYS) {
+        resources[key] = validated.resources[key];
+      }
     }
     schedulePlayerStatsUpdate();
     return true;
@@ -16241,7 +16239,7 @@ function neighborStarVector(edge, index) {
   window.buildCommitPreviewFromDraft = buildCommitPreviewFromDraft;
   window.saveInterRoundStateToAws = saveInterRoundStateToAws;
 
-  async function fetchAwsMockStats() {
+  async function fetchAwsMockStats(opts = {}) {
     try {
       const response = await fetch('/api/mockstats', {
         method: 'GET',
@@ -16250,7 +16248,7 @@ function neighborStarVector(edge, index) {
       });
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const data = await response.json();
-      if (!applyAwsMockStats(data)) throw new Error('Unexpected mock stats shape');
+      if (!applyAwsMockStats(data, opts)) throw new Error('Unexpected mock stats shape');
       console.info('[aws-mockstats] hydrated authoritative game state.');
       return awsGameState;
     } catch (err) {

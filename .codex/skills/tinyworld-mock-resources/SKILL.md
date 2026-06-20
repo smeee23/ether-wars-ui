@@ -26,6 +26,10 @@ Use this while the Resources model is frontend/mock-state only.
   `GET /api/mockstats`. Treat that as a read-only authoritative snapshot:
   `credits` maps to local `gold`, `fleet` maps to local `army`, and placement /
   erase helpers still mutate the frontend mock resources after hydration.
+  When restoring `etherWars.localGameState.v1`, still fetch mock stats so
+  `authoritativeGameState` exists for commit/draft validation, but pass
+  `{ preserveLocalResources: true }` so local credits/resources are not
+  overwritten.
 - `buildInterRoundStateDraft()` may snapshot the current visual world and
   frontend mock resources into a proposed `interRoundState`, but saving must
   remain explicit through `saveInterRoundStateToAws()` / `POST
