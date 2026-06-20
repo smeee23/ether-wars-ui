@@ -12934,22 +12934,33 @@
     return surroundingLandTintMaterials.get(key);
   }
 
-  function neighborStarDistance() {
-    return Math.max(24, GRID * 1.6) * TILE;
+  function neighborStarRadius() {
+    return 620 * TILE;
   }
 
-  function neighborStarHeight() {
-    return TOP_H + Math.max(7.5, GRID * 0.45) * TILE;
+  function neighborStarVector(edge, index) {
+     // index 0 and 1 are the two slots on each side.
+    // These are intentionally NOT exact corners, so the 8 neighbors do not overlap.
+
+    if (edge === 'north') {
+      return new THREE.Vector3(index === 0 ? -0.55 : 0.55, 0.28, -1);
+    }
+
+    if (edge === 'south') {
+      return new THREE.Vector3(index === 0 ? -0.55 : 0.55, 0.28, 1);
+    }
+
+    if (edge === 'east') {
+      return new THREE.Vector3(1, 0.28, index === 0 ? -0.55 : 0.55);
+    }
+
+    // west
+    return new THREE.Vector3(-1, 0.28, index === 0 ? -0.55 : 0.55);
   }
 
   function neighborStarPosition(edge, index) {
-    const distance = neighborStarDistance();
-    const spread = distance * 0.48;
-    const upper = index !== 1;
-    if (edge === 'north') return { landX: upper ? -spread : spread, landY: neighborStarHeight(), landZ: -distance };
-    if (edge === 'south') return { landX: upper ? -spread : spread, landY: neighborStarHeight(), landZ: distance };
-    if (edge === 'east') return { landX: distance, landY: neighborStarHeight(), landZ: upper ? -spread : spread };
-    return { landX: -distance, landY: neighborStarHeight(), landZ: upper ? -spread : spread };
+    const v = neighborStarVector(edge, index).normalize().multiplyScalar(neighborStarRadius());
+    return { landX: v.x, landY: v.y-200, landZ: v.z };
   }
 
   function neighborStarPointMaterial(color, occupied) {
@@ -12994,18 +13005,18 @@
     star.userData.noShadow = true;
     group.add(star);
 
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 0.24 : 0.18, 8, 6), surroundingLandTintMaterial(accent, occupied, 'glow'));
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(occupied ? 13 : 9, 8, 6), surroundingLandTintMaterial(accent, occupied, 'glow'));
     glow.userData.noShadow = true;
     group.add(glow);
 
-    const flare = new THREE.Mesh(new THREE.TorusGeometry(occupied ? 0.28 : 0.22, 0.006, 4, 18), surroundingLandTintMaterial(accent, occupied, 'trail'));
+    const flare = new THREE.Mesh(new THREE.TorusGeometry(occupied ? 12 : 8.5, 0.22, 4, 18), surroundingLandTintMaterial(accent, occupied, 'trail'));
     flare.rotation.x = Math.PI / 2;
     flare.rotation.z = 0.8 + seed * 0.03;
     flare.scale.set(1.72, 0.2, 1);
     flare.userData.noShadow = true;
     group.add(flare);
 
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.18, 0.012, 6, 28), surroundingLandTintMaterial(accent, occupied, 'glow'));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(24, 0.36, 6, 28), surroundingLandTintMaterial(accent, occupied, 'glow'));
     ring.rotation.x = Math.PI / 2;
     ring.rotation.z = 0.18;
     ring.userData.noShadow = true;
@@ -13038,13 +13049,13 @@
       index: index,
     };
 
-    const hit = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), neighborHitMaterial);
+    const hit = new THREE.Mesh(new THREE.SphereGeometry(32, 8, 6), neighborHitMaterial);
     hit.position.set(pos.landX, pos.landY, pos.landZ);
     hit.userData = Object.assign({}, group.userData);
     hit.userData.noShadow = true;
     group.add(hit);
 
-    const highlight = new THREE.Mesh(new THREE.TorusGeometry(1.32, 0.026, 6, 36), new THREE.MeshBasicMaterial({
+    const highlight = new THREE.Mesh(new THREE.TorusGeometry(30, 0.72, 6, 36), new THREE.MeshBasicMaterial({
       color: normalizeHexColor(slot.color) || '#ffffff',
       transparent: true,
       opacity: 0,
