@@ -12938,29 +12938,34 @@
     return 620 * TILE;
   }
 
-  function neighborStarVector(edge, index) {
-     // index 0 and 1 are the two slots on each side.
-    // These are intentionally NOT exact corners, so the 8 neighbors do not overlap.
+function neighborStarVector(edge, index) {
+  const yMap = {
+    north: [0.20, 0.22],
+    east:  [0.24, 0.28],
+    south: [0.30, 0.26],
+    west:  [0.28, 0.26]
+  };
 
-    if (edge === 'north') {
-      return new THREE.Vector3(index === 0 ? -0.55 : 0.55, 0.28, -1);
-    }
+  const y = yMap[edge][index];
 
-    if (edge === 'south') {
-      return new THREE.Vector3(index === 0 ? -0.55 : 0.55, 0.28, 1);
-    }
-
-    if (edge === 'east') {
-      return new THREE.Vector3(1, 0.28, index === 0 ? -0.55 : 0.55);
-    }
-
-    // west
-    return new THREE.Vector3(-1, 0.28, index === 0 ? -0.55 : 0.55);
+  if (edge === 'north') {
+    return new THREE.Vector3(index === 0 ? -0.55 : 0.55, y, -1);
   }
+
+  if (edge === 'south') {
+    return new THREE.Vector3(index === 0 ? -0.55 : 0.55, y, 1);
+  }
+
+  if (edge === 'east') {
+    return new THREE.Vector3(1, y, index === 0 ? -0.55 : 0.55);
+  }
+
+  return new THREE.Vector3(-1, y, index === 0 ? -0.55 : 0.55);
+}
 
   function neighborStarPosition(edge, index) {
     const v = neighborStarVector(edge, index).normalize().multiplyScalar(neighborStarRadius());
-    return { landX: v.x, landY: v.y-200, landZ: v.z };
+    return { landX: v.x, landY: v.y-230, landZ: v.z };
   }
 
   function neighborStarPointMaterial(color, occupied) {
@@ -12970,7 +12975,7 @@
     if (!surroundingLandTintMaterials.has(key)) {
       surroundingLandTintMaterials.set(key, new THREE.PointsMaterial({
         color: clean,
-        size: occupied ? 7.2 : 5.2,
+        size: occupied ? 3.2 : 3.2,
         sizeAttenuation: false,
         transparent: true,
         opacity,
