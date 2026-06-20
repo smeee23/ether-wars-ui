@@ -68,6 +68,11 @@ Use this together with:
 - Respect the existing `userData.landing` pattern for placed cell objects.
 - For propellers: wrap or find the named prop mesh, spin around its local blade axis every frame, and add a translucent disc for high-RPM readability.
 - For aircraft: use shallow easing, pitch with climb/descent slope, and bank during turns. Do not teleport or dive straight down into the board.
+- For crop duster / spacecraft low passes, keep low-altitude travel speed
+  separate from cruise speed so target flyovers can linger without slowing
+  every offscreen transit. When a low pass needs to hold at a centered target,
+  move through any hold-offset distance at low-pass speed before freezing
+  travel for the hold.
 - Aircraft route targeting should use named live index helpers for the intended destination type, such as `airCommandPositions` plus `getAirCommandFlightTarget()`, instead of reusing unrelated gameplay indexes like crops.
 - For first-pass vehicle conversions, prefer additive primitives attached after GLB load over editing/replacing the GLB. Keep the existing flight root, path state, speed, scale, and update loop intact; hide obsolete named nodes such as propellers only when the GLB hierarchy can remain in place.
 - Particle effects should be capped and use cheap cloned `MeshBasicMaterial`; dispose particle materials when particles die.

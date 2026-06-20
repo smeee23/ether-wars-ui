@@ -17,6 +17,11 @@ Use this while the Resources model is frontend/mock-state only.
 - Placement feedback should stay in the mock resource layer: use `flashPlayerResourceStats()` from spend/refund helpers rather than scattering DOM animation calls through tool placement branches.
 - Resource-backed blocked actions, including insufficient gold and max-height repeat clicks, should use `rejectMockResourceBuildAction(tool)` so Gold gets the same red jiggle and rejection sound.
 - Mock round-action UI can read `resources.gold` for attack wagers, but must remain frontend-only until commit/reveal and contract/indexer state are explicitly added.
+- Local game state is persisted through `etherWars.localGameState.v1`.
+  Resource changes, world cell intent, selected cells, round-action allocation
+  state, and camera/tool metadata should flow through
+  `getSerializableGameState()` / `saveLocalGameState()` rather than creating
+  separate localStorage keys for individual resources.
 - `fetchAwsMockStats()` may hydrate the mock `resources` object from
   `GET /api/mockstats`. Treat that as a read-only authoritative snapshot:
   `credits` maps to local `gold`, `fleet` maps to local `army`, and placement /

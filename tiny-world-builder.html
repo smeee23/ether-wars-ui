@@ -22016,7 +22016,7 @@ function neighborStarVector(edge, index) {
   // skips the dusting and trails a banner instead.
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
   const FLIGHT_DUST_SPEED = 5.45;       // m/s while spraying
-  const FLIGHT_CRUISE_SPEED = 5.4;      // m/s while transiting / banner pass
+  const FLIGHT_CRUISE_SPEED = 12.4;      // m/s while transiting / banner pass
   const FLIGHT_DUST_ALT = 3.5;
   const FLIGHT_GROUND_HOLD_SEC = 4.5;
   const FLIGHT_CRUISE_ALT = 5.6;
@@ -22024,6 +22024,8 @@ function neighborStarVector(edge, index) {
   const FLIGHT_REFUEL_MAX = 14.0;
   const FLIGHT_BANNER_CHANCE = 0.32;
   const FLIGHT_GROUND_HOLD_FORWARD_OFFSET = 0.83;
+  const FLIGHT_GROUND_SLOW_ALT = FLIGHT_DUST_ALT + 0.72;
+  const FLIGHT_GROUND_SLOW_SPEED_MULT = 0.34;
   const BANNER_MESSAGES = [
     'TINY WORLD',
     'HELLO!',
@@ -22047,6 +22049,8 @@ function neighborStarVector(edge, index) {
     isBanner: false,
     airCommandTarget: null,
     holdActive: false,
+    holdApproachActive: false,
+    holdTargetTravel: 0,
     holdDone: false,
     holdTimer: 0,
     holdEligible: false,
@@ -22427,6 +22431,8 @@ function neighborStarVector(edge, index) {
     cropDusterState.phase = 'flying';
     cropDusterState.isBanner = false;
     cropDusterState.holdActive = false;
+    cropDusterState.holdApproachActive = false;
+    cropDusterState.holdTargetTravel = 0;
     cropDusterState.holdDone = false;
     cropDusterState.holdTimer = 0;
     cropDusterState.holdEligible = !!airCommandCurve;
@@ -22444,6 +22450,8 @@ function neighborStarVector(edge, index) {
     cropDusterState.isBanner = true;
     cropDusterState.airCommandTarget = null;
     cropDusterState.holdActive = false;
+    cropDusterState.holdApproachActive = false;
+    cropDusterState.holdTargetTravel = 0;
     cropDusterState.holdDone = true;
     cropDusterState.holdTimer = 0;
     cropDusterState.holdEligible = false;
@@ -22468,11 +22476,27 @@ function neighborStarVector(edge, index) {
     if (!haveAirCommand) {
       startBannerRun(BANNER_MESSAGES[Math.floor(Math.random() * BANNER_MESSAGES.length)]);
     } else {
-      cropDusterState.variantIndex = (cropDusterState.variantIndex + 1)
-        % Math.max(1, cropDusterMaterials.length);
-      applyCropDusterMaterial(cropDusterState.variantIndex);
-      startAirCommandRun();
+        if (Math.random() < 0.8) {
+          cropDusterState.variantIndex = (cropDusterState.variantIndex + 1)
+            % Math.max(1, cropDusterMaterials.length);
+          applyCropDusterMaterial(cropDusterState.variantIndex);
+          startAirCommandRun();
+        } else {
+          startBannerRun(BANNER_MESSAGES[Math.floor(Math.random() * BANNER_MESSAGES.length)]);
+        }
     }
+  }
+
+  function cropDusterSpeedForTravel(curve, travel, baseSpeed, dt) {
+    if (!curve || !cropDusterState.holdEligible || cropDusterState.holdDone || cropDusterState.curveLen <= 0) {
+      return baseSpeed;
+    }
+    const probeTravel = Math.min(cropDusterState.curveLen, travel + baseSpeed * dt);
+    const probeU = Math.max(0, Math.min(1, probeTravel / cropDusterState.curveLen));
+    curve.getPointAt(probeU, _flightAhead);
+    return _flightAhead.y <= FLIGHT_GROUND_SLOW_ALT
+      ? baseSpeed * FLIGHT_GROUND_SLOW_SPEED_MULT
+      : baseSpeed;
   }
 
   function spawnFlightGroundDust(x, y, z) {
@@ -22545,26 +22569,43 @@ function neighborStarVector(edge, index) {
       cropDusterState.holdDone = true;
     }
 
-    const nextTravel = cropDusterState.travel + cropDusterState.speed * dt;
-    if (
-      cropDusterState.holdEligible &&
-      !cropDusterState.holdDone &&
-      cropDusterState.curveLen > 0
-    ) {
-      const nextU = Math.min(1, nextTravel / cropDusterState.curveLen);
-      curve.getPointAt(nextU, _flightPos);
-      if (_flightPos.y <= FLIGHT_DUST_ALT + 0.00001) {
-        cropDusterState.travel = Math.min(
-          nextTravel + FLIGHT_GROUND_HOLD_FORWARD_OFFSET,
-          cropDusterState.curveLen
-        );
+    const frameSpeed = cropDusterSpeedForTravel(curve, cropDusterState.travel, cropDusterState.speed, dt);
+    if (cropDusterState.holdApproachActive) {
+      cropDusterState.travel = Math.min(
+        cropDusterState.holdTargetTravel,
+        cropDusterState.travel + frameSpeed * dt
+      );
+      if (cropDusterState.travel >= cropDusterState.holdTargetTravel - 0.0001) {
+        cropDusterState.holdApproachActive = false;
         cropDusterState.holdActive = true;
         cropDusterState.holdTimer = 0;
+      }
+    } else {
+      const nextTravel = cropDusterState.travel + frameSpeed * dt;
+      if (
+        cropDusterState.holdEligible &&
+        !cropDusterState.holdDone &&
+        cropDusterState.curveLen > 0
+      ) {
+        const nextU = Math.min(1, nextTravel / cropDusterState.curveLen);
+        curve.getPointAt(nextU, _flightPos);
+        if (_flightPos.y <= FLIGHT_DUST_ALT + 0.00001) {
+          cropDusterState.holdTargetTravel = Math.min(
+            nextTravel + FLIGHT_GROUND_HOLD_FORWARD_OFFSET,
+            cropDusterState.curveLen
+          );
+          cropDusterState.travel = nextTravel;
+          cropDusterState.holdApproachActive = cropDusterState.travel < cropDusterState.holdTargetTravel - 0.0001;
+          if (!cropDusterState.holdApproachActive) {
+            cropDusterState.holdActive = true;
+            cropDusterState.holdTimer = 0;
+          }
+        } else {
+          cropDusterState.travel = nextTravel;
+        }
       } else {
         cropDusterState.travel = nextTravel;
       }
-    } else {
-      cropDusterState.travel = nextTravel;
     }
 
     if (cropDusterState.travel >= cropDusterState.curveLen) {
@@ -22631,7 +22672,7 @@ function neighborStarVector(edge, index) {
       const t = cropDusterState.airCommandTarget;
       const dx = cropDusterRoot.position.x - t.worldX;
       const dz = cropDusterRoot.position.z - t.worldZ;
-      if (dx * dx + dz * dz < 1.45 * 1.45) {
+      /*if (dx * dx + dz * dz < 1.45 * 1.45) {
         for (let i = 0; i < 2 && cropDustParticles.length <= 220; i++) {
           spawnFlightGroundDust(
             t.worldX + (Math.random() - 0.5) * 0.46,
@@ -22639,7 +22680,7 @@ function neighborStarVector(edge, index) {
             t.worldZ + (Math.random() - 0.5) * 0.46,
           );
         }
-      }
+      }*/
     }
   }
 
