@@ -55,7 +55,7 @@ function send(res, status, body, headers = {}) {
   res.writeHead(status, {
     'Cache-Control': 'no-store',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, HEAD, POST, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     ...headers,
   });
@@ -167,14 +167,18 @@ function appendAiLog(entry) {
 }
 
 function readAwsMockStats() {
+  return readAwsJson('justcausepools', 'etherwars/mockstats.json');
+}
+
+function readAwsJson(bucket, key) {
   return new Promise((resolve, reject) => {
     const args = [
       path.resolve(root, 'S3ReadWrite.py'),
       '--read-json',
       '--bucket',
-      'justcausepools',
+      bucket,
       '--key',
-      'etherwars/mockstats.json',
+      key,
     ];
     execFile(s3Python, args, {
       cwd: root,
@@ -224,6 +228,32 @@ function writeAwsJson(bucket, key, data) {
       try { fs.unlinkSync(tmpFile); } catch (_) {}
       if (err) {
         const detail = String(stderr || err.message || 'S3 JSON write failed').trim();
+        reject(new Error(detail));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function deleteAwsJson(bucket, key) {
+  return new Promise((resolve, reject) => {
+    const args = [
+      path.resolve(root, 'S3ReadWrite.py'),
+      '--delete-object',
+      '--bucket',
+      bucket,
+      '--key',
+      key,
+    ];
+    execFile(s3Python, args, {
+      cwd: root,
+      env: process.env,
+      timeout: 15000,
+      maxBuffer: 1024 * 1024,
+    }, (err, _stdout, stderr) => {
+      if (err) {
+        const detail = String(stderr || err.message || 'S3 JSON delete failed').trim();
         reject(new Error(detail));
         return;
       }
@@ -649,6 +679,23 @@ function validateInterRoundStatePayload(body) {
   return { ok: true, bucket, key, updatedAt, body: safeBody };
 }
 
+function interRoundStateTargetFromParams(params) {
+  const playerId = String(params.get('playerId') || '').trim();
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(playerId)) {
+    return { ok: false, status: 400, error: 'playerId is required and must be URL-safe' };
+  }
+  const roundNumber = nonNegativeIntOrNull(params.get('roundNumber'));
+  if (!roundNumber) {
+    return { ok: false, status: 400, error: 'roundNumber is required' };
+  }
+  const bucket = 'justcausepools';
+  const key = `etherwars/players/${playerId}/round-${roundNumber}/interRoundState.json`;
+  if (!key.startsWith('etherwars/players/') || !key.endsWith('/interRoundState.json')) {
+    return { ok: false, status: 400, error: 'Unsafe S3 key' };
+  }
+  return { ok: true, bucket, key, playerId, roundNumber };
+}
+
 async function handleMockStats(req, res) {
   if (req.method !== 'GET') {
     send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
@@ -671,8 +718,67 @@ async function handleMockStats(req, res) {
 }
 
 async function handleInterRoundState(req, res) {
+  const reqUrl = new URL(req.url, 'http://localhost');
+  if (req.method === 'GET') {
+    const target = interRoundStateTargetFromParams(reqUrl.searchParams);
+    if (!target.ok) {
+      send(res, target.status, JSON.stringify({ ok: false, error: target.error }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+      return;
+    }
+    try {
+      const data = await readAwsJson(target.bucket, target.key);
+      send(res, 200, JSON.stringify({
+        ok: true,
+        bucket: target.bucket,
+        key: target.key,
+        state: sanitizeForPublicJson(data),
+      }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+    } catch (err) {
+      console.warn('[inter-round-state] read failed:', err.message || String(err));
+      send(res, 404, JSON.stringify({
+        ok: false,
+        error: 'Unable to read Ether Wars interRoundState',
+      }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+    }
+    return;
+  }
+  if (req.method === 'DELETE') {
+    const target = interRoundStateTargetFromParams(reqUrl.searchParams);
+    if (!target.ok) {
+      send(res, target.status, JSON.stringify({ ok: false, error: target.error }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+      return;
+    }
+    try {
+      await deleteAwsJson(target.bucket, target.key);
+      send(res, 200, JSON.stringify({
+        ok: true,
+        bucket: target.bucket,
+        key: target.key,
+        deleted: true,
+      }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+    } catch (err) {
+      console.warn('[inter-round-state] delete failed:', err.message || String(err));
+      send(res, 500, JSON.stringify({
+        ok: false,
+        error: 'Unable to delete Ether Wars interRoundState',
+      }), {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+    }
+    return;
+  }
   if (req.method !== 'POST') {
-    send(res, 405, 'Method Not Allowed', { Allow: 'POST' });
+    send(res, 405, 'Method Not Allowed', { Allow: 'GET, POST, DELETE' });
     return;
   }
   try {

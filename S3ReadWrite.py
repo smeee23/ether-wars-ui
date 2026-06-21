@@ -178,6 +178,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--read-text', action='store_true', help='Read and print UTF-8 text')
     parser.add_argument('--write-json', help='Write JSON from this local file path')
     parser.add_argument('--write-text', help='Write text from this local file path')
+    parser.add_argument('--delete-object', action='store_true', help='Delete the selected S3 object')
     parser.add_argument('--summary', action='store_true', help='Print a concise JSON summary instead')
     return parser.parse_args()
 
@@ -195,8 +196,9 @@ def main() -> int:
 
     write_ops = sum(bool(value) for value in (args.write_json, args.write_text))
     read_ops = sum(bool(value) for value in (args.read_json, args.read_text))
-    if write_ops + read_ops != 1:
-        raise SystemExit('Choose exactly one operation: --read-json, --read-text, --write-json, or --write-text')
+    delete_ops = 1 if args.delete_object else 0
+    if write_ops + read_ops + delete_ops != 1:
+        raise SystemExit('Choose exactly one operation: --read-json, --read-text, --write-json, --write-text, or --delete-object')
 
     if args.read_json:
         try:
@@ -223,6 +225,14 @@ def main() -> int:
         except Exception as exc:
             raise S3UtilityError(describe_s3_error(exc, args.bucket, args.key)) from exc
         LOGGER.info('Wrote JSON to s3://%s/%s', args.bucket, args.key)
+        return 0
+
+    if args.delete_object:
+        try:
+            client.delete_object(Bucket=args.bucket, Key=args.key)
+        except Exception as exc:
+            raise S3UtilityError(describe_s3_error(exc, args.bucket, args.key)) from exc
+        LOGGER.info('Deleted s3://%s/%s', args.bucket, args.key)
         return 0
 
     text = Path(args.write_text).read_text(encoding='utf-8')

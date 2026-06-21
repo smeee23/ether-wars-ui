@@ -203,6 +203,41 @@
     z-index: 12;
   }
   .controls::-webkit-scrollbar { display: none; }
+  .restore-menu {
+    position: fixed;
+    left: 70px;
+    bottom: 70px;
+    z-index: 26;
+    min-width: 220px;
+    padding: 6px;
+    border: 1px solid rgba(30, 35, 45, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 18px 44px -18px rgba(20, 30, 45, 0.34);
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+  }
+  .restore-menu[hidden] { display: none !important; }
+  .restore-menu button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 9px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink);
+    font: 600 12px/1.2 Inter, system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+  }
+  .restore-menu button:hover { background: rgba(42, 39, 34, 0.08); }
+  .restore-menu button:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+    opacity: 0.58;
+  }
   .xr-panel {
     position: fixed;
     left: 74px;
@@ -4315,12 +4350,17 @@
     <button class="btn icon" id="stamp-builder" data-tooltip="Stamp builder" aria-label="Open stamp builder">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 7l9 5 9-5-9-5Z"/><path d="m3 7 9 5v10l-9-5V7Z"/><path d="m21 7-9 5v10l9-5V7Z"/></svg>
     </button>
-    <button class="btn icon" id="clear" data-tooltip="Clear to rock" aria-label="Clear world to rock">
+    <button class="btn icon" id="clear" data-tooltip="Restore state" aria-label="Restore state" aria-haspopup="menu" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
     </button>
     <button class="btn icon" id="render-settings" data-tooltip="Settings" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </button>
+  </div>
+
+  <div class="restore-menu" id="restore-menu" role="menu" aria-label="Restore state" hidden>
+    <button type="button" role="menuitem" data-restore-action="last-reveal">Restore last reveal</button>
+    <button type="button" role="menuitem" data-restore-action="aws-draft">Restore last saved AWS state</button>
   </div>
 
   <div class="xr-panel" id="xr-panel" aria-label="XR modes" hidden>
@@ -19264,7 +19304,6 @@ function neighborStarVector(edge, index) {
   });
 
   document.getElementById('reset').addEventListener('click', () => confirmReset());
-  document.getElementById('clear').addEventListener('click', doClear);
   document.getElementById('home').addEventListener('click', flyHomeCamera);
   const perspBtn = document.getElementById('persp');
   perspBtn.addEventListener('click', togglePerspective);
@@ -19673,26 +19712,63 @@ function neighborStarVector(edge, index) {
   }
 
   function confirmReset() {
+    showActionConfirm({
+      title: 'Reset to the starter world?',
+      copy: 'This clears your current build back to an empty home grid. You will lose anything you have placed on the home grid.',
+      okText: 'Reset world',
+      action: doReset,
+    });
+  }
+  function showActionConfirm(opts) {
     const modal = document.getElementById('confirm-reset-modal');
-    if (!modal) { doReset(); return; }
+    if (!modal) {
+      if (opts && typeof opts.action === 'function') opts.action();
+      return;
+    }
+    const title = document.getElementById('confirm-reset-title');
+    const copy = document.getElementById('confirm-reset-copy');
     const okBtn = document.getElementById('confirm-reset-ok');
+    if (title) title.textContent = opts.title || 'Proceed?';
+    if (copy) copy.textContent = opts.copy || 'This action cannot be undone.';
+    if (okBtn) {
+      okBtn.textContent = opts.okText || 'Proceed';
+      okBtn.disabled = false;
+      okBtn.dataset.busyText = opts.busyText || 'Working...';
+    }
+    modal.__tinyworldConfirmAction = opts.action || null;
     openTinyModal(modal, okBtn);
   }
-  (function setupResetConfirm() {
+  (function setupActionConfirm() {
     const modal = document.getElementById('confirm-reset-modal');
     if (!modal) return;
     const close = () => { closeTinyModal(modal); };
     const ok = document.getElementById('confirm-reset-ok');
     const cancel = document.getElementById('confirm-reset-cancel');
     const closeBtn = document.getElementById('confirm-reset-close');
-    ok.addEventListener('click', () => { close(); doReset(); });
+    ok.addEventListener('click', async () => {
+      const action = modal.__tinyworldConfirmAction;
+      if (typeof action !== 'function') { close(); return; }
+      ok.disabled = true;
+      const previousText = ok.textContent;
+      ok.textContent = ok.dataset.busyText || 'Working...';
+      try {
+        await action();
+        close();
+      } catch (err) {
+        console.warn('[confirm-action] failed:', err.message || err);
+        if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus(err.message || String(err), 'error');
+      } finally {
+        ok.disabled = false;
+        ok.textContent = previousText;
+      }
+    });
     cancel.addEventListener('click', close);
     closeBtn.addEventListener('click', close);
     modal.addEventListener('click', e => { if (e.target === modal) close(); });
     window.addEventListener('keydown', e => {
       if (modal.hidden) return;
       if (e.key === 'Escape') { e.preventDefault(); close(); }
-      else if (e.key === 'Enter') { e.preventDefault(); close(); doReset(); }
+      else if (e.key === 'Enter') { e.preventDefault(); ok.click(); }
     });
   })();
   function doClear() {
@@ -19725,6 +19801,59 @@ function neighborStarVector(edge, index) {
         });
     if (typeof fireWebhook === 'function') fireWebhook('world.clear', {});
   }
+
+  function setupRestoreMenu() {
+    const clearBtn = document.getElementById('clear');
+    const menu = document.getElementById('restore-menu');
+    if (!clearBtn || !menu) return;
+    function close() {
+      menu.hidden = true;
+      clearBtn.setAttribute('aria-expanded', 'false');
+    }
+    function open() {
+      const r = clearBtn.getBoundingClientRect();
+      menu.style.left = Math.round(r.right + 12) + 'px';
+      menu.style.top = 'auto';
+      menu.style.bottom = Math.max(12, Math.round(window.innerHeight - r.bottom)) + 'px';
+      menu.hidden = false;
+      clearBtn.setAttribute('aria-expanded', 'true');
+    }
+    function toggle() { if (menu.hidden) open(); else close(); }
+    clearBtn.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
+    });
+    menu.addEventListener('click', e => {
+      e.stopPropagation();
+      const btn = e.target && e.target.closest ? e.target.closest('[data-restore-action]') : null;
+      if (!btn) return;
+      const action = btn.getAttribute('data-restore-action');
+      close();
+      if (action === 'last-reveal') {
+        showActionConfirm({
+          title: 'Restore last reveal state?',
+          copy: 'This will erase local changes and any saved AWS state for this round.',
+          okText: 'Restore last reveal',
+          busyText: 'Restoring...',
+          action: restoreLastRevealStateFromClearMenu,
+        });
+      } else if (action === 'aws-draft') {
+        showActionConfirm({
+          title: 'Restore last saved AWS state?',
+          copy: 'This will erase local changes and replace them with the last saved AWS state.',
+          okText: 'Restore AWS state',
+          busyText: 'Restoring...',
+          action: restoreLastSavedAwsStateFromClearMenu,
+        });
+      }
+    });
+    document.addEventListener('click', close);
+    window.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !menu.hidden) close();
+    });
+  }
+  setupRestoreMenu();
 
   // -------- render settings --------
   (function setupRenderSettings() {
@@ -26243,6 +26372,8 @@ function neighborStarVector(edge, index) {
 
   function clearLocalGameState() {
     try {
+      clearTimeout(saveTimer);
+      saveTimer = null;
       localStorage.removeItem(LOCAL_GAME_STATE_KEY);
       localStorage.removeItem(STORAGE_KEY);
       console.log('[local save] local game state cleared');
@@ -26305,26 +26436,218 @@ function neighborStarVector(edge, index) {
     return true;
   }
 
+  function normalizeRestorableWorldState(state) {
+    if (!state || typeof state !== 'object' || !Array.isArray(state.cells)) return null;
+    const out = Object.assign({}, state, {
+      v: [1, 2, 3, 4].includes(state.v) ? state.v : STORAGE_VERSION,
+      gridSize: HOME_GRID_DEFAULT,
+      cells: state.cells,
+      cameraMode: state.cameraMode || cameraMode,
+      toolId: state.toolId || (selectedTool && selectedTool.id),
+    });
+    return out;
+  }
+
+  function persistRestoredGameState(worldState, resourceState, opts = {}) {
+    const normalizedWorldState = normalizeRestorableWorldState(worldState);
+    if (!normalizedWorldState) throw new Error('Restore world state is missing cells.');
+    const resourceSnapshot = {};
+    for (const key of RESOURCE_KEYS) {
+      resourceSnapshot[key] = coerceNonNegativeStat(resourceState && resourceState[key]) || 0;
+    }
+    const playerState = opts.playerGameState || getPlayerGameState();
+    const restored = {
+      schemaVersion: LOCAL_GAME_STATE_SCHEMA_VERSION,
+      updatedAt: Date.now(),
+      credits: resourceSnapshot.gold,
+      resources: resourceSnapshot,
+      population: Math.max(0, Math.round(crowdCount || 0)),
+      buildings: normalizedWorldState.cells,
+      worldState: normalizedWorldState,
+      allocations: {
+        roundAction: Object.assign({}, roundActionState),
+      },
+      playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
+      selection: [],
+      camera: {
+        mode: cameraMode,
+        target: { x: target.x, y: target.y, z: target.z },
+        viewSize,
+        azimuth,
+        polar,
+      },
+      toolId: normalizedWorldState.toolId,
+    };
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedWorldState));
+    localStorage.setItem(LOCAL_GAME_STATE_KEY, JSON.stringify(restored));
+    if (typeof updateActiveWorldSlotSnapshotFromState === 'function') {
+      updateActiveWorldSlotSnapshotFromState(normalizedWorldState);
+    }
+    return restored;
+  }
+
   function resetLocalDraftToAwsBaseline(auth) {
     const baseline = auth && auth.lastRevealState;
     if (!baseline) return false;
     clearLocalGameState();
+    const baselineResources = {};
     if (auth.resources) {
       for (const key of RESOURCE_KEYS) {
-        if (coerceNonNegativeStat(auth.resources[key]) !== null) resources[key] = auth.resources[key];
+        if (coerceNonNegativeStat(auth.resources[key]) !== null) {
+          resources[key] = auth.resources[key];
+          baselineResources[key] = auth.resources[key];
+        }
       }
     }
-    const previousWorld = baseline.previousWorld || baseline.worldState || baseline.worldSnapshot || baseline.proposedWorld;
-    if (previousWorld && previousWorld.cells && applyState(previousWorld, { keepCamera: true })) {
+    const previousWorld = normalizeRestorableWorldState(baseline.previousWorld || baseline.worldState || baseline.worldSnapshot || baseline.proposedWorld);
+    if (previousWorld && previousWorld.cells && applyState(previousWorld, {
+      keepCamera: true,
+      onDone: () => persistRestoredGameState(previousWorld, baselineResources, { playerGameState: auth.gameState }),
+    })) {
       schedulePlayerStatsUpdate();
-      saveLocalGameState();
+      persistRestoredGameState(previousWorld, baselineResources, { playerGameState: auth.gameState });
       return true;
     }
     loadInitialScene();
     resetCameraDefaults();
     schedulePlayerStatsUpdate();
-    saveLocalGameState();
+    persistRestoredGameState(getSerializableWorldState(), baselineResources, { playerGameState: auth.gameState });
     return true;
+  }
+
+  function currentInterRoundStateTarget() {
+    const auth = authoritativeGameState || awsGameState;
+    const lastRevealState = auth && auth.lastRevealState;
+    if (!auth || !lastRevealState) throw new Error('AWS lastRevealState has not hydrated yet.');
+    const playerId = String(auth.playerId || 'player-1');
+    const roundNumber = coerceNonNegativeStat(lastRevealState.roundNumber);
+    if (!roundNumber) throw new Error('Missing authoritative round number.');
+    return { auth, playerId, roundNumber };
+  }
+
+  function interRoundStateUrlForTarget(target) {
+    return '/api/inter-round-state?playerId=' + encodeURIComponent(target.playerId) +
+      '&roundNumber=' + encodeURIComponent(String(target.roundNumber));
+  }
+
+  async function deleteAwsInterRoundStateDraft() {
+    const target = currentInterRoundStateTarget();
+    const response = await fetch(interRoundStateUrlForTarget(target), {
+      method: 'DELETE',
+      headers: { Accept: 'application/json' },
+    });
+    const text = await response.text();
+    let result = null;
+    try { result = text ? JSON.parse(text) : null; } catch (_) {
+      result = { ok: false, error: text || response.statusText };
+    }
+    if (!response.ok || !result || !result.ok) {
+      throw new Error((result && result.error) || ('HTTP ' + response.status));
+    }
+    lastSavedInterRoundStateKey = null;
+    window.__tinyworldLastSavedInterRoundStateKey = null;
+    return result;
+  }
+
+  async function fetchAwsInterRoundStateDraft() {
+    const target = currentInterRoundStateTarget();
+    const response = await fetch(interRoundStateUrlForTarget(target), {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    const text = await response.text();
+    let result = null;
+    try { result = text ? JSON.parse(text) : null; } catch (_) {
+      result = { ok: false, error: text || response.statusText };
+    }
+    if (!response.ok || !result || !result.ok || !result.state) {
+      throw new Error((result && result.error) || ('HTTP ' + response.status));
+    }
+    lastSavedInterRoundStateKey = result.key || null;
+    window.__tinyworldLastSavedInterRoundStateKey = lastSavedInterRoundStateKey;
+    return result.state;
+  }
+
+  function applyAwsInterRoundStateDraft(state) {
+    const draft = state && state.interRoundState ? state : {
+      interRoundState: state,
+      lastRevealState: (authoritativeGameState || awsGameState) && (authoritativeGameState || awsGameState).lastRevealState,
+    };
+    const interRoundState = draft && draft.interRoundState;
+    if (!interRoundState || typeof interRoundState !== 'object') throw new Error('AWS saved state is missing interRoundState.');
+    if (!interRoundState.proposedWorld || !Array.isArray(interRoundState.proposedWorld.cells)) {
+      throw new Error('AWS saved state is missing proposedWorld.');
+    }
+    clearLocalGameState();
+    const proposedResources = interRoundState.proposedResources || {};
+    const proposed = {
+      gold: proposedResources.credits,
+      food: proposedResources.food,
+      water: proposedResources.water,
+      oxygen: proposedResources.oxygen,
+      shelter: proposedResources.shelter,
+      army: proposedResources.fleet,
+    };
+    for (const key of RESOURCE_KEYS) {
+      const value = coerceNonNegativeStat(proposed[key]);
+      if (value !== null) resources[key] = value;
+    }
+    const action = interRoundState.roundAction || {};
+    Object.assign(roundActionState, {
+      selectedAction: action.selectedAction || roundActionState.selectedAction,
+      selectedTargetNeighborId: action.selectedTargetNeighborId || null,
+      wagerAmount: coerceNonNegativeStat(action.wagerAmount) || 0,
+    });
+    const proposedWorld = normalizeRestorableWorldState(interRoundState.proposedWorld);
+    if (!proposedWorld) throw new Error('AWS saved state proposedWorld could not be applied.');
+    if (!applyState(proposedWorld, {
+      keepCamera: true,
+      onDone: () => persistRestoredGameState(proposedWorld, getResourceSnapshot(), {
+        playerGameState: draft.gameState || ((authoritativeGameState || awsGameState) && (authoritativeGameState || awsGameState).gameState),
+      }),
+    })) {
+      throw new Error('AWS saved state proposedWorld could not be applied.');
+    }
+    schedulePlayerStatsUpdate();
+    persistRestoredGameState(proposedWorld, getResourceSnapshot(), {
+      playerGameState: draft.gameState || ((authoritativeGameState || awsGameState) && (authoritativeGameState || awsGameState).gameState),
+    });
+    return true;
+  }
+
+  async function restoreLastRevealStateFromClearMenu() {
+    if (!resetLocalDraftToAwsBaseline((authoritativeGameState || awsGameState))) {
+      throw new Error('Unable to restore AWS lastRevealState.');
+    }
+    try {
+      await deleteAwsInterRoundStateDraft();
+      if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus('Restored last reveal state and deleted AWS draft.', 'success');
+    } catch (err) {
+      console.warn('[restore] last reveal restored locally, but AWS draft delete failed:', err.message || err);
+      if (typeof setAwsDraftStatus === 'function') {
+        setAwsDraftStatus('Restored last reveal locally. AWS draft delete failed: ' + (err.message || err), 'error');
+      }
+    }
+  }
+
+  async function restoreLastSavedAwsStateFromClearMenu() {
+    let state = null;
+    try {
+      state = await fetchAwsInterRoundStateDraft();
+    } catch (err) {
+      const auth = authoritativeGameState || awsGameState;
+      if (auth && auth.interRoundState) {
+        console.warn('[restore] using hydrated AWS interRoundState fallback:', err.message || err);
+        state = auth;
+      } else {
+        throw err;
+      }
+    }
+    applyAwsInterRoundStateDraft(state);
+    if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus('Restored last saved AWS state.', 'success');
   }
 
   window.getSerializableGameState = getSerializableGameState;
@@ -26333,6 +26656,8 @@ function neighborStarVector(edge, index) {
   window.saveLocalGameState = saveLocalGameState;
   window.clearLocalGameState = clearLocalGameState;
   window.clearEtherWarsLocalSave = clearLocalGameState;
+  window.restoreLastRevealStateFromClearMenu = restoreLastRevealStateFromClearMenu;
+  window.restoreLastSavedAwsStateFromClearMenu = restoreLastSavedAwsStateFromClearMenu;
 
   function saveState() {
     if (typeof window.__requestMinimapRepaint === 'function') window.__requestMinimapRepaint();
@@ -28594,6 +28919,19 @@ function neighborStarVector(edge, index) {
       writeWorldsMeta(list);
     }
 
+    window.updateActiveWorldSlotSnapshotFromState = function updateActiveWorldSlotSnapshotFromState(state) {
+      const id = getActiveWorldId();
+      if (!id || !state) return false;
+      const list = readWorldsMeta();
+      const idx = list.findIndex(w => w.id === id);
+      if (idx === -1) return false;
+      list[idx].state = state;
+      list[idx].ts = Date.now();
+      writeWorldsMeta(list);
+      paintLabel();
+      return true;
+    };
+
     function renameActive(name) {
       const id = getActiveWorldId();
       const list = readWorldsMeta();
@@ -28659,8 +28997,7 @@ function neighborStarVector(edge, index) {
       btn.addEventListener('click', () => {
         const action = btn.getAttribute('data-action');
         if (action === 'new') {
-          const clearBtn = document.getElementById('clear');
-          if (clearBtn) clearBtn.click();
+          doClear();
           setActiveWorldId('');
           paintLabel(); paintList();
         } else if (action === 'duplicate') {

@@ -38,6 +38,11 @@ Future AWS/indexer round-state architecture:
   only write to
   `etherwars/players/{playerId}/round-{roundNumber}/interRoundState.json`.
   Never call it from `setCell()` or other per-edit paths.
+- The bridge also supports explicit user-triggered `GET` and `DELETE` for that
+  same bounded inter-round key. Use `GET` to restore the last saved AWS draft
+  into local state, and `DELETE` when the user chooses to restore the last
+  reveal baseline and discard the pending AWS draft. Do not expose arbitrary S3
+  keys to browser-visible JavaScript.
 - Reveal round ends.
 - Indexer reads contract results.
 - AWS stores `lastRevealState`, the authoritative starting point for the next commit round:

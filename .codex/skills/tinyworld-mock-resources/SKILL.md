@@ -35,6 +35,16 @@ Use this while the Resources model is frontend/mock-state only.
   `validateCurrentDraftAgainstAuthoritativeState()` for frontend feedback. Do
   not validate after each placement click. Frontend validation is advisory; the
   dev-server/AWS write path remains authoritative.
+- The toolbar Clear button opens restore choices for state reconciliation:
+  restoring last reveal clears local draft resources/world and deletes the
+  bounded AWS inter-round draft; restoring last saved AWS state clears local
+  changes and applies the saved draft's `proposedResources`, `roundAction`, and
+  `proposedWorld`. Restore paths must persist the intended restored snapshot
+  directly to both `tinyworld:v1` and `etherWars.localGameState.v1`, and repeat
+  persistence from `applyState(..., { onDone })` so progressive rendering does
+  not let stale autosave state survive a refresh. Also overwrite the active
+  named-world slot in `tinyworld:worlds.v1`, because the world menu keeps a
+  periodic snapshot that can otherwise preserve stale local draft changes.
 - `buildInterRoundStateDraft()` may snapshot the current visual world and
   frontend mock resources into a proposed `interRoundState`, but saving must
   remain explicit through `saveInterRoundStateToAws()` / `POST
