@@ -13492,6 +13492,11 @@ function neighborStarVector(edge, index) {
   if (neighborCommitActionEl) {
     neighborCommitActionEl.addEventListener('click', () => {
       try {
+        const validation = validateCurrentDraftAgainstAuthoritativeState('commit-preview');
+        if (!validation.ok) {
+          surfaceDraftValidationWarning(validation, 'commit-preview');
+          throw new Error(validation.issues.join(' '));
+        }
         updateCommitPreviewFromCurrentDraft('Dev-only preview. No wallet, contract call, or transaction was used.');
         setAwsDraftStatus('Commit preview computed locally. Not submitted on-chain.', 'success');
       } catch (err) {
@@ -15875,6 +15880,169 @@ function neighborStarVector(edge, index) {
     };
   }
 
+  function resourceSnapshotFromLastRevealState(lastRevealState) {
+    if (!lastRevealState || typeof lastRevealState !== 'object') return null;
+    const required = {
+      gold: 'credits',
+      food: 'food',
+      water: 'water',
+      oxygen: 'oxygen',
+      shelter: 'shelter',
+      army: 'fleet',
+    };
+    const out = {};
+    for (const key of Object.keys(required)) {
+      const value = coerceNonNegativeStat(lastRevealState[required[key]]);
+      if (value === null) return null;
+      out[key] = value;
+    }
+    return out;
+  }
+
+  function draftResourceSnapshotFromState(state) {
+    if (state && state.resources && typeof state.resources === 'object') {
+      const out = {};
+      for (const key of RESOURCE_KEYS) out[key] = coerceNonNegativeStat(state.resources[key]) || 0;
+      const credits = coerceNonNegativeStat(state.credits);
+      if (credits !== null) out.gold = credits;
+      return out;
+    }
+    return getResourceSnapshot();
+  }
+
+  function normalizeResourceDraftCell(entry) {
+    let x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance;
+    if (Array.isArray(entry)) {
+      [x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance] = entry;
+    } else if (entry && typeof entry === 'object') {
+      ({ x, z, terrain, kind, floors, buildingType, terrainFloors, fenceSide, extras, transform, appearance } = entry);
+    }
+    if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) return null;
+    return {
+      terrain: terrain || BASE_TERRAIN,
+      kind: kind || null,
+      floors: Math.max(1, Math.round(Number(floors) || 1)),
+      buildingType: buildingType || null,
+      terrainFloors: Math.max(1, Math.round(Number(terrainFloors) || 1)),
+      fenceSide: fenceSide || null,
+      extras: Array.isArray(extras) ? extras.map(e => ({
+        kind: e && (e.kind || e.k) || null,
+        fenceSide: e && (e.fenceSide || e.s) || null,
+        floors: Math.max(1, Math.round(Number(e && (e.floors || e.f)) || 1)),
+      })).filter(e => e.kind) : [],
+      appearance: normalizeAppearance(appearance),
+    };
+  }
+
+  function collectDraftExplicitResourceTotals(worldState) {
+    const totals = {
+      cost: { gold: 0 },
+      effect: {},
+    };
+    const cells = Array.isArray(worldState && worldState.cells) ? worldState.cells : [];
+    function addRule(rule, multiplier) {
+      if (!rule) return;
+      const n = Math.max(1, multiplier || 1);
+      const cost = rule.cost || {};
+      const effect = rule.effect || {};
+      totals.cost.gold += Math.max(0, Math.round((cost.gold || 0) * n));
+      for (const key of Object.keys(effect)) {
+        if (!RESOURCE_KEYS.includes(key) || key === 'gold') continue;
+        totals.effect[key] = Math.max(0, Math.round((totals.effect[key] || 0) + (effect[key] * n)));
+      }
+    }
+    for (const entry of cells) {
+      const cell = normalizeResourceDraftCell(entry);
+      if (!cell) continue;
+      addRule(resourceRuleForPlacedCell(cell), getBuildRefundMultiplier(cell));
+      for (const extra of cell.extras || []) addRule(resourceRuleForPlacedCell(extra), getBuildRefundMultiplier(extra));
+    }
+    return totals;
+  }
+
+  function validateLocalDraftAgainstLastRevealState(localDraft, lastRevealState, opts = {}) {
+    const baseline = resourceSnapshotFromLastRevealState(lastRevealState);
+    if (!baseline) {
+      return { ok: false, issues: ['AWS lastRevealState is missing required resource fields.'] };
+    }
+    const draftResources = draftResourceSnapshotFromState(localDraft);
+    const creditSpend = baseline.gold - draftResources.gold;
+    const issues = [];
+    if (creditSpend < 0) {
+      issues.push('Draft credits exceed AWS lastRevealState credits.');
+    }
+    if (creditSpend > baseline.gold) {
+      issues.push('Draft credit spend exceeds AWS lastRevealState credits.');
+    }
+    const worldState = (localDraft && localDraft.worldState) || getSerializableWorldState();
+    const explicitTotals = collectDraftExplicitResourceTotals(worldState);
+    const buildableKeys = RESOURCE_KEYS.filter(key => key !== 'gold');
+    const gains = {};
+    for (const key of buildableKeys) {
+      const gain = Math.max(0, (draftResources[key] || 0) - (baseline[key] || 0));
+      gains[key] = gain;
+      const explicitAllowance = Math.max(0, explicitTotals.effect[key] || 0);
+      const allowedGain = Math.max(Math.max(0, creditSpend), explicitAllowance);
+      if (gain > allowedGain) {
+        issues.push(key + ' gain +' + gain + ' is not accounted for by credit spend or draft buildings.');
+      }
+    }
+    return {
+      ok: issues.length === 0,
+      issues,
+      baseline,
+      draftResources,
+      creditSpend: Math.max(0, creditSpend),
+      gains,
+      explicitTotals,
+      source: opts.source || 'draft',
+    };
+  }
+
+  function validateCurrentDraftAgainstAuthoritativeState(source) {
+    const auth = authoritativeGameState || awsGameState;
+    const lastRevealState = auth && auth.lastRevealState;
+    if (!lastRevealState) {
+      return { ok: false, issues: ['AWS lastRevealState has not hydrated yet.'], source };
+    }
+    return validateLocalDraftAgainstLastRevealState(null, lastRevealState, { source });
+  }
+
+  function surfaceDraftValidationWarning(result, source) {
+    if (!result || result.ok) return;
+    const message = 'Local draft does not reconcile with AWS lastRevealState: ' + result.issues.join(' ');
+    console.warn('[draft-validation]', source || result.source || 'draft', result);
+    if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus(message, 'error');
+  }
+
+  function reconcileLoadedLocalDraftWithAws() {
+    if (!loadedLocalDraftForAwsReconciliation) return true;
+    const auth = authoritativeGameState || awsGameState;
+    const result = validateLocalDraftAgainstLastRevealState(
+      loadedLocalDraftForAwsReconciliation,
+      auth && auth.lastRevealState,
+      { source: 'load' }
+    );
+    if (result.ok) {
+      loadedLocalDraftForAwsReconciliation = null;
+      if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus('Local draft reconciled with AWS baseline.', 'success');
+      return true;
+    }
+    surfaceDraftValidationWarning(result, 'load');
+    const shouldReset = window.confirm(
+      'Your local draft cannot be reconciled with the AWS lastRevealState.\n\n' +
+      result.issues.join('\n') +
+      '\n\nReset the local draft to the AWS baseline?'
+    );
+    if (shouldReset) {
+      resetLocalDraftToAwsBaseline(auth);
+      loadedLocalDraftForAwsReconciliation = null;
+      if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus('Reset local draft to AWS baseline.', 'success');
+      return true;
+    }
+    return false;
+  }
+
   const COMMIT_PREVIEW_HASH_ALGORITHM = 'keccak256-abi';
   const COMMIT_PREVIEW_PLAYER_ADDRESS_PLACEHOLDER = '0x0000000000000000000000000000000000000000';
   const COMMIT_ACTION_CODES = { defend: 0, attack: 1, build: 2 };
@@ -16174,6 +16342,11 @@ function neighborStarVector(edge, index) {
     const auth = authoritativeGameState || awsGameState;
     const lastRevealState = auth && auth.lastRevealState;
     if (!lastRevealState) throw new Error('AWS mock stats have not hydrated yet.');
+    const validation = validateCurrentDraftAgainstAuthoritativeState('build-draft');
+    if (!validation.ok) {
+      surfaceDraftValidationWarning(validation, 'build-draft');
+      throw new Error(validation.issues.join(' '));
+    }
     const roundNumber = coerceNonNegativeStat(lastRevealState.roundNumber);
     if (!roundNumber) throw new Error('Missing authoritative round number.');
 
@@ -16226,6 +16399,13 @@ function neighborStarVector(edge, index) {
   }
 
   async function saveInterRoundStateToAws() {
+    const auth = authoritativeGameState || awsGameState;
+    if (!auth || !auth.lastRevealState) throw new Error('AWS lastRevealState has not hydrated yet.');
+    const validation = validateCurrentDraftAgainstAuthoritativeState('save-aws-draft');
+    if (!validation.ok) {
+      surfaceDraftValidationWarning(validation, 'save-aws-draft');
+      throw new Error(validation.issues.join(' '));
+    }
     const draft = buildInterRoundStateDraft();
     if (typeof renderCommitPreview === 'function') {
       renderCommitPreview(draft.interRoundState && draft.interRoundState.commitPreview, 'Saved draft will include this dev-only preview hash.');
@@ -16256,6 +16436,8 @@ function neighborStarVector(edge, index) {
   window.buildCommitPreimageFromInterRoundState = buildCommitPreimageFromInterRoundState;
   window.buildCommitPreviewFromDraft = buildCommitPreviewFromDraft;
   window.saveInterRoundStateToAws = saveInterRoundStateToAws;
+  window.validateLocalDraftAgainstLastRevealState = validateLocalDraftAgainstLastRevealState;
+  window.validateCurrentDraftAgainstAuthoritativeState = validateCurrentDraftAgainstAuthoritativeState;
 
   async function fetchAwsMockStats(opts = {}) {
     try {
@@ -16267,6 +16449,7 @@ function neighborStarVector(edge, index) {
       if (!response.ok) throw new Error('HTTP ' + response.status);
       const data = await response.json();
       if (!applyAwsMockStats(data, opts)) throw new Error('Unexpected mock stats shape');
+      if (opts.reconcileLocalDraft) reconcileLoadedLocalDraftWithAws();
       console.info('[aws-mockstats] hydrated authoritative game state.');
       return awsGameState;
     } catch (err) {
@@ -21473,7 +21656,7 @@ function neighborStarVector(edge, index) {
     // stack while staying cheap at Tiny World's cloud counts.
     const count = 3 + Math.floor(Math.random() * 5);
     for (let i = 0; i < count; i++) {
-      const r = 0.05 + Math.random() * 0.35;
+      const r = 0.05 + Math.random() * 0.15;
       const bright = Math.random() < 0.6;
       const opacity = bright ? (0.7 + Math.random() * 0.25) : (0.4 + Math.random() * 0.25);
       const mat = cloneCloudMat(bright ? M.cloud : M.cloudShade, opacity);
@@ -25794,6 +25977,7 @@ function neighborStarVector(edge, index) {
   const LOCAL_GAME_STATE_SCHEMA_VERSION = 1;
   let saveTimer = null;
   let suppressSave = false;
+  let loadedLocalDraftForAwsReconciliation = null;
 
   // One-shot migration — strips terrainFloors > 1 from any cell whose
   // kind requires flat ground (everything except rock). Touches the live
@@ -26118,6 +26302,28 @@ function neighborStarVector(edge, index) {
     }
     notifySelectionChanged();
     schedulePlayerStatsUpdate();
+    return true;
+  }
+
+  function resetLocalDraftToAwsBaseline(auth) {
+    const baseline = auth && auth.lastRevealState;
+    if (!baseline) return false;
+    clearLocalGameState();
+    if (auth.resources) {
+      for (const key of RESOURCE_KEYS) {
+        if (coerceNonNegativeStat(auth.resources[key]) !== null) resources[key] = auth.resources[key];
+      }
+    }
+    const previousWorld = baseline.previousWorld || baseline.worldState || baseline.worldSnapshot || baseline.proposedWorld;
+    if (previousWorld && previousWorld.cells && applyState(previousWorld, { keepCamera: true })) {
+      schedulePlayerStatsUpdate();
+      saveLocalGameState();
+      return true;
+    }
+    loadInitialScene();
+    resetCameraDefaults();
+    schedulePlayerStatsUpdate();
+    saveLocalGameState();
     return true;
   }
 
@@ -26775,7 +26981,11 @@ function neighborStarVector(edge, index) {
 
   function loadState() {
     const localGameState = loadLocalGameState();
-    if (localGameState && applyLoadedGameState(localGameState)) return 'local-game-state';
+    loadedLocalDraftForAwsReconciliation = null;
+    if (localGameState && applyLoadedGameState(localGameState)) {
+      loadedLocalDraftForAwsReconciliation = localGameState;
+      return 'local-game-state';
+    }
     let data;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -27381,7 +27591,10 @@ function neighborStarVector(edge, index) {
     initCrowdLayer();
     schedulePlayerStatsUpdate();
     startRoundPhaseTimer();
-    if (loadedStateSource !== 'local-game-state') fetchAwsMockStats();
+    fetchAwsMockStats({
+      preserveLocalResources: loadedStateSource === 'local-game-state',
+      reconcileLocalDraft: loadedStateSource === 'local-game-state',
+    });
     onResize();
     renderer.setAnimationLoop(animate);
     const vehicleDemoRequest = getVehicleDemoUrlRequest();

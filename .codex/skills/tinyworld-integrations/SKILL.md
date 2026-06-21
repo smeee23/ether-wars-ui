@@ -29,6 +29,9 @@ Future AWS/indexer round-state architecture:
   It shells through the project Python/venv to `S3ReadWrite.py` and returns the
   strict JSON from `s3://justcausepools/etherwars/mockstats.json`. Keep AWS
   keys out of `tiny-world-builder.html` and all browser-visible JavaScript.
+  The browser must always hydrate this AWS `lastRevealState` on page load, even
+  after a localStorage draft restore. Local state is a draft overlay; AWS is the
+  authoritative baseline for Save AWS Draft and Commit boundary checks.
 - The local dev bridge also exposes explicit, user-triggered
   `POST /api/inter-round-state` writes. Keep this path read/write bounded:
   validate commit phase, player id, round number, basic resource bounds, and

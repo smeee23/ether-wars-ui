@@ -22,14 +22,19 @@ Use this while the Resources model is frontend/mock-state only.
   state, and camera/tool metadata should flow through
   `getSerializableGameState()` / `saveLocalGameState()` rather than creating
   separate localStorage keys for individual resources.
-- `fetchAwsMockStats()` may hydrate the mock `resources` object from
-  `GET /api/mockstats`. Treat that as a read-only authoritative snapshot:
+- `fetchAwsMockStats()` must always hydrate the AWS `lastRevealState` from
+  `GET /api/mockstats`, even when `etherWars.localGameState.v1` restored a
+  browser-local draft first. Treat AWS as the authoritative baseline:
   `credits` maps to local `gold`, `fleet` maps to local `army`, and placement /
-  erase helpers still mutate the frontend mock resources after hydration.
-  When restoring `etherWars.localGameState.v1`, still fetch mock stats so
-  `authoritativeGameState` exists for commit/draft validation, but pass
-  `{ preserveLocalResources: true }` so local credits/resources are not
-  overwritten.
+  erase helpers still mutate the frontend mock resources as a draft overlay.
+  When restoring local game state, pass `{ preserveLocalResources: true,
+  reconcileLocalDraft: true }` so valid local draft edits survive hydration.
+- Validate local drafts only at major boundaries: after local/AWS load
+  reconciliation, before Save AWS Draft, and before Commit preview/submission.
+  Use `validateLocalDraftAgainstLastRevealState()` /
+  `validateCurrentDraftAgainstAuthoritativeState()` for frontend feedback. Do
+  not validate after each placement click. Frontend validation is advisory; the
+  dev-server/AWS write path remains authoritative.
 - `buildInterRoundStateDraft()` may snapshot the current visual world and
   frontend mock resources into a proposed `interRoundState`, but saving must
   remain explicit through `saveInterRoundStateToAws()` / `POST
