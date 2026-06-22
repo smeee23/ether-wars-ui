@@ -639,6 +639,26 @@ function validateInterRoundStatePayload(body) {
   if (creditSpend > credits) {
     return { ok: false, status: 409, error: 'proposed credit spend exceeds lastRevealState.credits' };
   }
+  if (proposedCredits !== null && proposedCredits > credits) {
+    return { ok: false, status: 409, error: 'proposed credits exceed lastRevealState.credits' };
+  }
+  let totalResourceGain = 0;
+  const resourcePairs = [
+    ['food', 'food'],
+    ['water', 'water'],
+    ['oxygen', 'oxygen'],
+    ['shelter', 'shelter'],
+    ['fleet', 'fleet'],
+  ];
+  for (const [proposedKey, baselineKey] of resourcePairs) {
+    const proposed = nonNegativeIntOrNull(proposedResources[proposedKey]);
+    if (proposed === null) continue;
+    const baseline = nonNegativeIntOrNull(lastRevealState[baselineKey]) || 0;
+    totalResourceGain += Math.max(0, proposed - baseline);
+  }
+  if (totalResourceGain > creditSpend) {
+    return { ok: false, status: 409, error: 'total proposed resource gain exceeds proposed credit spend' };
+  }
   if (wager > credits) {
     return { ok: false, status: 409, error: 'attack wager exceeds lastRevealState.credits' };
   }
@@ -671,6 +691,7 @@ function validateInterRoundStatePayload(body) {
     serverValidation: {
       status: 'accepted',
       creditSpend,
+      totalResourceGain,
       wager,
       commitPreviewStatus: commitPreviewValidation.matched ? 'matched' : 'server-generated',
       checkedAt: updatedAt,

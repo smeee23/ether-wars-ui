@@ -153,6 +153,13 @@ npm run build   # publish checks + dist generation
 Manual browser smoke checklist after visual changes: page loads with no console
 errors; place/erase works; `C`, `P`/`I`, `R`/`F`, and tool shortcuts respond;
 fence neighbors update; cloud shadow at 0% still leaves visible clouds.
+After resource-accounting changes, replace a leveled resource building with a
+different resource building and verify the old building's full multi-level cost
+is refunded, its output is removed, and the new level-1 cost/output is applied.
+Resource outputs should remain 1:1 with credit cost for each level.
+For animal resources, build and upgrade Sheep and Cow, verify lambs/calves appear
+for higher levels, and confirm Sheep adds 20 Food per level while Cow adds 40
+Food per level with matching delete/refund/replacement behavior.
 
 See [AGENTS.md](./AGENTS.md) for guidance on extending the codebase.
 

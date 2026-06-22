@@ -9051,7 +9051,7 @@
     castReceive(g);
     return g;
   }
-  function makeCow(visibleSides = null) {
+  function makeCowUnit(scale = 1, offsetX = 0, offsetZ = 0, rotationY = 0) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.24), M_ANIMAL.cowWhite);
     body.position.set(0, 0.22, 0);
@@ -9076,12 +9076,35 @@
       leg.position.set(x, 0.08, z);
       g.add(leg);
     });
+    g.position.set(offsetX, 0, offsetZ);
+    g.rotation.y = rotationY;
+    g.scale.setScalar(scale);
+    return g;
+  }
+  function makeCow(visibleSides = null, level = 1) {
+    const g = new THREE.Group();
+    g.add(makeCowUnit(1));
+    const youngCount = Math.max(0, Math.min(maxFloorsForKind('cow') - 1, (level || 1) - 1));
+    const spots = [
+      [-0.23, -0.23, -0.20],
+      [ 0.24,  0.20,  0.22],
+      [-0.29,  0.18,  0.35],
+      [ 0.2, -0.18, -0.42],
+      [ 0.00,  0.30,  0.05],
+      [-0.02, -0.31, -0.08],
+      [ 0.34,  0.02,  0.58],
+    ];
+    for (let i = 0; i < youngCount; i++) {
+      const [x, z, rot] = spots[i % spots.length];
+      const calf = makeCowUnit(0.58, x, z, rot);
+      g.add(calf);
+    }
     addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'cow' };
     castReceive(g);
     return g;
   }
-  function makeSheep(visibleSides = null) {
+  function makeSheepUnit(scale = 1, offsetX = 0, offsetZ = 0, rotationY = 0) {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.22), M_ANIMAL.sheepWool);
     body.position.set(0, 0.22, 0);
@@ -9102,6 +9125,29 @@
       leg.position.set(x, 0.07, z);
       g.add(leg);
     });
+    g.position.set(offsetX, 0, offsetZ);
+    g.rotation.y = rotationY;
+    g.scale.setScalar(scale);
+    return g;
+  }
+  function makeSheep(visibleSides = null, level = 1) {
+    const g = new THREE.Group();
+    g.add(makeSheepUnit(1));
+    const youngCount = Math.max(0, Math.min(maxFloorsForKind('sheep') - 1, (level || 1) - 1));
+    const spots = [
+      [-0.22, -0.22, -0.10],
+      [ 0.22,  0.20,  0.28],
+      [-0.28,  0.15,  0.46],
+      [ 0.27, -0.18, -0.35],
+      [ 0.00,  0.29,  0.12],
+      [-0.01, -0.30, -0.18],
+      [ 0.32,  0.02,  0.62],
+    ];
+    for (let i = 0; i < youngCount; i++) {
+      const [x, z, rot] = spots[i % spots.length];
+      const lamb = makeSheepUnit(0.62, x, z, rot);
+      g.add(lamb);
+    }
     addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'sheep' };
     castReceive(g);
@@ -10242,22 +10288,38 @@
     return g;
   }
 
-  function makeVoxelAnimal(kind, visibleSides = null) {
+  function makeVoxelAnimal(kind, visibleSides = null, level = 1) {
     const g = new THREE.Group();
     const sheep = kind === 'sheep';
     const bodyMat = sheep ? M_ANIMAL.sheepWool : M_ANIMAL.cowWhite;
     const faceMat = sheep ? M_ANIMAL.sheepFace : M_ANIMAL.cowWhite;
-    vbox(g, sheep ? 0.34 : 0.42, sheep ? 0.24 : 0.26, sheep ? 0.22 : 0.24, 0, 0.22, 0, bodyMat);
-    vbox(g, sheep ? 0.14 : 0.18, sheep ? 0.14 : 0.16, sheep ? 0.12 : 0.16, 0.24, 0.30, 0, faceMat);
-    if (!sheep) {
-      vbox(g, 0.16, 0.04, 0.12, 0.02, 0.36, 0.05, M_ANIMAL.cowSpot);
-      vbox(g, 0.08, 0.08, 0.10, 0.36, 0.26, 0, M_ANIMAL.cowMuzzle);
-    } else {
-      for (const x of [-0.10, 0, 0.10]) vbox(g, 0.10, 0.06, 0.10, x, 0.36, 0.03, M_ANIMAL.sheepWool);
+    function addAnimal(scale, offsetX, offsetZ, rotationY) {
+      const child = new THREE.Group();
+      vbox(child, sheep ? 0.34 : 0.42, sheep ? 0.24 : 0.26, sheep ? 0.22 : 0.24, 0, 0.22, 0, bodyMat);
+      vbox(child, sheep ? 0.14 : 0.18, sheep ? 0.14 : 0.16, sheep ? 0.12 : 0.16, 0.24, 0.30, 0, faceMat);
+      if (!sheep) {
+        vbox(child, 0.16, 0.04, 0.12, 0.02, 0.36, 0.05, M_ANIMAL.cowSpot);
+        vbox(child, 0.08, 0.08, 0.10, 0.36, 0.26, 0, M_ANIMAL.cowMuzzle);
+      } else {
+        for (const x of [-0.10, 0, 0.10]) vbox(child, 0.10, 0.06, 0.10, x, 0.36, 0.03, M_ANIMAL.sheepWool);
+      }
+      [[0.13, -0.08], [0.13, 0.08], [-0.13, -0.08], [-0.13, 0.08]].forEach(([x, z]) => {
+        vbox(child, 0.06, 0.14, 0.06, x, 0.07, z, M_ANIMAL.hoof);
+      });
+      child.position.set(offsetX, 0, offsetZ);
+      child.rotation.y = rotationY;
+      child.scale.setScalar(scale);
+      g.add(child);
     }
-    [[0.13, -0.08], [0.13, 0.08], [-0.13, -0.08], [-0.13, 0.08]].forEach(([x, z]) => {
-      vbox(g, 0.06, 0.14, 0.06, x, 0.07, z, M_ANIMAL.hoof);
-    });
+    addAnimal(1, 0, 0, 0);
+    const youngCount = Math.max(0, Math.min(maxFloorsForKind(kind) - 1, (level || 1) - 1));
+    const spots = sheep
+      ? [[-0.22, -0.22, -0.10], [0.22, 0.20, 0.28], [-0.28, 0.15, 0.46], [0.27, -0.18, -0.35], [0, 0.29, 0.12], [-0.01, -0.30, -0.18], [0.32, 0.02, 0.62]]
+      : [[-0.23, -0.23, -0.20], [0.24, 0.20, 0.22], [-0.29, 0.18, 0.35], [0.28, -0.18, -0.42], [0, 0.30, 0.05], [-0.02, -0.31, -0.08], [0.34, 0.02, 0.58]];
+    for (let i = 0; i < youngCount; i++) {
+      const [x, z, rot] = spots[i % spots.length];
+      addAnimal(sheep ? 0.62 : 0.58, x, z, rot);
+    }
     addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind };
     castReceive(g);
@@ -10307,7 +10369,7 @@
     else if (kind === 'bridge') mesh = makeVoxelBridge(getBridgeOrientation(x, z), level);
     else if (kind === 'tuft' || kind === 'flower' || kind === 'bush' || kind === 'crop' || kind === 'corn' || kind === 'wheat' || kind === 'carrot' || kind === 'sunflower') mesh = makeVoxelCropKind(kind, level, getCropGreenhouseVisibleSides(x, z));
     else if (kind === 'pumpkin') mesh = (level >= MAX_FLOORS && isCarriagePumpkin(x, z)) ? makeVoxelPumpkinCarriage() : makeVoxelCropKind('pumpkin', level, getCropGreenhouseVisibleSides(x, z));
-    else if (kind === 'cow' || kind === 'sheep') mesh = makeVoxelAnimal(kind, getCropGreenhouseVisibleSides(x, z));
+    else if (kind === 'cow' || kind === 'sheep') mesh = makeVoxelAnimal(kind, getCropGreenhouseVisibleSides(x, z), level);
     else if (isGenerationPlantKind(kind)) mesh = makeGenerationPlant(level, kind);
     else if (kind === 'chimney' || kind === 'ripple' || kind === 'shrub' || kind === 'stone' || kind === 'pebble' || kind === 'bridge-rail') mesh = makeVoxelMicroKind(kind, level, x, z);
     else if (kind === 'fence') {
@@ -14124,8 +14186,8 @@ function neighborStarVector(edge, index) {
     else if (cell.kind === 'tuft')      mesh = makeVoxelCropKind('tuft', level);
     else if (cell.kind === 'flower')    mesh = makeVoxelCropKind('flower', level);
     else if (cell.kind === 'bush')      mesh = makeVoxelCropKind('bush', level);
-    else if (cell.kind === 'cow')       mesh = makeVoxelAnimal('cow');
-    else if (cell.kind === 'sheep')     mesh = makeVoxelAnimal('sheep');
+    else if (cell.kind === 'cow')       mesh = makeVoxelAnimal('cow', null, level);
+    else if (cell.kind === 'sheep')     mesh = makeVoxelAnimal('sheep', null, level);
     else if (cell.kind === 'crop')      mesh = makeVoxelCropKind('crop', level);
     else if (cell.kind === 'corn')      mesh = makeVoxelCropKind('corn', level);
     else if (cell.kind === 'wheat')     mesh = makeVoxelCropKind('wheat', level);
@@ -15616,8 +15678,8 @@ function neighborStarVector(edge, index) {
     else if (kind === 'tuft')      mesh = makeTuft();
     else if (kind === 'flower')    mesh = makeFlower();
     else if (kind === 'bush')      mesh = makeBush();
-    else if (kind === 'cow')       mesh = makeCow(objectGreenhouseSides);
-    else if (kind === 'sheep')     mesh = makeSheep(objectGreenhouseSides);
+    else if (kind === 'cow')       mesh = makeCow(objectGreenhouseSides, level);
+    else if (kind === 'sheep')     mesh = makeSheep(objectGreenhouseSides, level);
     else if (kind === 'crop')      mesh = makeCrop(objectGreenhouseSides);
     else if (kind === 'corn')      mesh = makeCorn(objectGreenhouseSides);
     else if (kind === 'wheat')     mesh = makeWheat(objectGreenhouseSides);
@@ -15797,36 +15859,38 @@ function neighborStarVector(edge, index) {
   const OXYGEN_TERRAIN_KINDS = new Set(['grass', 'dirt']);
   const OXYGEN_PLANT_KINDS = new Set(['tree', 'tuft', 'flower', 'bush']);
   const RESOURCE_KEYS = ['gold', 'food', 'water', 'oxygen', 'shelter', 'army'];
-  const OXYGEN_PER_LEVEL = 12;
+  const OXYGEN_PER_LEVEL = 18;
   // Temporary frontend-only building economics for the mock Resources model.
   // TODO(contract/indexer): replace this table with canonical costs/effects
   // from contract/indexer state or a versioned game-state snapshot.
   const RESOURCE_BUILD_RULES = {
-    water: { label: 'Well / Water', cost: { gold: 10 }, effect: { water: 12 } },
+    water: { label: 'Well / Water', cost: { gold: 10 }, effect: { water: 10 } },
     grass: { label: 'Grass', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     dirt: { label: 'Dirt', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     tree: { label: 'Tree', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     tuft: { label: 'Tuft', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     flower: { label: 'Flower', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     bush: { label: 'Bush', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    crop: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    corn: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    wheat: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    pumpkin: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    carrot: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 12 } },
-    highrise: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 24 } },
-    skyscraper: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 24 } },
-    'air-command': { label: 'Air Command', role: 'military', cost: { gold: 45 }, effect: { army: 35 } },
-    habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 18 } },
-    fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 6 } },
+    crop: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
+    corn: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
+    wheat: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
+    pumpkin: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
+    carrot: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
+    sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
+    sheep: { label: 'Sheep', cost: { gold: 20 }, effect: { food: 20 } },
+    cow: { label: 'Cow', cost: { gold: 40 }, effect: { food: 40 } },
+    highrise: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 30 } },
+    skyscraper: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 30 } },
+    'air-command': { label: 'Air Command', role: 'military', cost: { gold: 45 }, effect: { army: 45 } },
+    habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 24 } },
+    fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 10 } },
     'oxygen-plant': { label: 'Oxygen Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
     'water-plant': { label: 'Water Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { water: OXYGEN_PER_LEVEL } },
-    tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 16 } },
-    'crystal-mining-rig': { label: 'Crystal Weapons Platform', role: 'military', cost: { gold: 60 }, effect: { army: 48 } },
+    tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 25 } },
+    'crystal-mining-rig': { label: 'Crystal Weapons Platform', role: 'military', cost: { gold: 60 }, effect: { army: 60 } },
     // TODO(contract/indexer): Barracks is reserved for the future army-building
     // tool/model. No visual placement is created here.
-    barracks: { label: 'Barracks', cost: { gold: 30 }, effect: { army: 22 }, placeholder: true },
+    barracks: { label: 'Barracks', cost: { gold: 30 }, effect: { army: 30 }, placeholder: true },
   };
   let playerStatsUpdateQueued = false;
   const PLAYER_GAME_STATE_MOCK = {
@@ -16018,14 +16082,14 @@ function neighborStarVector(edge, index) {
     const explicitTotals = collectDraftExplicitResourceTotals(worldState);
     const buildableKeys = RESOURCE_KEYS.filter(key => key !== 'gold');
     const gains = {};
+    let totalResourceGain = 0;
     for (const key of buildableKeys) {
       const gain = Math.max(0, (draftResources[key] || 0) - (baseline[key] || 0));
       gains[key] = gain;
-      const explicitAllowance = Math.max(0, explicitTotals.effect[key] || 0);
-      const allowedGain = Math.max(Math.max(0, creditSpend), explicitAllowance);
-      if (gain > allowedGain) {
-        issues.push(key + ' gain +' + gain + ' is not accounted for by credit spend or draft buildings.');
-      }
+      totalResourceGain += gain;
+    }
+    if (totalResourceGain > Math.max(0, creditSpend)) {
+      issues.push('Total resource gain +' + totalResourceGain + ' exceeds draft credit spend ' + Math.max(0, creditSpend) + '.');
     }
     return {
       ok: issues.length === 0,
@@ -16034,6 +16098,7 @@ function neighborStarVector(edge, index) {
       draftResources,
       creditSpend: Math.max(0, creditSpend),
       gains,
+      totalResourceGain,
       explicitTotals,
       source: opts.source || 'draft',
     };
@@ -16511,6 +16576,7 @@ function neighborStarVector(edge, index) {
     }
     if (tool.kind === 'voxel-build' && tool.voxelBuildId) return RESOURCE_BUILD_RULES[tool.voxelBuildId] || null;
     if (tool.kind && OXYGEN_PLANT_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || null;
+    if (tool.kind && isLifeKind(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || null;
     if (isGenerationPlantKind(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind];
     if (tool.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (tool.kind && CROP_KINDS.has(tool.kind)) return RESOURCE_BUILD_RULES[tool.kind] || RESOURCE_BUILD_RULES.crop;
@@ -16528,6 +16594,7 @@ function neighborStarVector(edge, index) {
       return id ? RESOURCE_BUILD_RULES[id] || null : null;
     }
     if (cell.kind && OXYGEN_PLANT_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || null;
+    if (cell.kind && isLifeKind(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || null;
     if (isGenerationPlantKind(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind];
     if (cell.kind === 'fence') return RESOURCE_BUILD_RULES.fence;
     if (cell.kind && CROP_KINDS.has(cell.kind)) return RESOURCE_BUILD_RULES[cell.kind] || RESOURCE_BUILD_RULES.crop;
@@ -16663,6 +16730,55 @@ function neighborStarVector(edge, index) {
     if (oneLevelCell.kind) oneLevelCell.floors = 1;
     else oneLevelCell.terrainFloors = 1;
     return refundMockResourcesForErase(oneLevelCell);
+  }
+
+  function restoreMockResourceSnapshot(snapshot) {
+    if (!snapshot) return;
+    for (const key of RESOURCE_KEYS) {
+      const value = coerceNonNegativeStat(snapshot[key]);
+      if (value !== null) resources[key] = value;
+    }
+    schedulePlayerStatsUpdate();
+  }
+
+  function trySpendMockResourcesForReplacement(cell, tool) {
+    const before = getResourceSnapshot();
+    const refunded = refundMockResourcesForErase(cell);
+    if (!trySpendMockResourcesForPlacement(tool)) {
+      if (refunded) restoreMockResourceSnapshot(before);
+      return false;
+    }
+    return true;
+  }
+
+  function existingCellMatchesPlacementTool(cell, tool) {
+    if (!cell || !tool || !cell.kind || cell.kind !== tool.kind) return false;
+    if (tool.kind === 'house') {
+      const nextType = normalizeBuildingType(tool.activeVariant && tool.activeVariant.buildingType);
+      const existingType = normalizeBuildingType(cell.buildingType) || 'tower';
+      return !!nextType && nextType === existingType;
+    }
+    if (tool.kind === 'voxel-build') {
+      const existingStampId = cell.appearance && cell.appearance.voxelBuildId;
+      return !!tool.voxelBuildId && existingStampId === tool.voxelBuildId;
+    }
+    return true;
+  }
+
+  function shouldRefundBeforePlacement(cell, tool, opts = {}) {
+    if (!cell || !tool || !resourceRuleForPlacedCell(cell)) return false;
+    if (opts.forceReplace) return true;
+    if (tool.kind === 'fence' || tool.kind === 'tuft') return false;
+    if (tool.kind) return !existingCellMatchesPlacementTool(cell, tool);
+    if (tool.terrain) return !!(cell.kind && opts.nextKind !== cell.kind);
+    return false;
+  }
+
+  function trySpendForPlacementWithReplacement(cell, tool, opts = {}) {
+    if (shouldRefundBeforePlacement(cell, tool, opts)) {
+      return trySpendMockResourcesForReplacement(cell, tool);
+    }
+    return trySpendMockResourcesForPlacement(tool);
   }
 
   function playMockResourcePlacementSuccess(tool) {
@@ -17165,8 +17281,8 @@ function neighborStarVector(edge, index) {
     else if (kind === 'tuft')      mesh = makeTuft();
     else if (kind === 'flower')    mesh = makeFlower();
     else if (kind === 'bush')      mesh = makeBush();
-    else if (kind === 'cow')       mesh = makeCow();
-    else if (kind === 'sheep')     mesh = makeSheep();
+    else if (kind === 'cow')       mesh = makeCow(null, 1);
+    else if (kind === 'sheep')     mesh = makeSheep(null, 1);
     else if (kind === 'crop')      mesh = makeCrop();
     else if (kind === 'corn')      mesh = makeCorn();
     else if (kind === 'wheat')     mesh = makeWheat();
@@ -17812,8 +17928,8 @@ function neighborStarVector(edge, index) {
     if (k === 'sunflower') return makeVoxelCropKind('sunflower');
     if (k === 'flower')    return makeVoxelCropKind('flower');
     if (k === 'bush')      return makeVoxelCropKind('bush');
-    if (k === 'cow')       return makeVoxelAnimal('cow');
-    if (k === 'sheep')     return makeVoxelAnimal('sheep');
+    if (k === 'cow')       return makeVoxelAnimal('cow', null, 2);
+    if (k === 'sheep')     return makeVoxelAnimal('sheep', null, 2);
     if (k === 'fence')     return makeVoxelFence('n', 1);
     if (isGenerationPlantKind(k)) return makeGenerationPlant(1, k);
     if (k === 'house') {
@@ -18583,8 +18699,13 @@ function neighborStarVector(edge, index) {
         // Apply current tool to every selected cell
         if (selectedTool.terrain) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
-            if (!trySpendMockResourcesForPlacement(selectedTool)) return;
-            setCell(sx, sz, { terrain: selectedTool.terrain });
+            const current = getWorldCell(sx, sz);
+            let nextKind = current.kind;
+            if (selectedTool.terrain === 'water' && nextKind !== 'bridge') nextKind = null;
+            if (nextKind === 'bridge' && selectedTool.terrain !== 'water') nextKind = null;
+            if (CROP_KINDS.has(nextKind) && selectedTool.terrain !== 'dirt') nextKind = null;
+            if (!trySpendForPlacementWithReplacement(current, selectedTool, { nextKind })) return;
+            setCell(sx, sz, { terrain: selectedTool.terrain, kind: nextKind });
             playMockResourcePlacementSuccess(selectedTool);
           });
         } else if (selectedTool.kind) {
@@ -18595,10 +18716,12 @@ function neighborStarVector(edge, index) {
           selectedCoords.forEach(({ x: sx, z: sz }) => {
             const current = getWorldCell(sx, sz);
             const terrainForKind = selectedTool.terrainOverride || current.terrain || BASE_TERRAIN;
-            if (!trySpendMockResourcesForPlacement(selectedTool)) return;
+            const replacing = shouldRefundBeforePlacement(current, selectedTool);
+            if (!trySpendForPlacementWithReplacement(current, selectedTool)) return;
             setCell(sx, sz, {
               kind: selectedTool.kind,
               terrain: terrainForKind,
+              floors: replacing ? 1 : undefined,
               buildingType: selectedTool.kind === 'house' ? selectedBuildingType : undefined,
             });
             playMockResourcePlacementSuccess(selectedTool);
@@ -18625,7 +18748,11 @@ function neighborStarVector(edge, index) {
       return;
     }
     if (selectedTool.kind === 'house') {
-      if (cell.kind === 'house') {
+      const variant = selectedTool.activeVariant;
+      const bType = normalizeBuildingType(variant && variant.buildingType);
+      if (!bType) { rejectMockResourceBuildAction(selectedTool); return; }
+      const existingHouseType = normalizeBuildingType(cell.buildingType) || 'tower';
+      if (cell.kind === 'house' && existingHouseType === bType) {
         // Stack: clicking the house tool on an existing house adds a floor.
         const newFloors = Math.min((cell.floors || 1) + 1, maxFloorsForCell(cell, 'house'));
         if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
@@ -18636,13 +18763,10 @@ function neighborStarVector(edge, index) {
         return;
       }
       // Fresh placement — read buildingType from the active fly-out variant.
-      const variant = selectedTool.activeVariant;
-      const bType = normalizeBuildingType(variant && variant.buildingType);
-      if (!bType) { rejectMockResourceBuildAction(selectedTool); return; }
       const terrainForHouse = cell.terrain || BASE_TERRAIN;
-      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
+      if (!trySpendForPlacementWithReplacement(cell, selectedTool, { forceReplace: cell.kind === 'house' })) return;
       const gt = consumeGhostTransform();
-      setCell(x, z, { terrain: terrainForHouse, terrainFloors: terrainLevelForCell(cell), kind: 'house', buildingType: bType, rotationY: gt.rotationY, offsetX: gt.offsetX, offsetZ: gt.offsetZ });
+      setCell(x, z, { terrain: terrainForHouse, terrainFloors: terrainLevelForCell(cell), kind: 'house', floors: 1, buildingType: bType, rotationY: gt.rotationY, offsetX: gt.offsetX, offsetZ: gt.offsetZ });
       playMockResourcePlacementSuccess(selectedTool);
       return;
     }
@@ -18667,7 +18791,7 @@ function neighborStarVector(edge, index) {
       const gt = consumeGhostTransform();
       let newTerrain = cell.terrain || BASE_TERRAIN;
       if (newTerrain === 'water' || newTerrain === 'lava') newTerrain = BASE_TERRAIN;
-      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
+      if (!trySpendForPlacementWithReplacement(cell, selectedTool, { forceReplace: cell.kind === 'voxel-build' && existingStampId !== stampId })) return;
       setCell(x, z, {
         terrain: newTerrain,
         terrainFloors: terrainLevelForCell(cell),
@@ -18777,7 +18901,7 @@ function neighborStarVector(edge, index) {
       if (cell.kind && cell.kind !== incomingPrimary && incomingPrimary === 'rock') {
         squashExistingObject(x, z);
       }
-      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
+      if (!trySpendForPlacementWithReplacement(cell, selectedTool)) return;
       const gtf = consumeGhostTransform();
       setCell(x, z, { terrain: newTerrain, terrainFloors: terrainLevelForCell(cell), kind: incomingPrimary, floors: 1, rotationY: gtf.rotationY, offsetX: gtf.offsetX, offsetZ: gtf.offsetZ });
       playMockResourcePlacementSuccess(selectedTool);
@@ -18802,7 +18926,7 @@ function neighborStarVector(edge, index) {
         rejectMockResourceBuildAction(selectedTool);
         return;
       }
-      if (!trySpendMockResourcesForPlacement(selectedTool)) return;
+      if (!trySpendForPlacementWithReplacement(cell, selectedTool, { nextKind })) return;
       setCell(x, z, {
         terrain: selectedTool.terrain,
         terrainFloors: nextTerrainFloors,

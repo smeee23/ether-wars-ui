@@ -21,6 +21,12 @@ requireIncludes('function setCell(', 'state mutation entry point');
 requireIncludes('function renderCellObject(', 'object renderer');
 requireIncludes('function applyTool(', 'tool application');
 requireIncludes('function doClear(', 'clear action');
+requireIncludes('function trySpendForPlacementWithReplacement(', 'resource replacement accounting');
+requireIncludes('function trySpendMockResourcesForReplacement(', 'full-level replacement refund helper');
+requireIncludes("sheep: { label: 'Sheep', cost: { gold: 20 }, effect: { food: 20 } }", 'sheep food resource rule');
+requireIncludes("cow: { label: 'Cow', cost: { gold: 40 }, effect: { food: 40 } }", 'cow food resource rule');
+requireIncludes('function makeCowUnit(', 'leveled cow herd unit factory');
+requireIncludes('function makeSheepUnit(', 'leveled sheep herd unit factory');
 requireIncludes('function togglePerspective(', 'camera toggle');
 requireIncludes('function runSeededVehicleDemo(', 'shareable vehicle seed demo');
 requireIncludes('VEHICLE_DEMO_DEFAULT_SEED', 'vehicle demo default seed');
@@ -37,6 +43,21 @@ requireIncludes('function openTinyModal(', 'modal focus helper');
 requireIncludes('customDepthMaterial', 'cloud shadow depth material');
 requireIncludes('vendor/three/three.r128.min.js', 'self-hosted Three.js');
 requireIncludes('vendor/three/GLTFLoader.r128.js', 'self-hosted GLTFLoader');
+
+const oxygenMatch = html.match(/const OXYGEN_PER_LEVEL = (\d+);/);
+const oxygenPerLevel = oxygenMatch ? Number(oxygenMatch[1]) : NaN;
+const resourceRuleLine = /^\s+['"]?[\w-]+['"]?: \{ label: .*?cost: \{ gold: (\d+) \}, effect: \{ \w+: ([^ }]+) \}/gm;
+let checkedResourceRules = 0;
+for (const match of html.matchAll(resourceRuleLine)) {
+  checkedResourceRules++;
+  const cost = Number(match[1]);
+  const rawEffect = match[2].replace(/[,}]/g, '');
+  const effect = rawEffect === 'OXYGEN_PER_LEVEL' ? oxygenPerLevel : Number(rawEffect);
+  if (effect !== cost) {
+    fail(`resource reward must match credit cost: cost ${cost}, effect ${rawEffect}`);
+  }
+}
+if (checkedResourceRules < 10) fail('resource reward parity check did not find expected rules');
 
 const netlifyToml = fs.readFileSync(path.join(root, 'netlify.toml'), 'utf8');
 if (!netlifyToml.includes('publish = "dist"') || !netlifyToml.includes('command = "./publish.sh"')) {
