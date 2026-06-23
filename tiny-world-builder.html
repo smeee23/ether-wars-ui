@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   :root {
     --bg: #f4ede0;
@@ -18,6 +18,8 @@
     --line-soft: #f3ecdc;
     --accent: #3a72c8;
     --shadow: 0 18px 50px -20px rgba(50, 35, 10, 0.18), 0 2px 6px -2px rgba(50, 35, 10, 0.08);
+    --ui-font: 'Inter', system-ui, -apple-system, sans-serif;
+    --brand-font: 'Orbitron', 'Inter', system-ui, sans-serif;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
@@ -28,7 +30,7 @@
       radial-gradient(circle at 68% 86%, rgba(142, 215, 139, calc(var(--backdrop-strength, 0.78) * 0.34)), transparent 36%),
       linear-gradient(135deg, var(--bg), color-mix(in srgb, var(--bg) 72%, #8fb8ff 28%) 45%, color-mix(in srgb, var(--bg) 70%, #ffd29a 30%));
     color: var(--ink);
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--ui-font);
     -webkit-font-smoothing: antialiased;
     user-select: none;
     -webkit-user-select: none;
@@ -96,8 +98,7 @@
   canvas.neighbor-hover { cursor: pointer; }
   canvas.dragging { cursor: grabbing; }
 
-  /* Original top-left brand (restored from main): Fraunces serif title
-     with italic accent on "Builder", subtitle below. */
+  /* Original top-left brand with subtitle below. */
   .brand {
     position: fixed;
     top: 26px;
@@ -106,16 +107,16 @@
     z-index: 10;
   }
   .brand .title {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--brand-font);
     font-weight: 500;
     font-size: 28px;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     line-height: 1;
     color: var(--ink);
   }
   .brand .title em {
-    font-style: italic;
-    font-weight: 400;
+    font-style: normal;
+    font-weight: 500;
     color: #970202;
   }
   .brand .sub {
@@ -2338,11 +2339,11 @@
     margin-bottom: 2px;
   }
   .modal-card:not(.welcome-card) .modal-head strong {
-    font-family: 'Fraunces', Georgia, serif;
-    font-weight: 500;
+    font-family: var(--ui-font);
+    font-weight: 600;
     font-size: 22px;
     line-height: 1.08;
-    letter-spacing: -0.015em;
+    letter-spacing: 0;
     color: var(--ink);
   }
   .modal-copy,
@@ -2918,16 +2919,16 @@
     display: inline-flex;
     align-items: baseline;
     gap: 8px;
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--brand-font);
     font-weight: 500;
     font-size: 28px;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     line-height: 1;
     text-align: left;
   }
   .brand-title-btn em {
-    font-style: italic;
-    font-weight: 400;
+    font-style: normal;
+    font-weight: 500;
     color: #a08454;
   }
   .brand-title-btn .brand-chevron {
@@ -3479,13 +3480,13 @@
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
   .welcome-title {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--brand-font);
     font-size: clamp(28px, 6vw, 48px);
     line-height: 0.95;
-    letter-spacing: -0.04em;
+    letter-spacing: 0;
   }
   .welcome-title em {
-    font-style: italic;
+    font-style: normal;
     color: #a08454;
   }
   .welcome-copy {
@@ -3615,14 +3616,14 @@
     display: flex; flex-direction: column; gap: 16px;
   }
   .auth-card .auth-title {
-    font-family: 'Fraunces', Georgia, serif;
+    font-family: var(--brand-font);
     font-size: 26px;
     line-height: 1;
-    letter-spacing: -0.03em;
+    letter-spacing: 0;
     text-align: center;
   }
   .auth-card .auth-title em {
-    font-style: italic;
+    font-style: normal;
     color: #a08454;
   }
   .auth-card .auth-subtitle {
@@ -3997,7 +3998,7 @@
   </div>
 
   <div class="crowd-panel" id="crowd-panel">
-    <h3>Crowd controls</h3>
+    <h3>Activity vehicles</h3>
     <label class="crowd-row">Mode
       <select id="crowd-mode">
         <option value="wander">Wander path</option>
@@ -4006,7 +4007,7 @@
         <option value="static">Static idle</option>
       </select>
     </label>
-    <label class="crowd-row">People
+    <label class="crowd-row">Activity
       <input id="crowd-count-live" type="range" min="0" max="80" step="1" />
       <output id="crowd-count-live-value"></output>
     </label>
@@ -4170,7 +4171,7 @@
   <div class="neighbor-slot-buttons" id="neighbor-slot-buttons" aria-label="Neighbor slots"></div>
 
   <div class="brand">
-    <div class="title">EtherLands</div>
+    <div class="title">EtherWars</div>
     <div class="sub">Tap to place · drag to orbit · pinch or scroll to zoom</div>
     <!-- Kept for JS to relocate into the toolbar's world-slot. -->
     <button type="button" class="brand-title-btn" id="world-menu-btn" aria-haspopup="menu" aria-expanded="false">
@@ -4636,7 +4637,7 @@
         <nav class="settings-tabs" aria-label="Settings sections">
           <button type="button" class="settings-tab active" data-settings-tab="screen">Screen</button>
           <button type="button" class="settings-tab" data-settings-tab="world">World</button>
-          <button type="button" class="settings-tab" data-settings-tab="crowd">Crowd</button>
+          <button type="button" class="settings-tab" data-settings-tab="crowd">Activity</button>
           <button type="button" class="settings-tab" data-settings-tab="sky">Sky</button>
         </nav>
         <div class="settings-panels">
@@ -4734,9 +4735,9 @@
           </section>
 
           <section class="settings-panel" data-settings-panel="crowd">
-            <div class="settings-section-title">Crowd</div>
+            <div class="settings-section-title">Activity vehicles</div>
             <div class="range-row">
-              <span>People</span>
+              <span>Activity</span>
               <input id="crowd-count" type="range" min="0" max="80" step="1" />
               <output id="crowd-count-value"></output>
             </div>
@@ -9081,9 +9082,13 @@
     g.scale.setScalar(scale);
     return g;
   }
+  const COW_VISUAL_SCALE = 0.5;
   function makeCow(visibleSides = null, level = 1) {
     const g = new THREE.Group();
-    g.add(makeCowUnit(1));
+    const herd = new THREE.Group();
+    herd.scale.setScalar(COW_VISUAL_SCALE);
+    g.add(herd);
+    herd.add(makeCowUnit(1));
     const youngCount = Math.max(0, Math.min(maxFloorsForKind('cow') - 1, (level || 1) - 1));
     const spots = [
       [-0.23, -0.25, -0.20],
@@ -9097,7 +9102,7 @@
     for (let i = 0; i < youngCount; i++) {
       const [x, z, rot] = spots[i % spots.length];
       const calf = makeCowUnit(0.58, x, z, rot);
-      g.add(calf);
+      herd.add(calf);
     }
     addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'cow' };
@@ -9130,9 +9135,13 @@
     g.scale.setScalar(scale);
     return g;
   }
+  const SHEEP_VISUAL_SCALE = 0.5;
   function makeSheep(visibleSides = null, level = 1) {
     const g = new THREE.Group();
-    g.add(makeSheepUnit(1));
+    const flock = new THREE.Group();
+    flock.scale.setScalar(SHEEP_VISUAL_SCALE);
+    g.add(flock);
+    flock.add(makeSheepUnit(0.4));
     const youngCount = Math.max(0, Math.min(maxFloorsForKind('sheep') - 1, (level || 1) - 1));
     const spots = [
       [-0.22, -0.24, -0.10],
@@ -9145,8 +9154,8 @@
     ];
     for (let i = 0; i < youngCount; i++) {
       const [x, z, rot] = spots[i % spots.length];
-      const lamb = makeSheepUnit(0.62, x, z, rot);
-      g.add(lamb);
+      const lamb = makeSheepUnit(0.22, x, z, rot);
+      flock.add(lamb);
     }
     addGridAlignedCropGreenhouseDome(g, visibleSides);
     g.userData = { kind: 'sheep' };
@@ -10293,6 +10302,9 @@
     const sheep = kind === 'sheep';
     const bodyMat = sheep ? M_ANIMAL.sheepWool : M_ANIMAL.cowWhite;
     const faceMat = sheep ? M_ANIMAL.sheepFace : M_ANIMAL.cowWhite;
+    const animalRoot = new THREE.Group();
+    animalRoot.scale.setScalar(sheep ? SHEEP_VISUAL_SCALE : COW_VISUAL_SCALE);
+    g.add(animalRoot);
     function addAnimal(scale, offsetX, offsetZ, rotationY) {
       const child = new THREE.Group();
       vbox(child, sheep ? 0.34 : 0.42, sheep ? 0.24 : 0.26, sheep ? 0.22 : 0.24, 0, 0.22, 0, bodyMat);
@@ -10309,7 +10321,7 @@
       child.position.set(offsetX, 0, offsetZ);
       child.rotation.y = rotationY;
       child.scale.setScalar(scale);
-      g.add(child);
+      animalRoot.add(child);
     }
     addAnimal(1, 0, 0, 0);
     const youngCount = Math.max(0, Math.min(maxFloorsForKind(kind) - 1, (level || 1) - 1));
@@ -10424,7 +10436,7 @@
   function makeVehicle(opts = {}) {
     const g = new THREE.Group();
     const wheels = [];
-    const flagPivots = [];
+    const antennaTips = [];
     const visualScale = clampVehicleNumber(Number(opts.visualScale), VEHICLE_VISUAL_SCALE_MIN, VEHICLE_VISUAL_SCALE_MAX, vehicleVisualScaleForGrid());
     const WHEEL_R = VEHICLE_BASE_WHEEL_RADIUS;
     const BODY_W = 0.62;
@@ -10497,28 +10509,17 @@
     pole.position.set(poleX, poleBaseY + poleH / 2, poleZ);
     g.add(pole);
 
-    const flagPivot = new THREE.Group();
-    flagPivot.position.set(poleX + 0.01, poleBaseY + poleH - 0.14, poleZ);
-    g.add(flagPivot);
-    flagPivots.push(flagPivot);
-
-    const flagGeo = new THREE.BufferGeometry();
-    flagGeo.setAttribute('position', new THREE.Float32BufferAttribute([
-      0, 0.14, 0,
-      0.22, 0.04, 0,
-      0, -0.08, 0,
-    ], 3));
-    flagGeo.setIndex([0, 1, 2]);
-    flagGeo.computeVertexNormals();
-    const flag = new THREE.Mesh(flagGeo, M_VEHICLE.flag);
-    flagPivot.add(flag);
+    const antennaTip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), M_VEHICLE.flag);
+    antennaTip.position.set(poleX, poleBaseY + poleH + 0.035, poleZ);
+    g.add(antennaTip);
+    antennaTips.push(antennaTip);
 
     const beacon = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.010, 8, 28), M_VEHICLE.beacon);
     beacon.position.set(0, BODY_Y0 + BODY_LOWER_H + 0.02, 0);
     beacon.rotation.x = Math.PI / 2;
     g.add(beacon);
 
-    g.userData = { kind: 'vehicle', wheels, flagPivots, visualScale };
+    g.userData = { kind: 'vehicle', wheels, antennaTips, visualScale };
     g.scale.setScalar(visualScale);
     castReceive(g);
     beacon.castShadow = false;
@@ -11147,7 +11148,7 @@
       id,
       mesh,
       wheels: mesh.userData.wheels || [],
-      flagPivots: mesh.userData.flagPivots || [],
+      antennaTips: mesh.userData.antennaTips || [],
       visualScale,
       bodyYOffset: vehicleBodyYOffsetForScale(visualScale),
       animOffset: Math.random() * Math.PI * 2,
@@ -11530,14 +11531,17 @@
     }
 
     const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-    const flutter = Math.sin(nowMs * 0.005 + state.animOffset) * 0.22;
-    for (const flagPivot of state.flagPivots) {
-      flagPivot.rotation.y = flutter;
+    const pulse = 1 + Math.sin(nowMs * 0.005 + state.animOffset) * 0.08;
+    for (const antennaTip of state.antennaTips) {
+      antennaTip.scale.setScalar(pulse);
     }
   }
 
   function tickVehicles(dt) {
-    if (!vehicleFleet.size) return;
+    if (!vehicleFleet.size) {
+      tickActivityVehicles(dt);
+      return;
+    }
 
     // Budget vehicle simulation so the Vehicle Demo (with 8–20+ cars) stays smooth
     // even on mid-range devices. We process as many as fit in ~4ms per frame.
@@ -11566,6 +11570,7 @@
         }
       }
     }
+    tickActivityVehicles(dt);
   }
 
   function handleVehicleRemoteCommand(msg) {
@@ -12205,6 +12210,9 @@
   let crowdDebug = localStorage.getItem(RENDER_LS.crowdDebug) !== '0';
   let crowdMode = localStorage.getItem(RENDER_LS.crowdMode) || 'wander';
   let crowdShowArrows = localStorage.getItem(RENDER_LS.crowdShowArrows) !== '0';
+  const ACTIVITY_VEHICLE_PREFIX = 'activity-vehicle-';
+  const ACTIVITY_VEHICLE_MAX = 8;
+  let activityVehicleRetargetTimer = 0;
 
   function persistCrowdSettings() {
     localStorage.setItem(RENDER_LS.crowdCount, String(crowdCount));
@@ -12244,10 +12252,101 @@
 
   function applyCrowdSettings({ reseed = false } = {}) {
     persistCrowdSettings();
-    if (!crowdLayer) return;
-    crowdLayer.scale = crowdScale;
-    crowdLayer.configure(crowdConfigOverride(), crowdWorldConfigOverride());
-    if (reseed || crowdLayer.people.size !== crowdCount) seedCrowdPeople();
+    disableCrowdLayer();
+    syncActivityVehicles({ reseed });
+  }
+
+  function activityVehicleCountForPopulation(population) {
+    const n = Math.max(0, Math.round(Number(population) || 0));
+    if (!n) return 0;
+    return Math.min(ACTIVITY_VEHICLE_MAX, Math.max(1, Math.ceil(n / 10)));
+  }
+
+  function isActivityVehicle(state) {
+    return !!(state && typeof state.id === 'string' && state.id.startsWith(ACTIVITY_VEHICLE_PREFIX));
+  }
+
+  function activityVehiclesAllowed() {
+    return !(vehicleDemoInterval || vehicleDemoTimers.length || (document.body && document.body.classList.contains('vehicle-demo-active')));
+  }
+
+  function removeActivityVehicles() {
+    const ids = [];
+    for (const state of vehicleFleet.values()) {
+      if (isActivityVehicle(state)) ids.push(state.id);
+    }
+    ids.forEach(id => removeVehicle(id));
+  }
+
+  function activityVehiclePathCells() {
+    return collectCrowdPathCells().filter(cell => isVehicleRoadCell(cell.x, cell.z));
+  }
+
+  function assignActivityVehicleGoal(state, pathCells) {
+    if (!state || !pathCells || pathCells.length < 2) return false;
+    const current = vehicleCellFromWorld(state.x, state.z);
+    const options = pathCells.filter(cell => !current.inside || cell.x !== current.cellX || cell.z !== current.cellZ);
+    if (!options.length) return false;
+    const index = parseInt(state.id.slice(ACTIVITY_VEHICLE_PREFIX.length), 10) || 0;
+    state.activityGoalCycle = (state.activityGoalCycle || 0) + 1;
+    const target = options[(index * 7 + state.activityGoalCycle * 5) % options.length];
+    return updateVehicleGoal(state.id, target.x, target.z);
+  }
+
+  function syncActivityVehicles({ reseed = false } = {}) {
+    disableCrowdLayer();
+    if (!activityVehiclesAllowed()) {
+      removeActivityVehicles();
+      return;
+    }
+    const pathCells = activityVehiclePathCells();
+    const desired = Math.min(activityVehicleCountForPopulation(crowdCount), pathCells.length);
+    if (reseed || !desired) removeActivityVehicles();
+    if (!desired || !pathCells.length) return;
+
+    for (const state of Array.from(vehicleFleet.values())) {
+      if (!isActivityVehicle(state)) continue;
+      const index = parseInt(state.id.slice(ACTIVITY_VEHICLE_PREFIX.length), 10) || 0;
+      if (index >= desired) removeVehicle(state.id);
+    }
+
+    for (let i = 0; i < desired; i++) {
+      const id = ACTIVITY_VEHICLE_PREFIX + i;
+      let state = vehicleFleet.get(id);
+      if (!state) {
+        const start = pathCells[(i * 3) % pathCells.length];
+        state = spawnVehicle({
+          id,
+          x: start.x,
+          z: start.z,
+          mode: 'manual',
+          maxSpeed: 0.72 + (i % 4) * 0.12,
+          visualScale: vehicleVisualScaleForGrid(GRID),
+        });
+      }
+      if (!state) continue;
+      state.activityGoalCycle = state.activityGoalCycle || 0;
+      if (!state.path.length) assignActivityVehicleGoal(state, pathCells);
+    }
+  }
+
+  function tickActivityVehicles(dt) {
+    activityVehicleRetargetTimer += dt;
+    if (activityVehicleRetargetTimer < 1.5) return;
+    activityVehicleRetargetTimer = 0;
+    if (!activityVehiclesAllowed()) return;
+    const activityVehicles = Array.from(vehicleFleet.values()).filter(isActivityVehicle);
+    if (!activityVehicles.length) {
+      syncActivityVehicles();
+      return;
+    }
+    const pathCells = activityVehiclePathCells();
+    if (pathCells.length < 2) return;
+    for (const state of activityVehicles) {
+      const idle = !state.path.length && Math.abs(state.speed || 0) < 0.08;
+      const stuck = state.blockedFor > 1.6;
+      if (idle || stuck) assignActivityVehicleGoal(state, pathCells);
+    }
   }
 
   function crowdTerrainHeightAt(x, z) {
@@ -12325,22 +12424,15 @@
   }
 
   function initCrowdLayer() {
-    if (crowdLayer || crowdLoadStarted || !window.TinyCrowdLayer) return;
-    crowdLoadStarted = true;
-    crowdLayer = new window.TinyCrowdLayer({
-      THREE,
-      root: worldGroup,
-      camera,
-      textureBasePath: 'crowd/',
-      tileToWorld: tilePos,
-      getTerrainHeight: crowdTerrainHeightAt,
-      scale: crowdScale,
-      config: crowdConfigOverride(),
-      worldConfig: crowdWorldConfigOverride(),
-    });
-    crowdLayer.load().then(seedCrowdPeople).catch(err => {
-      console.warn('[crowd] failed to load sprites', err);
-    });
+    syncActivityVehicles({ reseed: true });
+  }
+
+  function disableCrowdLayer() {
+    if (!crowdLayer) return;
+    if (typeof crowdLayer.dispose === 'function') crowdLayer.dispose();
+    else if (typeof crowdLayer.clear === 'function') crowdLayer.clear();
+    crowdLayer = null;
+    crowdLoadStarted = false;
   }
 
   // -------- selection (select-tool) --------
@@ -20168,7 +20260,7 @@ function neighborStarVector(edge, index) {
       if (crowdScaleLiveEl) document.getElementById('crowd-scale-live-value').textContent = Math.round(crowdScale * 100) + '%';
       if (crowdSpeedLiveEl) document.getElementById('crowd-speed-live-value').textContent = Math.round(crowdSpeedMul * 100) + '%';
       if (crowdZoneRadiusLiveEl) document.getElementById('crowd-zone-radius-live-value').textContent = crowdZoneRadius.toFixed(2);
-      status.textContent = 'DPR ' + renderer.getPixelRatio().toFixed(2) + ' · shadow ' + sun.shadow.mapSize.x + ' · preview ' + renderVisibleDistance + ' / ' + renderVisibleSize + 'x' + renderVisibleSize + ' · crowd ' + crowdCount;
+      status.textContent = 'DPR ' + renderer.getPixelRatio().toFixed(2) + ' · shadow ' + sun.shadow.mapSize.x + ' · preview ' + renderVisibleDistance + ' / ' + renderVisibleSize + 'x' + renderVisibleSize + ' · vehicles ' + activityVehicleCountForPopulation(crowdCount);
     }
 
     function persistSettings() {
@@ -26933,6 +27025,7 @@ function neighborStarVector(edge, index) {
         if (tool) selectTool(tool);
       }
       saveState();
+      if (typeof syncActivityVehicles === 'function') syncActivityVehicles({ reseed: true });
       if (typeof opts.onDone === 'function') {
         try { opts.onDone(); } catch (_) {}
       }
@@ -27108,6 +27201,7 @@ function neighborStarVector(edge, index) {
         if (tool) selectTool(tool);
       }
       saveState();
+      if (typeof syncActivityVehicles === 'function') syncActivityVehicles({ reseed: true });
       if (typeof opts.onDone === 'function') {
         try { opts.onDone(); } catch (_) {}
       }

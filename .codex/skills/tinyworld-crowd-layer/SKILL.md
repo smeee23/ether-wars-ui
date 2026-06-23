@@ -6,11 +6,17 @@ Use this skill when changing TinyWorld's 2.5D crowd/person sprite system.
 
 - Runtime: `vendor/tiny-crowd-layer.js`, exposed as `window.TinyCrowdLayer`.
 - Assets: `crowd/`, copied to `dist/crowd/` by `publish.sh`.
-- Integration: `tiny-world-builder.html` creates one ambient crowd layer under `worldGroup`.
+- Integration: the visible ambient activity layer in `tiny-world-builder.html`
+  now uses procedural 3D vehicles (`makeVehicle()` / `vehicleFleet`) instead
+  of visible `THREE.Sprite` people. Keep `TinyCrowdLayer` available as legacy
+  code, but do not initialize visible sprite people for normal app activity.
 
 ## Rules
 
 - Keep people out of `world[x][z]` and `cellMeshes`; they are moving runtime entities, not terrain/object intent.
+- Keep activity vehicles out of `world[x][z]` and `cellMeshes`; they are moving runtime entities, not terrain/object intent.
+- Prefer `syncActivityVehicles()` / reserved `activity-vehicle-*` runtime IDs
+  for colony activity. Do not create a parallel vehicle model system.
 - Use `tilePos(x, z)` for map placement and a terrain-height callback for feet height.
 - Preserve the original crowd demo's `P` config surface (`count`, `size`, `slices`, `bob`, `sway`, `headSway`, `leg`, `squash`, `lean`, `hipLine`, `cadence`, `speed`, etc.) when tuning animation.
 - Render movement through the original slice-wave canvas animation, then upload that canvas into a `THREE.CanvasTexture` used by a `THREE.Sprite`.
