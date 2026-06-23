@@ -903,7 +903,7 @@
     z-index: 1000;
     max-width: min(260px, calc(100vw - 24px));
     background: var(--ink);
-    color: #fff;
+    color: #000000;
     padding: 6px 9px;
     border-radius: 7px;
     font-family: inherit;
@@ -1623,7 +1623,7 @@
     border: 1px solid rgba(255, 255, 255, 0.62);
     border-radius: 999px;
     background: rgba(22, 24, 28, 0.78);
-    color: #fff8e6;
+    color:  #000000;
     box-shadow: 0 16px 36px rgba(36, 28, 12, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.22);
     backdrop-filter: blur(14px) saturate(1.2);
     font-size: 12px;
@@ -2578,7 +2578,7 @@
     border-radius: 999px;
     border: 1px solid rgba(255,255,255,0.72);
     background: rgba(42,39,34,0.72);
-    color: #fff8ea;
+    color:  #000000;
     font: 800 13px/1 var(--ui-font);
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -3216,7 +3216,7 @@
   .btn.confirm-destructive {
     background: #b84838;
     border-color: #a23a2b;
-    color: #fff;
+    color:  #000000;
     font-weight: 600;
   }
   .btn.confirm-destructive:hover { background: #a23a2b; }
@@ -3225,7 +3225,7 @@
   #gen-go {
     background: #3a72c8;
     border-color: #2f5aa3;
-    color: #fff;
+    color:  #000000;
     font-weight: 600;
     padding: 8px 18px;
     border-radius: 10px;
@@ -3653,7 +3653,7 @@
   }
   .auth-btn {
     background: var(--ink);
-    color: #fff;
+    color:  #000000;
     border: none;
     border-radius: 10px;
     padding: 11px 16px;
@@ -16679,6 +16679,18 @@ function neighborStarVector(edge, index) {
     return true;
   }
 
+  function rejectMockResourceMaxLevelAction(tool) {
+    const rule = resourceRuleForTool(tool);
+    if (!rule) return false;
+    const effect = rule.effect || {};
+    const feedbackIds = Object.keys(effect).filter(key => RESOURCE_KEYS.includes(key) && key !== 'gold');
+    if (feedbackIds.length === 0) return false;
+    if (typeof playSfxClip === 'function') playSfxClip('knock', 'foley-knock-jingle-2.mp3');
+    flashPlayerResourceStats(feedbackIds, 'negative');
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
   function trySpendMockResourcesForPlacement(tool) {
     const rule = resourceRuleForTool(tool);
     if (!rule) return true;
@@ -18755,7 +18767,7 @@ function neighborStarVector(edge, index) {
       if (cell.kind === 'house' && existingHouseType === bType) {
         // Stack: clicking the house tool on an existing house adds a floor.
         const newFloors = Math.min((cell.floors || 1) + 1, maxFloorsForCell(cell, 'house'));
-        if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
+        if (newFloors === (cell.floors || 1)) { rejectMockResourceMaxLevelAction(selectedTool); return; }
         // Floor stack preserves the existing buildingType (passing undefined).
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'house', floors: newFloors });
@@ -18776,7 +18788,7 @@ function neighborStarVector(edge, index) {
       const existingStampId = cell.appearance && cell.appearance.voxelBuildId;
       if (cell.kind === 'voxel-build' && existingStampId === stampId && stampId === 'crystal-mining-rig') {
         const newFloors = Math.min((cell.floors || 1) + 1, CRYSTAL_RIG_MAX_LEVEL);
-        if (newFloors === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
+        if (newFloors === (cell.floors || 1)) { rejectMockResourceMaxLevelAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, {
           terrain: cell.terrain || BASE_TERRAIN,
@@ -18810,7 +18822,7 @@ function neighborStarVector(edge, index) {
       // Same-side fence on a fence cell → level it up in place.
       if (cell.kind === 'fence' && normalizeFenceSide(cell.fenceSide) === side) {
         const newLevel = Math.min((cell.floors || 1) + 1, MAX_FLOORS);
-        if (newLevel === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
+        if (newLevel === (cell.floors || 1)) { rejectMockResourceMaxLevelAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: 'fence', floors: newLevel, fenceSide: side });
         playMockResourcePlacementSuccess(selectedTool);
@@ -18846,7 +18858,7 @@ function neighborStarVector(edge, index) {
         const newLevel = Math.min((cell.floors || 1) + 1, stackMax);
         // Max-level resource buildings, including Oxygen Generation Plant,
         // reject here before trySpendMockResourcesForPlacement() can deduct Credits.
-        if (newLevel === (cell.floors || 1)) { rejectMockResourceBuildAction(selectedTool); return; }
+        if (newLevel === (cell.floors || 1)) { rejectMockResourceMaxLevelAction(selectedTool); return; }
         if (!trySpendMockResourcesForPlacement(selectedTool)) return;
         setCell(x, z, { terrain: cell.terrain, terrainFloors: terrainLevelForCell(cell), kind: selectedTool.kind, floors: newLevel });
         playMockResourcePlacementSuccess(selectedTool);
@@ -18919,11 +18931,11 @@ function neighborStarVector(edge, index) {
         ? currentTerrainFloors
         : (sameTerrain ? Math.min(currentTerrainFloors + 1, maxTerrainFloors) : 1);
       if (selectedTool.terrain === 'water' && sameTerrain && nextTerrainFloors === currentTerrainFloors && nextKind === (cell.kind || null)) {
-        rejectMockResourceBuildAction(selectedTool);
+        rejectMockResourceMaxLevelAction(selectedTool);
         return;
       }
       if (!nextKind && sameTerrain && nextTerrainFloors === currentTerrainFloors) {
-        rejectMockResourceBuildAction(selectedTool);
+        rejectMockResourceMaxLevelAction(selectedTool);
         return;
       }
       if (!trySpendForPlacementWithReplacement(cell, selectedTool, { nextKind })) return;
@@ -28708,11 +28720,10 @@ function neighborStarVector(edge, index) {
         // Drive the CSS --bg variable so the page chrome around the
         // canvas (vignette, body backdrop) follows the same colour.
         document.documentElement.style.setProperty('--bg', '#' + bgHex.toString(16).padStart(6, '0'));
-        // Ink stays high contrast — flip to a light ink at night so the
-        // brand title remains readable on a dark backdrop.
-        const isDark = (tod.sunI < 0.55);
-        document.documentElement.style.setProperty('--ink', isDark ? '#f4ede0' : '#2a2722');
-        document.documentElement.style.setProperty('--muted', isDark ? '#d8ccb8' : '#6f695f');
+        // Keep general UI text dark regardless of time of day. The brand title
+        // and subtitle have explicit dusk/night overrides above.
+        document.documentElement.style.setProperty('--ink', '#2a2722');
+        document.documentElement.style.setProperty('--muted', '#6f695f');
       } catch (err) { console.warn('[lights] apply failed:', err); }
     }
     window.__applyLights = applyLights;
