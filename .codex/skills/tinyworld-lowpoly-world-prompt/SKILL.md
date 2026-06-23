@@ -3,9 +3,13 @@ name: tinyworld-lowpoly-world-prompt
 description: Use when editing Tiny World Builder prompts, model-generated worlds, Auto suggestions, or any model behavior that should create coherent low-poly 3D board scenes.
 ---
 
-# Tiny World Low-Poly World Prompting
+# EtherWars Low-Poly World Prompting
 
 The built-in model should act like a compact low-poly diorama designer, not a random tile filler.
+
+Use `EtherWars` for game-facing prompt and UI language. Keep legacy
+`tinyworld:*` keys, routes, skill folder names, and compatibility API names
+until a dedicated alias/migration pass changes them.
 
 Prompt principles:
 

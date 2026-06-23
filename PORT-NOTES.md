@@ -1,4 +1,4 @@
-# OWB → TinyWorld port notes (`feat/owb-port`)
+# OWB → EtherWars port notes (`feat/owb-port`)
 
 Tracks what landed from `open-world-builder` and what was deliberately
 deferred. Each landed item is a separate commit on this branch.

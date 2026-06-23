@@ -3,9 +3,13 @@ name: tinyworld-single-file
 description: Use when editing the Tiny World Builder repo, especially tiny-world-builder.html, to preserve the single-file Three.js r128 app structure and local edit/reload workflow.
 ---
 
-# Tiny World Single-File Workflow
+# EtherWars Single-File Workflow
 
 Work mainly in `tiny-world-builder.html`; also update `vendor/three/`, `publish.sh`, checks, docs, or skills when a change affects those durable contracts.
+
+Use `EtherWars` for game-facing UI, prompt, and documentation language. Keep
+legacy filenames, routes, storage keys, globals, and tool/API names until a
+dedicated migration adds backward-compatible aliases.
 
 Core rules:
 

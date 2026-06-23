@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Watchable MCP-driven vehicle demo for Tiny World Builder.
+// Watchable MCP-driven vehicle demo for EtherWars.
 //
 // Prereqs:
 //   1. Run the app (`npm run dev`) and open it in a browser.

@@ -25,7 +25,7 @@ Use this while the Resources model is frontend/mock-state only.
 - Resource placement audio should use the existing SFX helpers. Spend failures play the rejection clip in the spend helper; successes play after `setCell()` / `addCellExtra()` mutates the world.
 - Update the User Stats panel through `RESOURCE_KEYS`, `setPlayerStat()`, and `updatePlayerStatsPanel()`.
 - Placement feedback should stay in the mock resource layer: use `flashPlayerResourceStats()` from spend/refund helpers rather than scattering DOM animation calls through tool placement branches.
-- Resource-backed blocked actions, including insufficient gold and max-height repeat clicks, should use `rejectMockResourceBuildAction(tool)` so Gold gets the same red jiggle and rejection sound.
+- Resource-backed blocked actions must separate low-credit failures from max-level failures. Insufficient gold should use `rejectMockResourceBuildAction(tool)` so Gold gets the red jiggle and rejection sound. Max-height / max-level repeat clicks should use `rejectMockResourceMaxLevelAction(tool)` so only the affected non-gold resource from the rule effect gets the red jiggle.
 - Mock round-action UI can read `resources.gold` for attack wagers, but must remain frontend-only until commit/reveal and contract/indexer state are explicitly added.
 - Local game state is persisted through `etherWars.localGameState.v1`.
   Resource changes, world cell intent, selected cells, round-action allocation

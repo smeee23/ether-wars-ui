@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Minimal MCP stdio bridge for Tiny World Builder examples.
+// Minimal MCP stdio bridge for EtherWars examples.
 //
 // It exposes tools that:
 // - send commands to plugins/examples/sse-command-relay.js
@@ -14,7 +14,7 @@ const TOKEN = process.env.TINYWORLD_RELAY_TOKEN || '';
 const tools = [
   {
     name: 'tinyworld_place_cell',
-    description: 'Place or replace one Tiny World cell through the local SSE relay.',
+    description: 'Place or replace one EtherWars cell through the local SSE relay.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -105,12 +105,12 @@ const tools = [
   },
   {
     name: 'tinyworld_clear',
-    description: 'Clear the current Tiny World board to grass through the local SSE relay.',
+    description: 'Clear the current EtherWars board to grass through the local SSE relay.',
     inputSchema: { type: 'object', additionalProperties: false, properties: {} },
   },
   {
     name: 'tinyworld_reset',
-    description: 'Reset Tiny World to the preset scene through the local SSE relay.',
+    description: 'Reset EtherWars to the preset scene through the local SSE relay.',
     inputSchema: { type: 'object', additionalProperties: false, properties: {} },
   },
   {

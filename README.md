@@ -1,4 +1,4 @@
-# Tiny World Builder
+# EtherWars
 
 <img width="1324" height="1016" alt="Screenshot 2026-05-11 at 07 09 24" src="https://github.com/user-attachments/assets/1b19a5f7-def5-42bf-b85f-01714f502afa" />
 
@@ -6,10 +6,10 @@
 
 ```bash
 npm run dev
-# serves http://localhost:3000/tiny-world-builder
+# serves EtherWars at the compatibility URL http://localhost:3000/tiny-world-builder
 # use another port with: npm run dev -- 3001
 
-# or open directly
+# or open the compatibility HTML entry point directly
 open tiny-world-builder.html
 ```
 
@@ -56,6 +56,10 @@ http://localhost:3000/
 # redirects to /tiny-world-builder?demo=vehicles&seed=tide-ridge-428 in the local dev server
 # /tiny-world-builder with no query redirects there too
 ```
+
+The `/tiny-world-builder` route and `tiny-world-builder.html` filename are kept
+as compatibility entry points while the game-facing branding moves to
+EtherWars.
 
 Direct seeded URL:
 
@@ -122,7 +126,7 @@ outcrops.
 
 ## Architecture
 
-Single `<script>` block, currently ~16k lines of vanilla JS, organised by section
+EtherWars is a single `<script>` block, currently ~16k lines of vanilla JS, organised by section
 comments (`// -------- xyz --------`). The model is split cleanly:
 
 - **`world[x][z]`** — intent: `{ terrain, kind, floors }` per cell.
@@ -166,7 +170,7 @@ See [AGENTS.md](./AGENTS.md) for guidance on extending the codebase.
 ## Files
 
 ```
-tiny-world-builder.html          the app
+tiny-world-builder.html          EtherWars app compatibility entry point
 README.md                        this file
 AGENTS.md                        guidance for AI coding agents
 world.schema.json                import/export schema mirrored into the app

@@ -1,6 +1,6 @@
-# Tiny World Integration Examples
+# EtherWars Integration Examples
 
-These scripts demonstrate the browser integration points in Tiny World Builder.
+These scripts demonstrate the browser integration points in EtherWars.
 They use only Node built-ins.
 
 ## Browser Setup
@@ -11,7 +11,7 @@ They use only Node built-ins.
 npm run dev
 ```
 
-2. Open `http://localhost:3000/tiny-world-builder.html`.
+2. Open the compatibility route `http://localhost:3000/tiny-world-builder.html`.
 3. Open Settings, then Developer.
 4. Generate an API key if you want webhook requests to include an
    `Authorization: Bearer ...` header.
@@ -119,6 +119,9 @@ For a shareable browser-only seeded demo, open:
 ```text
 http://localhost:3000/tiny-world-builder?demo=vehicles&seed=tide-ridge-428
 ```
+
+The `/tiny-world-builder` route is retained as the compatibility URL while the
+game-facing name moves to EtherWars.
 
 For a larger browser-only scale test, open:
 

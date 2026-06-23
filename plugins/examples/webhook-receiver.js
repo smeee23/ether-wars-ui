@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Receives Tiny World Builder outbound webhooks.
+// Receives EtherWars outbound webhooks.
 //
 // Configure in the app:
 //   Settings -> Developer -> Outbound webhook URL

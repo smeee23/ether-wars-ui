@@ -3,7 +3,12 @@ name: tinyworld-integrations
 description: Use when changing Tiny World Builder API, webhook, SSE, MCP, plugin, or automation examples.
 ---
 
-# Tiny World Integrations
+# EtherWars Integrations
+
+Use `EtherWars` for game-facing integration docs and descriptions. Keep legacy
+compatibility identifiers such as `tinyworld_*`, `TINYWORLD_*`,
+`tiny-world-builder`, and webhook `{ source: 'tiny-world-builder' }` until a
+dedicated alias/migration pass updates both producers and consumers.
 
 The app has browser-local integration points, not a backend API:
 

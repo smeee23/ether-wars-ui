@@ -1102,7 +1102,7 @@ async function handleEnhanceVoxelBuild(req, res) {
         content: [{
           type: 'input_text',
           text: [
-            'You enhance selected voxel stamps for Tiny World Builder.',
+            'You enhance selected voxel stamps for EtherWars.',
             'Return JSON only. Preserve the selected object category, footprint, scale, and readable chunky voxel look.',
             'Follow selectedKind, sourceCell, style, and requirements in the payload over generic style assumptions.',
             'The source voxels are already upscaled onto a high-resolution coordinate grid. Keep that resolution.',
@@ -1123,7 +1123,7 @@ async function handleEnhanceVoxelBuild(req, res) {
               selectedKind: stamp.selectedKind || 'voxel-build',
               selectedLabel: stamp.selectedLabel || stamp.name || 'selected object',
               seedId: stamp.seedId || null,
-              style: stamp.style || 'Tiny World low-poly voxel diorama, readable chunky blocks',
+              style: stamp.style || 'EtherWars low-poly voxel diorama, readable chunky blocks',
               sourceCell: stamp.sourceCell || null,
               sourceCoord: stamp.sourceCoord || null,
               desiredScale: stamp.desiredScale || 1,
@@ -1318,7 +1318,7 @@ server.on('error', (err) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Tiny World dev server: http://localhost:${port}/tiny-world-builder`);
+  console.log(`EtherWars dev server: http://localhost:${port}/tiny-world-builder`);
   console.log(`  → Shows welcome menu (defaults to Farm preset)`);
   console.log(`  → Click "Vehicle Demo" button for cars/trucks`);
   console.log(`  Or append ?demo=vehicles to jump straight to vehicle demo`);

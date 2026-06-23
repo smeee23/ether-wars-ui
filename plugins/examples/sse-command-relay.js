@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Local SSE relay for driving Tiny World Builder from external tools.
+// Local SSE relay for driving EtherWars from external tools.
 //
 // Configure in the app:
 //   Settings -> Developer -> Inbound SSE relay URL

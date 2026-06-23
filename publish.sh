@@ -12,7 +12,7 @@ for arg in "$@"; do
       cat <<'HELP'
 Usage: ./publish.sh [--zip]
 
-Creates a clean dist/ folder for publishing Tiny World Builder.
+Creates a clean dist/ folder for publishing EtherWars.
 
 Outputs:
   dist/index.html                 Browser entry point
@@ -112,7 +112,7 @@ fi
 : > "$DIST/.nojekyll"
 
 {
-  echo "Tiny World Builder dist"
+  echo "EtherWars dist"
   echo "Built: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Commit: $(git rev-parse --short HEAD)"

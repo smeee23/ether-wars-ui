@@ -74,7 +74,7 @@ function applyState(data, opts = {}) { ... validates, accepts tuple/object cells
 - **State/render split:** `world[x][z]` is intent; `cellMeshes['x,z']` is rendered Three.js state. `setCell()` is the central mutation path and is responsible for normalization, mesh rebuilds, neighbor refreshes, autosave, and webhooks.
 - **Rendering:** tile terrain comes from `makeTile`; props/buildings come from object factories and house assemblers. Adjacency helpers feed path joins, shorelines, bridge orientation, rock outcrops, fence/castle walls, and house cluster shapes.
 - **Input flow:** pointer/raycaster selects a cell; `applyToolToCell()` handles home vs ghost-board clicks; `applyTool()` maps selected tool/variant/repeat-click behavior to `setCell()` or extras.
-- **Persistence/import/export:** local autosave uses `tinyworld:v1` with schema version 4, sparse serialized cells, `gridSize`, `cameraMode`, and `toolId`. `applyState()` accepts both compact tuple export and object-form schema cells.
+- **Persistence/import/export:** EtherWars local autosave currently uses the legacy compatibility key `tinyworld:v1` with schema version 4, sparse serialized cells, `gridSize`, `cameraMode`, and `toolId`. `applyState()` accepts both compact tuple export and object-form schema cells.
 - **Generation/automation:** AI generation sends embedded `WORLD_SCHEMA` plus prompts to OpenAI/Anthropic/xAI endpoints from browser-local API keys, validates with a lightweight validator, then loads via `applyState()`.
 - **Deploy:** `npm run build` runs `publish.sh`; Vercel serves `dist/` per `vercel.json`. Assets under `sounds/` and `models/` are copied; screenshots go to `dist/assets/`.
 

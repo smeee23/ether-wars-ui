@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tiny World Builder</title>
+<title>EtherWars</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌍</text></svg>" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -4310,7 +4310,7 @@
   </div>
 
   <div class="appbar">
-    <a class="btn icon" id="github-link" href="https://github.com/jasonkneen/tiny-world-builder" target="_blank" rel="noopener noreferrer" data-tooltip="View on GitHub" aria-label="View Tiny World Builder on GitHub">
+    <a class="btn icon" id="github-link" href="https://github.com/jasonkneen/tiny-world-builder" target="_blank" rel="noopener noreferrer" data-tooltip="View on GitHub" aria-label="View EtherWars on GitHub">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5a13.4 13.4 0 0 0-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5a4.8 4.8 0 0 0-1 3.5v4"/><path d="M9 18c-4.5 2-5-2-7-2"/></svg>
     </a>
     <button class="btn icon" id="account-btn" data-tooltip="My account" aria-label="My account" hidden>
@@ -4487,7 +4487,7 @@
 
   <div id="auth-modal" class="auth-modal" hidden>
     <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="auth-title">
-      <div class="auth-title" id="auth-title">Tiny World <em>Builder</em></div>
+      <div class="auth-title" id="auth-title">EtherWars</div>
       <div class="auth-subtitle">Sign in to start building</div>
       <div id="auth-error" class="auth-error" hidden></div>
       <div id="auth-success" class="auth-success" hidden></div>
@@ -4581,7 +4581,7 @@
   <div id="welcome-modal" class="modal" hidden>
     <form class="modal-card welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onsubmit="return false">
       <div class="modal-head">
-        <strong id="welcome-title" class="welcome-title">Tiny World <em>Builder</em></strong>
+        <strong id="welcome-title" class="welcome-title">EtherWars</strong>
         <button class="modal-close" id="welcome-close" title="Close" aria-label="Close welcome dialog">×</button>
       </div>
 
@@ -4902,7 +4902,7 @@
   <script src="vendor/tiny-crowd-layer.js"></script>
   <script>
   /* =====================================================================
-     Tiny World Builder — single-file Three.js scene + tile editor
+     EtherWars — single-file Three.js scene + tile editor
      ===================================================================== */
 
   // -------- constants --------
@@ -8200,7 +8200,7 @@
   }
 
   // Space habitat — compact sci-fi base module inspired by cylindrical
-  // off-world habitats, but scaled and simplified for one Tiny World tile.
+  // off-world habitats, but scaled and simplified for one EtherWars tile.
   function makeSpaceHabitat(floors = 1) {
     const g = new THREE.Group();
     const f = Math.max(1, floors);
@@ -17550,7 +17550,7 @@ function neighborStarVector(edge, index) {
     const yaw = Math.atan2(xrForward.x, xrForward.z);
     xrPoseQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     setXRRootFromPose(xrPosePos, xrPoseQuat, xrBoardScale.float());
-    setXRStatus('Tiny World is floating. Aim/select tiles with your controller or hand ray.');
+    setXRStatus('EtherWars is floating. Aim/select tiles with your controller or hand ray.');
   }
 
   function placeXRInsideWorld() {
@@ -19496,7 +19496,7 @@ function neighborStarVector(edge, index) {
       if (!applyState(data)) throw new Error('schema check failed');
     } catch (err) {
       console.error('Import failed:', err);
-      alert('Could not import that file — not a valid Tiny World JSON.');
+      alert('Could not import that file — not a valid EtherWars JSON.');
     }
     e.target.value = '';
   });
@@ -19572,7 +19572,7 @@ function neighborStarVector(edge, index) {
   // ---------- first-person walk ----------
   // Ports OWB's src/main.js:194-343 ideas (eye-level camera, pointer-lock
   // mouse-look, WASD + space jump + shift sprint) but simplified for
-  // tinyworld's grid:
+  // the EtherWars grid:
   //   - ground height is sampled directly from world[x][z].terrainFloors
   //     rather than via raycast (every cell is 1×1 with a known top Y).
   //   - collision is bound-clamping to the home grid; no obstacle box
@@ -20726,7 +20726,7 @@ function neighborStarVector(edge, index) {
     const base = {
       selectedKind: kind,
       selectedLabel: stamp && stamp.name ? stamp.name : 'selected object',
-      style: 'Tiny World low-poly voxel diorama, readable chunky blocks, preserve the selected object category',
+      style: 'EtherWars low-poly voxel diorama, readable chunky blocks, preserve the selected object category',
       requirements: [
         'Use the source voxels and selected object intent as the contract for what this is.',
         'Preserve the selected object category, footprint, scale, and silhouette language unless the user explicitly asks to change them.',
@@ -20757,7 +20757,7 @@ function neighborStarVector(edge, index) {
       base.seedId = stamp && stamp.id ? stamp.id : 'building';
       base.style = explicitJapanese
         ? 'Japanese-influenced low-poly voxel building, crisp stepped roof, trim, windows, base details'
-        : 'Tiny World low-poly voxel building, crisp stepped roof, trim, windows, door, base details';
+        : 'EtherWars low-poly voxel building, crisp stepped roof, trim, windows, door, base details';
       base.requirements.push(
         'This is a building. Keep roof, walls, windows, door, base, and trim visually distinct.',
         explicitJapanese
@@ -20766,13 +20766,13 @@ function neighborStarVector(edge, index) {
         'Add higher-resolution eaves, roof ridges, window frames, door detail, steps, and foundation blocks.',
       );
     } else if (kind === 'fence' || kind === 'bridge') {
-      base.style = 'Tiny World low-poly constructed prop, rails, posts, crossbeams, plank or stone details';
+      base.style = 'EtherWars low-poly constructed prop, rails, posts, crossbeams, plank or stone details';
       base.requirements.push(
         'This is a constructed prop. Keep posts, rails, planks, supports, and crossings readable.',
         'Do not turn it into a building or landscape scene.',
       );
     } else if (CROP_KINDS.has(kind) || kind === 'tuft') {
-      base.style = 'Tiny World low-poly farm or ground-detail prop, small plant voxels, rows, stems, leaves';
+      base.style = 'EtherWars low-poly farm or ground-detail prop, small plant voxels, rows, stems, leaves';
       base.requirements.push(
         'This is a farm or ground-detail prop. Keep plants, stems, rows, and soil/base detail readable.',
         'Do not turn it into a garden building, gate, or tree unless requested.',
@@ -20794,10 +20794,10 @@ function neighborStarVector(edge, index) {
     const model = textModelForGeneration(provider, ai.model);
     const instruction = String(userInstruction || '').trim() || 'Enhance this selected building as a richer low-poly voxel model.';
     const buildingStyle = seed.stamp === 'tower'
-      ? 'Tiny World stone tower, readable vertical render with small crenellation, window, roof cap, and door parts'
+      ? 'EtherWars stone tower, readable vertical render with small crenellation, window, roof cap, and door parts'
       : seed.stamp === 'pagoda'
-        ? 'Tiny World pagoda building, tiered roof, readable render with small trim parts'
-        : 'Tiny World low-poly house, readable roof, walls, windows, door, trim, larger render with small detail parts';
+        ? 'EtherWars pagoda building, tiered roof, readable render with small trim parts'
+        : 'EtherWars low-poly house, readable roof, walls, windows, door, trim, larger render with small detail parts';
     const renderFootprint = selectedBuildingRenderFootprint(seed.stamp);
     const payload = {
       model,
@@ -21093,7 +21093,7 @@ function neighborStarVector(edge, index) {
     }
     if (!ai.key) throw new Error('AI key missing');
     const system = [
-      'You enhance selected voxel stamps for Tiny World Builder.',
+      'You enhance selected voxel stamps for EtherWars.',
       'Input voxels are integer x/y/z cubes with hex colors.',
       'Return JSON only. Keep the selected object category recognisable, preserve its rough footprint, and add higher-resolution voxel detail.',
       'Follow selectedKind, sourceCell, style, and requirements over generic visual assumptions.',
@@ -21188,7 +21188,7 @@ function neighborStarVector(edge, index) {
       },
       desiredScale: [1, 1, 1],
       style: [
-        'Tiny World voxel stamp, readable low-poly diorama asset, semantic custom parts first',
+        'EtherWars voxel stamp, readable low-poly diorama asset, semantic custom parts first',
         'large enough to show small details, no flat placeholder mass, no detached floating decoration',
         'use the allowed material palette and keep the result inside the selected-tile footprint',
       ].join(', '),
@@ -21234,7 +21234,7 @@ function neighborStarVector(edge, index) {
         'Return ONLY valid JSON, no markdown.',
         'The JSON shape must be {"customParts":[...], "notes":"short optional note"}.',
         'Use customParts with box/cylinder/cone, material, size [x,y,z], pos [x,y,z], scale [1,1,1].',
-        'Create a high-quality Tiny World stamp with semantic editable parts, not a single block or noisy cube cloud.',
+        'Create a high-quality EtherWars stamp with semantic editable parts, not a single block or noisy cube cloud.',
         'Keep all returned parts inside allowedBounds.',
         'Use only allowed materials. Keep the object grounded and centered.',
         'Do not introduce Japanese, pagoda, temple, shrine, torii, sakura, or garden styling unless explicitly requested.',
@@ -21918,7 +21918,7 @@ function neighborStarVector(edge, index) {
     // Ported from the better flight-sim-style cloud pass: 8–12 low-poly
     // dodecahedron puffs with wide horizontal spread and mild vertical
     // build-up. These read softer and more natural than the older slab
-    // stack while staying cheap at Tiny World's cloud counts.
+    // stack while staying cheap at EtherWars cloud counts.
     const count = 3 + Math.floor(Math.random() * 5);
     for (let i = 0; i < count; i++) {
       const r = 0.05 + Math.random() * 0.15;
@@ -22495,7 +22495,7 @@ function neighborStarVector(edge, index) {
   const FLIGHT_GROUND_SLOW_ALT = FLIGHT_DUST_ALT + 0.72;
   const FLIGHT_GROUND_SLOW_SPEED_MULT = 0.34;
   const BANNER_MESSAGES = [
-    'TINY WORLD',
+    'ETHERWARS',
     'HELLO!',
     'NICE FARM',
     'EAT MORE PUMPKIN',
@@ -23235,7 +23235,7 @@ function neighborStarVector(edge, index) {
   // Item 5 — Page Visibility pause only. The earlier DPR backoff path
   // was removed because renderer.setPixelRatio reallocates the shadow
   // map and left it blank until the next click forced a re-render
-  // (tinyworld's existing render-settings resolution slider already
+  // (the existing EtherWars render-settings resolution slider already
   // covers manual perf tuning).
   let docHidden = false;
   document.addEventListener('visibilitychange', () => {
@@ -23355,8 +23355,8 @@ function neighborStarVector(edge, index) {
   const WORLD_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://tinyworld.local/world.schema.json",
-    "title": "TinyWorld",
-    "description": "Scene description for the Tiny World Builder. The renderer supports home grids from 8x8 to 50x50, plus sparse user-edited ghost-board cells outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
+    "title": "EtherWars",
+    "description": "Scene description for EtherWars. The renderer supports home grids from 8x8 to 50x50, plus sparse user-edited ghost-board cells outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
     "type": "object",
     "additionalProperties": false,
     "required": [
@@ -23852,7 +23852,7 @@ function neighborStarVector(edge, index) {
 
   const PRIMITIVE_ASSEMBLY_PROMPT = [
     'Primitive assembly rules:',
-    '- You cannot invent new object kinds, meshes, labels, or custom geometry in JSON. Build every requested thing by arranging the available Tiny World primitives: terrain cells, raised terrainFloors, houses/buildingType variants, trees, fences/fenceSide, rocks, bridges, crop kinds, and tufts.',
+    '- You cannot invent new object kinds, meshes, labels, or custom geometry in JSON. Build every requested thing by arranging the available EtherWars primitives: terrain cells, raised terrainFloors, houses/buildingType variants, trees, fences/fenceSide, rocks, bridges, crop kinds, and tufts.',
     '- Translate real-world objects into readable low-poly tile assemblies. Example: skate park = path/dirt plaza + raised terrain ramps + rocks as boulders/ramps + fences as rails/edges + tufts/trees as landscaping.',
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
     '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, and road gates. Set fenceSide deliberately.',
@@ -23867,7 +23867,7 @@ function neighborStarVector(edge, index) {
     const size = coerceGridSize(gridSize, GRID);
     const maxCoord = size - 1;
     return [
-      'You are a level designer and low-poly primitive assembler for the Tiny World Builder, a ' + size + 'x' + size + ' isometric voxel scene.',
+      'You are a level designer and low-poly primitive assembler for EtherWars, a ' + size + 'x' + size + ' isometric voxel scene.',
       'Output a JSON object that strictly matches the provided JSON Schema. Do not include prose, markdown fences, or explanations — only the JSON object.',
       'Required home board edge length: include "gridSize": ' + size + ' in the JSON object.',
       'Grid coordinates: x in 0..' + maxCoord + ' (left-right), z in 0..' + maxCoord + ' (front-back). Default cell is grass with no object.',
@@ -23894,7 +23894,7 @@ function neighborStarVector(edge, index) {
 
   function buildAutoSystemPrompt() {
     return [
-      'You are the Auto palette tool for Tiny World Builder, a resizable isometric voxel scene.',
+      'You are the Auto palette tool for EtherWars, a resizable isometric voxel scene.',
       'Read the current home-board JSON and produce a ranked batch of candidate tile actions the player may place next.',
       'Do not choose coordinates and do not replace the whole world. The player will still choose the clicked tile locally.',
       'Base the suggestions on the current sparse world state, nearby patterns, and what would be coherent next manual placements.',
@@ -23975,7 +23975,7 @@ function neighborStarVector(edge, index) {
     const maxCoord = GRID - 1;
     return [
       'Mode: ADDITION PATCH.',
-      'Treat the user request as an addition to the existing Tiny World. Do not replace, reset, clear, or redesign the world.',
+      'Treat the user request as an addition to the existing EtherWars board. Do not replace, reset, clear, or redesign the world.',
       'Return a JSON object matching the schema with "gridSize": ' + GRID + ' and only the cells that should be added or changed.',
       'Do not emit unchanged existing cells. The app will merge your emitted cells into the current board and preserve every cell not mentioned.',
       'Every emitted cell must be the complete final state for that coordinate: x, z, terrain, kind, floors, terrainFloors, buildingType, fenceSide, and extras if needed.',
@@ -24140,7 +24140,7 @@ function neighborStarVector(edge, index) {
         system,
         tools: [{
           name: toolName,
-          description: (toolSpec && toolSpec.description) || 'Emit a Tiny World scene as JSON.',
+          description: (toolSpec && toolSpec.description) || 'Emit an EtherWars scene as JSON.',
           input_schema: (toolSpec && toolSpec.schema) || WORLD_SCHEMA,
         }],
         tool_choice: { type: 'tool', name: toolName },
@@ -24184,7 +24184,7 @@ function neighborStarVector(edge, index) {
   // Item 4 — procedural map generator (offline, deterministic). Emits a
   // v=4 world directly from seed + biome composition + elevation profile.
   // Ports the *concept* of OWB's biome / elevation / scatter pipeline
-  // into tinyworld's selected grid schema without touching the render pipeline.
+  // into the EtherWars selected grid schema without touching the render pipeline.
   // Algorithm:
   //   1. Two Mulberry32-derived noise fields (terrain & elevation) sampled
   //      per (x,z) on the home grid plus a small smoothing pass for
@@ -24581,7 +24581,7 @@ function neighborStarVector(edge, index) {
     if (cfg.provider === 'anthropic') {
       raw = await callAnthropic(def.endpoint, cfg.key, cfg.model, system, user, {
         name: 'choose_auto_suggestions',
-        description: 'Choose a ranked batch of Tiny World tile actions for the Auto palette tool.',
+        description: 'Choose a ranked batch of EtherWars tile actions for the Auto palette tool.',
         schema: AUTO_SUGGESTIONS_SCHEMA,
       });
     } else if (cfg.provider === 'gemini') {
@@ -26246,7 +26246,7 @@ function neighborStarVector(edge, index) {
 
   // One-shot migration — strips terrainFloors > 1 from any cell whose
   // kind requires flat ground (everything except rock). Touches the live
-  // autosave and every named slot in tinyworld:worlds.v1.  Gated on a
+  // autosave and every named slot in legacy tinyworld:worlds.v1.  Gated on a
   // single flag so we never run it twice.  Idempotent if you do.
   (function migrateStiltedHouses() {
     const FLAG = 'tinyworld:migration:stilts.v1';
@@ -28914,7 +28914,7 @@ function neighborStarVector(edge, index) {
   // The brand title doubles as the popup trigger; the popup lets the user
   // rename the current world, switch to another, create a new one,
   // duplicate, or open the AI generation modal.  The existing single
-  // autosave (STORAGE_KEY = 'tinyworld:v1') stays the source of truth for
+  // autosave (legacy STORAGE_KEY = 'tinyworld:v1') stays the source of truth for
   // the live world; each slot is a snapshot copy.
   const WORLDS_LS = {
     list: 'tinyworld:worlds.v1',
