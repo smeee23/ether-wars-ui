@@ -1268,13 +1268,25 @@
     image-rendering: -webkit-optimize-contrast;
     filter: contrast(1.45) brightness(0.78) saturate(1.28);
   }
-  .tool.resource-military .tool-label,
-  .tool.resource-military .tool-resource {
+  .tool.resource-army .tool-label,
+  .tool.resource-army .tool-resource {
     color: #b83f45;
   }
-  .tool.resource-civilian .tool-label,
-  .tool.resource-civilian .tool-resource {
+  .tool.resource-oxygen .tool-label,
+  .tool.resource-oxygen .tool-resource {
     color: #3f8d55;
+  }
+  .tool.resource-water .tool-label,
+  .tool.resource-water .tool-resource {
+    color: #2f7db7;
+  }
+  .tool.resource-shelter .tool-label,
+  .tool.resource-shelter .tool-resource {
+    color: #737782;
+  }
+  .tool.resource-food .tool-label,
+  .tool.resource-food .tool-resource {
+    color: #8a5a2b;
   }
   .tool .tool-resource {
     display: block;
@@ -17764,12 +17776,13 @@ function neighborStarVector(edge, index) {
     return null;
   }
 
-  function resourceRoleForRule(rule) {
-    if (!rule) return null;
-    if (rule.role) return rule.role;
-    const effect = rule.effect || {};
-    if ((effect.army || 0) > 0) return 'military';
-    if ((effect.shelter || 0) > 0) return 'civilian';
+  function resourceToneForRule(rule) {
+    const effect = rule && rule.effect || {};
+    if (effect.army) return 'army';
+    if (effect.oxygen) return 'oxygen';
+    if (effect.water) return 'water';
+    if (effect.shelter) return 'shelter';
+    if (effect.food) return 'food';
     return null;
   }
 
@@ -19028,7 +19041,7 @@ function neighborStarVector(edge, index) {
     { id: 'terrain', label: 'Terrain', toolIds: ['path', 'stone', 'lava', 'sand', 'snow', 'rock'], iconTool: 'path' },
     { id: 'plants', label: 'Terraform', toolIds: ['grass', 'dirt', 'water', 'tree', 'tuft', 'flower', 'bush'], iconTool: 'grass' },
     { id: 'build', label: 'Build', toolIds: ['house', 'crystal-mining-rig'], iconTool: 'house' },
-    { id: 'infra', label: 'Infra', toolIds: ['fence', 'bridge', 'oxygen-plant', 'water-plant'], iconTool: 'oxygen-plant' },
+    { id: 'infra', label: 'Infra', toolIds: ['fence', 'oxygen-plant', 'water-plant'], iconTool: 'oxygen-plant' },
     { id: 'farm', label: 'Farm', toolIds: ['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower'], iconTool: 'wheat' },
     { id: 'life', label: 'Life', toolIds: ['cow', 'sheep'], iconTool: 'cow' },
   ];
@@ -19439,9 +19452,9 @@ function neighborStarVector(edge, index) {
     btn.dataset.id = t.id;
     btn.type = 'button';
     const rule = resourceRuleForTool(t);
-    const role = resourceRoleForRule(rule);
+    const resourceTone = resourceToneForRule(rule);
     const resourceSummary = formatResourceRuleSummary(rule);
-    if (role) btn.classList.add(role === 'military' ? 'resource-military' : 'resource-civilian');
+    if (resourceTone) btn.classList.add('resource-' + resourceTone);
     const toolTip = t.label + (t.shortcut ? ' (' + t.shortcut.toUpperCase() + ')' : '') + (resourceSummary ? ' - ' + resourceSummary : '');
     btn.title = toolTip;
     btn.setAttribute('data-tooltip', toolTip);
