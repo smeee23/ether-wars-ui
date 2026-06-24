@@ -3987,7 +3987,7 @@
     <div class="minimap-card">
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
-        <span id="minimap-size">15×15</span>
+        <span id="minimap-size">30×30</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
       </div>
       <label class="minimap-autoexpand" for="minimap-autoexpand">
@@ -4908,7 +4908,7 @@
 
   // -------- constants --------
   // GRID is the fixed home board edge length. The playable board is always
-  // 15x15; larger surroundings are visual ghost boards outside the home grid.
+  // 30x30; larger surroundings are visual ghost boards outside the home grid.
   // Temporary mock Resources struct for frontend-only playtesting.
   // TODO(contract/indexer): replace these values with contract, indexer, or S3
   // game-state snapshot data when real game-state integration lands.
@@ -4924,14 +4924,15 @@
   let authoritativeGameState = null;
   let lastSavedInterRoundStateKey = null;
   const COLONY_STATUS_KEYS = ['army', 'food', 'water', 'oxygen', 'shelter'];
-  const HOME_GRID_DEFAULT = 15;
+  const HOME_GRID_DEFAULT = 30;
   const HOME_GRID_MIN = HOME_GRID_DEFAULT;
   // Storage/preview coordinate cap only; it does not resize the playable board.
   const HOME_GRID_MAX = 50;
+  // Camera/world-effect sizing is calibrated against the original 15x15 board.
   const HOME_GRID_VIEW_BASE = 15;
   const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
-  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-15.v1';
+  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-30.v1';
   const BASE_TERRAIN = 'stone';
   let GRID = HOME_GRID_DEFAULT;
 
@@ -10712,19 +10713,34 @@
     group.userData = { visualOnly: true, nonInteractive: true };
 
     const half = GRID * TILE * 0.5;
-    const HORIZON_SEGMENTS = 32;
+    const supportScale = Math.max(1, GRID / HOME_GRID_VIEW_BASE);
+    const HORIZON_SEGMENTS = Math.max(32, Math.round(32 * supportScale));
     const UNDERSIDE_LEVELS = 10;
-    const UNDERSIDE_DEPTH = 5.55;
+    const UNDERSIDE_DEPTH = 5.55 * supportScale;
     const TAPER_AMOUNT = 0.74;
-    const RIM_PAD = 7.52;
-    const RIM_LIP_INSET = -0.10;
-    const RIM_LIP_OUTSET = 1.04;
-    const RIM_DROP_OUTSET = 1.34;
+    const RIM_PAD = 7.52 * supportScale;
+    const RIM_LIP_INSET = -0.10 * supportScale;
+    const RIM_LIP_OUTSET = 1.04 * supportScale;
+    const RIM_DROP_OUTSET = 1.34 * supportScale;
+    // Radius/depth scale with the board, but the sealing lip height must stay
+    // close to the tile riser or side-on views can see a slit under the grid.
     const RIM_LIFT = 0.96;
-    const IRREGULARITY = 0.58;
-    const ROCK_CHUNK_COUNT = 30;
-    const RIM_ROCK_COUNT = 48;
-    const CRATER_COUNT = 20;
+    const RIM_SEAL_OVERLAP = 0.08 * supportScale;
+    const IRREGULARITY = 0.58 * supportScale;
+    const ROCK_CHUNK_COUNT = Math.round(30 * supportScale);
+    const RIM_ROCK_COUNT = Math.round(48 * supportScale);
+    const CRATER_COUNT = Math.round(20 * supportScale);
+    group.userData.supportDimensions = {
+      grid: GRID,
+      half,
+      supportScale,
+      undersideDepth: UNDERSIDE_DEPTH,
+      rimPad: RIM_PAD,
+      rimLift: RIM_LIFT,
+      rimSealOverlap: RIM_SEAL_OVERLAP,
+      topRadiusX: half + RIM_PAD,
+      topRadiusZ: half + RIM_PAD * 0.68,
+    };
     const litMat = terrainRiserMaterial(BASE_TERRAIN);
     const midMat = M.stoneDk || litMat;
     const shadowMat = M.rockDk || midMat;
@@ -10783,9 +10799,9 @@
     const rimOuter = [];
     const rimDrop = [];
     for (let i = 0; i < HORIZON_SEGMENTS; i++) {
-      rimInner.push(squareRimPoint(i, RIM_LIP_INSET, -DIRT_H + RIM_LIFT * 0.62, 510));
-      rimOuter.push(squareRimPoint(i, RIM_LIP_OUTSET, -DIRT_H + RIM_LIFT, 520));
-      rimDrop.push(squareRimPoint(i, RIM_DROP_OUTSET, -DIRT_H + RIM_LIFT * 0.12, 530));
+      rimInner.push(squareRimPoint(i, RIM_LIP_INSET, -DIRT_H + RIM_SEAL_OVERLAP, 510));
+      rimOuter.push(squareRimPoint(i, RIM_LIP_OUTSET, -DIRT_H + RIM_LIFT * 0.72, 520));
+      rimDrop.push(squareRimPoint(i, RIM_DROP_OUTSET, -DIRT_H - RIM_SEAL_OVERLAP, 530));
     }
     const collarBucket = materialBuckets[0];
     for (let i = 0; i < HORIZON_SEGMENTS; i++) {
@@ -19818,7 +19834,7 @@ function neighborStarVector(edge, index) {
   }
 
   // Compatibility no-op for older UI/import/demo paths. The playable home
-  // board is intentionally fixed at 15x15; surrounding ghost boards provide
+  // board is intentionally fixed at 30x30; surrounding ghost boards provide
   // the visually large world beyond the playable area.
   // TODO: remove this shim after callers no longer expose/restore grid sizes.
   function setHomeGridSize(_n, _opts) {
@@ -20398,7 +20414,7 @@ function neighborStarVector(edge, index) {
     }
     // Home grid size — a separate listener because it triggers a full
     // re-render rather than uniforms/material tweaks. Currently fixed at
-    // 15x15, so the disabled select is display-only.
+    // 30x30, so the disabled select is display-only.
     if (homeGridEl) {
       homeGridEl.disabled = true;
     }
@@ -21947,8 +21963,8 @@ function neighborStarVector(edge, index) {
   xrWorldRoot.add(cloudGroup);
   var clouds = [];
   var CLOUD_MAX = 18;
-  var CLOUD_RANGE_X = 24; // wrap-around x extent (centred on 0)
-  var CLOUD_Z_RANGE = 18;
+  var CLOUD_RANGE_X = Math.max(24, GRID * 1.6); // wrap-around x extent (centred on 0)
+  var CLOUD_Z_RANGE = Math.max(18, GRID * 1.2);
 
   // Build a per-fragment cloned material so each ring piece can carry its
   // own opacity and muted dust colour. Tagged so syncCloudPopulation can
@@ -22106,7 +22122,7 @@ function neighborStarVector(edge, index) {
   // splash/puff slabs on impact. This keeps precipitation in-world instead of
   // as a screen-space point overlay and costs one draw call per weather layer.
   const WEATHER_FLOOR = TOP_H + 0.05;
-  const WEATHER_VOLUME = Math.max(Math.min(HOME_GRID_MAX, 96) * 0.75, 18);
+  const WEATHER_VOLUME = Math.max(18, Math.min(96, GRID * 2.5));
   const WEATHER_CEIL = Math.max(renderCloudHeight + 6, 14);
   const WEATHER_INTENSITY_LS = 'tinyworld:weather-intensity.v2';
   const WEATHER_SPLASHES_LS = 'tinyworld:weather-splashes.v1';
@@ -26920,7 +26936,7 @@ function neighborStarVector(edge, index) {
     if (vehicleFleet.size) clearVehicleRuntime();
 
     // Saved/imported gridSize is ignored while the playable board is fixed
-    // at 15x15. Cells outside the home grid remain non-playable/outside-home.
+    // at 30x30. Cells outside the home grid remain non-playable/outside-home.
     GRID = HOME_GRID_DEFAULT;
     suppressSave = true;
     const overrides = new Map();
