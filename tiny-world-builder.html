@@ -3987,7 +3987,7 @@
     <div class="minimap-card">
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
-        <span id="minimap-size">30×30</span>
+        <span id="minimap-size">20×20</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
       </div>
       <label class="minimap-autoexpand" for="minimap-autoexpand">
@@ -4908,7 +4908,7 @@
 
   // -------- constants --------
   // GRID is the fixed home board edge length. The playable board is always
-  // 30x30. Ghost preview boards are retained for future modes but disabled
+  // 20x20. Ghost preview boards are retained for future modes but disabled
   // for the current EtherWars gameplay.
   // Temporary mock Resources struct for frontend-only playtesting.
   // TODO(contract/indexer): replace these values with contract, indexer, or S3
@@ -4925,7 +4925,7 @@
   let authoritativeGameState = null;
   let lastSavedInterRoundStateKey = null;
   const COLONY_STATUS_KEYS = ['army', 'food', 'water', 'oxygen', 'shelter'];
-  const HOME_GRID_DEFAULT = 30;
+  const HOME_GRID_DEFAULT = 20;
   const HOME_GRID_MIN = HOME_GRID_DEFAULT;
   // Storage/preview coordinate cap only; it does not resize the playable board.
   const HOME_GRID_MAX = 50;
@@ -4933,7 +4933,7 @@
   const HOME_GRID_VIEW_BASE = 15;
   const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
-  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-30.v1';
+  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-20.v1';
   const ENABLE_GHOST_BOARDS = false;
   const BASE_TERRAIN = 'stone';
   let GRID = HOME_GRID_DEFAULT;
@@ -5058,7 +5058,7 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
-  let currentTodMinutes = 0;
+  let currentTodMinutes = 200;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.84;
   const WEATHER_DECAL_LIFT = 0.09;
@@ -8155,9 +8155,16 @@
     return turret;
   }
 
-  function plasmaTurretScaleForLevel(level = 1, largeScale = 0.92) {
-    return (level || 1) > 2 ? largeScale : 0.7;
-  }
+  function plasmaTurretScaleForLevel(
+  level = 1,
+  largeScale = 1.5,
+  medScale = 1.2,
+  smallScale = 0.82
+) {
+  if (level > 4) return largeScale;   // 5+
+  if (level >= 3) return medScale;    // 3-4
+  return smallScale;                  // 1-2
+}
 
   // Space-themed glass-sided Command Center. Chosen explicitly via the House
   // fly-out menu (buildingType = 'skyscraper'). Single-cell footprint
@@ -9737,7 +9744,7 @@
 
   function addAirCommandForceShields(g) {
     // Air Command shield geometry is additive over the Pagoda-derived voxel
-    // roof: one roof cap plus four wall panels down to ground level.
+    // roof: one roof cap plus entrance-sized wall panels.
     const stamp = getVoxelBuildStamp('air-command');
     if (!g || !stamp || !Array.isArray(stamp.voxels) || !stamp.voxels.length) return;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -9752,8 +9759,8 @@
     const topY = (maxY - minY + 1) * unit;
     const shieldSide = unit * 5;
 
-    const shieldBottomY = topY * 0.5;
-    const shieldHeight = topY - shieldBottomY;
+    const shieldCenterY = topY * 0.75;
+    const shieldHeight = topY * 0.28;
 
     const roofSpanX = spanX * unit;
     const roofSpanZ = spanZ * unit;
@@ -9773,16 +9780,17 @@
     ];
     for (const spec of sideSpecs) {
       const panel = new THREE.Mesh(getBoxGeometry(spec.w, shieldHeight, spec.d), M.greenhouseGlass);
-      panel.position.set(spec.x, shieldBottomY + shieldHeight / 2, spec.z);
+      panel.position.set(spec.x, shieldCenterY, spec.z);
       panel.userData.noShadow = true;
       panel.renderOrder = 4;
       g.add(panel);
     }
   }
 
-  const AIR_COMMAND_MAX_LEVEL = 3;
+  const AIR_COMMAND_MAX_LEVEL = 6;
   const AIR_COMMAND_MINI_TURRET_SCALE = 0.7;
-  const AIR_COMMAND_MAIN_CANNON_SCALE = 1.5;
+  const AIR_COMMAND_MEDIUM_CANNON_SCALE = 1.15;
+  const AIR_COMMAND_LARGE_CANNON_SCALE = 1.5;
   const AIR_COMMAND_ROOF_ATTACHMENT_Y = 1.08;
   const AIR_COMMAND_ROOF_MOUNT_CORNERS = [
     { x: -5, z: -5, rot: Math.PI * 0.25 },
@@ -9819,17 +9827,13 @@
     return makePlasmaTurret(AIR_COMMAND_MINI_TURRET_SCALE);
   }
 
-  function makeAirCommandTurrets(metrics) {
+  function makeAirCommandTurrets(metrics, count = 4) {
     const turrets = new THREE.Group();
     if (!metrics) return turrets;
-    // Level 2 visual addition: four mini plasma guns on the roof corner blocks.
-    for (const mount of AIR_COMMAND_ROOF_MOUNT_CORNERS) {
-      const turret = makeMiniPlasmaGun();
-      turret.position.set((mount.x - metrics.centerX) * metrics.unit, metrics.roofY - 1.79, (mount.z - metrics.centerZ) * metrics.unit);
-      turret.rotation.y = mount.rot;
-      turrets.add(turret);
-    }
-    for (const mount of AIR_COMMAND_ROOF_MOUNT_CORNERS) {
+    const mounts = count <= 2
+      ? [AIR_COMMAND_ROOF_MOUNT_CORNERS[0], AIR_COMMAND_ROOF_MOUNT_CORNERS[3]]
+      : AIR_COMMAND_ROOF_MOUNT_CORNERS;
+    for (const mount of mounts) {
       const turret = makeMiniPlasmaGun();
       turret.position.set((mount.x - metrics.centerX) * metrics.unit, metrics.roofY - 0.26, (mount.z - metrics.centerZ) * metrics.unit);
       turret.rotation.y = mount.rot;
@@ -9838,10 +9842,10 @@
     return turrets;
   }
 
-  function makeAirCommandMainCannon(metrics) {
-    const cannon = makePlasmaTurret(AIR_COMMAND_MAIN_CANNON_SCALE);
+  function makeAirCommandMainCannon(metrics, scale = AIR_COMMAND_LARGE_CANNON_SCALE) {
+    const cannon = makePlasmaTurret(scale);
     if (!metrics) return cannon;
-    // Level 3 visual addition: one large plasma cannon in the exact roof center.
+    // Higher-level visual addition: one plasma cannon in the exact roof center.
     cannon.position.set(0, metrics.roofY + 0.02, 0);
     return cannon;
   }
@@ -9856,8 +9860,18 @@
     if (!g) return null;
     addAirCommandForceShields(g);
     const roofMetrics = airCommandRoofMetrics();
-    if (commandLevel >= 2) g.add(makeAirCommandTurrets(roofMetrics));
-    if (commandLevel >= 3) g.add(makeAirCommandMainCannon(roofMetrics));
+    if (commandLevel === 2) {
+      g.add(makeAirCommandTurrets(roofMetrics, 2));
+    } else if (commandLevel === 3) {
+      g.add(makeAirCommandTurrets(roofMetrics, 4));
+    } else if (commandLevel === 4) {
+      g.add(makeAirCommandMainCannon(roofMetrics, AIR_COMMAND_MEDIUM_CANNON_SCALE));
+    } else if (commandLevel === 5) {
+      g.add(makeAirCommandMainCannon(roofMetrics, AIR_COMMAND_LARGE_CANNON_SCALE));
+    } else if (commandLevel >= 6) {
+      g.add(makeAirCommandMainCannon(roofMetrics, AIR_COMMAND_LARGE_CANNON_SCALE));
+      g.add(makeAirCommandTurrets(roofMetrics, 2));
+    }
     g.userData = {
       kind: 'house',
       buildingType: 'air-command',
@@ -9867,7 +9881,9 @@
     return g;
   }
 
-  const CRYSTAL_RIG_MAX_LEVEL = 4;
+  const CRYSTAL_RIG_MAX_LEVEL = 6;
+  const CRYSTAL_RIG_HEIGHT_STAGE_MAX = 4;
+  const CRYSTAL_RIG_TURRET_SCALES = [0, 0.72, 0.92, 0.92, 1.2, 1.2, 1.5];
   const CRYSTAL_RIG_GLASS_THICKNESS = 0.018;
   const CRYSTAL_RIG_GLASS_BAY_WIDTH = 3;
   const CRYSTAL_RIG_GLASS_BAYS = [
@@ -9877,9 +9893,26 @@
     { y: 9.5, height: 2 },
   ];
 
+  function crystalRigLevel(level = 1) {
+    return Math.max(1, Math.min(CRYSTAL_RIG_MAX_LEVEL, level || 1));
+  }
+
+  function crystalRigHeightStage(level = 1) {
+    const rigLevel = crystalRigLevel(level);
+    if (rigLevel >= 6) return 4;
+    if (rigLevel >= 5) return 3;
+    if (rigLevel >= 3) return 2;
+    return 1;
+  }
+
+  function crystalRigTurretScale(level = 1) {
+    const rigLevel = crystalRigLevel(level);
+    return CRYSTAL_RIG_TURRET_SCALES[rigLevel] || CRYSTAL_RIG_TURRET_SCALES[1];
+  }
+
   function crystalMiningRigVoxelsForLevel(voxels, level = 1) {
-    const rigLevel = Math.max(1, Math.min(CRYSTAL_RIG_MAX_LEVEL, level || 1));
-    const topShift = (rigLevel - CRYSTAL_RIG_MAX_LEVEL) * 3;
+    const heightStage = crystalRigHeightStage(level);
+    const topShift = (heightStage - CRYSTAL_RIG_HEIGHT_STAGE_MAX) * 3;
     const topBaseY = 11 + topShift;
     return voxels.reduce((out, v) => {
       if (v.y >= 1 && v.y <= 10 && v.y >= topBaseY) return out;
@@ -9891,14 +9924,14 @@
 
   function addCrystalMiningRigGlassPanels(g, unit, centerX, centerZ, minY, level = 1) {
     ensureCropDomeAssets();
-    const rigLevel = Math.max(1, Math.min(CRYSTAL_RIG_MAX_LEVEL, level || 1));
+    const heightStage = crystalRigHeightStage(level);
     const panelWidth = CRYSTAL_RIG_GLASS_BAY_WIDTH * unit;
     const thickness = CRYSTAL_RIG_GLASS_THICKNESS;
     const sideZ = [2, -2].map(z => (z - centerZ) * unit);
     const sideX = [2, -2].map(x => (x - centerX) * unit);
     const xCenter = (0 - centerX) * unit;
     const zCenter = (0 - centerZ) * unit;
-    for (const bay of CRYSTAL_RIG_GLASS_BAYS.slice(0, rigLevel)) {
+    for (const bay of CRYSTAL_RIG_GLASS_BAYS.slice(0, heightStage)) {
       const y = (bay.y - minY) * unit + unit / 2;
       const h = bay.height * unit;
       const zPanelGeo = getBoxGeometry(panelWidth, h, thickness);
@@ -9921,21 +9954,16 @@
   }
 
   function addCrystalMiningRigRoofDetails(g, unit, centerX, centerZ, minY, level = 1) {
-    const rigLevel = Math.max(1, Math.min(CRYSTAL_RIG_MAX_LEVEL, level || 1));
-    const topShift = (rigLevel - CRYSTAL_RIG_MAX_LEVEL) * 3;
+    const heightStage = crystalRigHeightStage(level);
+    const topShift = (heightStage - CRYSTAL_RIG_HEIGHT_STAGE_MAX) * 3;
     const roofY = (19 + topShift - minY) * unit;
     const wx = x => (x - centerX) * unit;
     const wz = z => (z - centerZ) * unit;
 
-    for (const [x, z, rot] of [
-      [-1.80, -1.80, Math.PI * 0.75],
-      [ 1.80,  1.80, Math.PI * 1.75],
-    ]) {
-      const turret = makePlasmaTurret(plasmaTurretScaleForLevel(rigLevel, 1));
-      turret.position.set(wx(x), roofY + 0.12 * unit, wz(z));
-      turret.rotation.y = rot;
-      g.add(turret);
-    }
+    const turret = makePlasmaTurret(crystalRigTurretScale(level));
+    turret.position.set(wx(0), roofY + 0.12 * unit, wz(0));
+    turret.rotation.y = Math.PI * 0.75;
+    g.add(turret);
   }
 
   function vbox(parent, w, h, d, x, y, z, mat, opts = {}) {
@@ -17156,8 +17184,6 @@ function neighborStarVector(edge, index) {
     // same kind without specifying, keep the previous value.
     const requestedFloors = (floors !== undefined) ? floors
                           : (kindChanged ? 1 : (prev.floors || 1));
-    const newFloors = clampFloorsForKind(nextKind, requestedFloors);
-    const floorsChanged = (prev.floors || 1) !== newFloors;
     const requestedTerrainFloors = (terrainFloors !== undefined) ? terrainFloors : terrainLevelForCell(prev);
     const newTerrainFloors = nextTerrain === 'water' ? 1 : requestedTerrainFloors;
     const terrainFloorsChanged = terrainLevelForCell(prev) !== newTerrainFloors;
@@ -17168,6 +17194,11 @@ function neighborStarVector(edge, index) {
     if (nextKind !== 'house') newBType = null;
     else if (!newBType) newBType = 'tower';
     const bTypeChanged = normalizeBuildingType(prev.buildingType) !== newBType;
+    const newFloors = Math.max(1, Math.min(
+      nextKind === 'house' && newBType === 'air-command' ? AIR_COMMAND_MAX_LEVEL : maxFloorsForKind(nextKind),
+      Math.round(Number(requestedFloors)) || 1
+    ));
+    const floorsChanged = (prev.floors || 1) !== newFloors;
     let newFenceSide = (fenceSide !== undefined) ? (fenceSide || null)
                      : (kindChanged ? null : (prev.fenceSide || null));
     if (nextKind === 'fence') newFenceSide = normalizeFenceSide(newFenceSide);
@@ -19871,7 +19902,7 @@ function neighborStarVector(edge, index) {
   }
 
   // Compatibility no-op for older UI/import/demo paths. The playable home
-  // board is intentionally fixed at 30x30; surrounding ghost boards provide
+  // board is intentionally fixed at 20x20; surrounding ghost boards provide
   // the visually large world beyond the playable area.
   // TODO: remove this shim after callers no longer expose/restore grid sizes.
   function setHomeGridSize(_n, _opts) {
@@ -20451,7 +20482,7 @@ function neighborStarVector(edge, index) {
     }
     // Home grid size — a separate listener because it triggers a full
     // re-render rather than uniforms/material tweaks. Currently fixed at
-    // 30x30, so the disabled select is display-only.
+    // 20x20, so the disabled select is display-only.
     if (homeGridEl) {
       homeGridEl.disabled = true;
     }
@@ -22630,7 +22661,7 @@ function neighborStarVector(edge, index) {
   const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
   const FLIGHT_DUST_SPEED = 5.45;       // m/s while spraying
   const FLIGHT_CRUISE_SPEED = 12.4;      // m/s while transiting / banner pass
-  const FLIGHT_DUST_ALT = 3.5;
+  const FLIGHT_DUST_ALT = 3.5;          // height above the target building base
   const FLIGHT_GROUND_HOLD_SEC = 4.5;
   const FLIGHT_CRUISE_ALT = 5.6;
   const FLIGHT_REFUEL_MIN = 6.0;
@@ -22667,6 +22698,8 @@ function neighborStarVector(edge, index) {
     holdDone: false,
     holdTimer: 0,
     holdEligible: false,
+    flightDustY: FLIGHT_DUST_ALT,
+    flightGroundSlowY: FLIGHT_DUST_ALT + 0.72,
   };
   // Scratch vectors reused per frame to avoid allocations in the hot path.
   const _flightPos = new THREE.Vector3();
@@ -22956,7 +22989,11 @@ function neighborStarVector(edge, index) {
       const cell = getWorldCell(x, z);
       if (!isAirCommandCell(cell)) continue;
       const p = tilePos(x, z);
-      buildings.push({ x, z, worldX: p.x, worldZ: p.z });
+      const entry = cellMeshes[x + ',' + z];
+      const objectBaseY = entry && entry.object && Number.isFinite(entry.object.userData.baseY)
+        ? entry.object.userData.baseY
+        : TOP_H + terrainRiseAt(x, z);
+      buildings.push({ x, z, worldX: p.x, worldZ: p.z, baseY: objectBaseY });
     }
     return buildings;
   }
@@ -22977,8 +23014,10 @@ function neighborStarVector(edge, index) {
     const targetBuilding = getAirCommandFlightTarget();
     if (!targetBuilding) return null;
     cropDusterState.airCommandTarget = targetBuilding;
-    const dustY = FLIGHT_DUST_ALT;
-    const cruiseY = Math.max(renderCloudHeight + 0.4, FLIGHT_CRUISE_ALT);
+    const dustY = targetBuilding.baseY + FLIGHT_DUST_ALT;
+    cropDusterState.flightDustY = dustY;
+    cropDusterState.flightGroundSlowY = dustY + 0.72;
+    const cruiseY = Math.max(renderCloudHeight + 0.4, FLIGHT_CRUISE_ALT, dustY + 1.2);
     const axis = Math.random() < 0.5 ? 'x' : 'z';
     // Flip the approach direction occasionally so the plane doesn't always
     // arrive from the same corner.
@@ -23049,6 +23088,10 @@ function neighborStarVector(edge, index) {
     cropDusterState.holdDone = false;
     cropDusterState.holdTimer = 0;
     cropDusterState.holdEligible = !!airCommandCurve;
+    if (!airCommandCurve) {
+      cropDusterState.flightDustY = FLIGHT_DUST_ALT;
+      cropDusterState.flightGroundSlowY = FLIGHT_GROUND_SLOW_ALT;
+    }
     if (bannerMesh) bannerMesh.visible = false;
     if (bannerWire) bannerWire.visible = false;
     cropDusterRoot.visible = true;
@@ -23068,6 +23111,8 @@ function neighborStarVector(edge, index) {
     cropDusterState.holdDone = true;
     cropDusterState.holdTimer = 0;
     cropDusterState.holdEligible = false;
+    cropDusterState.flightDustY = FLIGHT_DUST_ALT;
+    cropDusterState.flightGroundSlowY = FLIGHT_GROUND_SLOW_ALT;
     setBannerText(text);
     bannerMesh.visible = true;
     cropDusterRoot.visible = true;
@@ -23107,7 +23152,7 @@ function neighborStarVector(edge, index) {
     const probeTravel = Math.min(cropDusterState.curveLen, travel + baseSpeed * dt);
     const probeU = Math.max(0, Math.min(1, probeTravel / cropDusterState.curveLen));
     curve.getPointAt(probeU, _flightAhead);
-    return _flightAhead.y <= FLIGHT_GROUND_SLOW_ALT
+    return _flightAhead.y <= cropDusterState.flightGroundSlowY
       ? baseSpeed * FLIGHT_GROUND_SLOW_SPEED_MULT
       : baseSpeed;
   }
@@ -23202,7 +23247,7 @@ function neighborStarVector(edge, index) {
       ) {
         const nextU = Math.min(1, nextTravel / cropDusterState.curveLen);
         curve.getPointAt(nextU, _flightPos);
-        if (_flightPos.y <= FLIGHT_DUST_ALT + 0.00001) {
+        if (_flightPos.y <= cropDusterState.flightDustY + 0.00001) {
           cropDusterState.holdTargetTravel = Math.min(
             nextTravel + FLIGHT_GROUND_HOLD_FORWARD_OFFSET,
             cropDusterState.curveLen
@@ -23281,7 +23326,7 @@ function neighborStarVector(edge, index) {
     // Ground dust: during an Air Command approach, keep the existing particle
     // timing but localize the effect around the selected building instead of
     // scanning crop fields.
-    if (!cropDusterState.isBanner && cropDusterState.airCommandTarget && _flightPos.y < FLIGHT_DUST_ALT + 0.55) {
+    if (!cropDusterState.isBanner && cropDusterState.airCommandTarget && _flightPos.y < cropDusterState.flightDustY + 0.55) {
       const t = cropDusterState.airCommandTarget;
       const dx = cropDusterRoot.position.x - t.worldX;
       const dz = cropDusterRoot.position.z - t.worldZ;
@@ -26977,7 +27022,7 @@ function neighborStarVector(edge, index) {
     if (vehicleFleet.size) clearVehicleRuntime();
 
     // Saved/imported gridSize is ignored while the playable board is fixed
-    // at 30x30. Cells outside the home grid remain non-playable/outside-home.
+    // at 20x20. Cells outside the home grid remain non-playable/outside-home.
     GRID = HOME_GRID_DEFAULT;
     suppressSave = true;
     const overrides = new Map();
@@ -26996,7 +27041,11 @@ function neighborStarVector(edge, index) {
       }
       if (typeof x !== 'number' || typeof z !== 'number') continue;
       const normalizedKind = kind || null;
-      const normalizedFloors = floors || 1;
+      const normalizedBType = normalizeBuildingType(buildingType) || null;
+      const normalizedFloors = Math.max(1, Math.min(
+        normalizedKind === 'house' && normalizedBType === 'air-command' ? AIR_COMMAND_MAX_LEVEL : MAX_FLOORS,
+        Math.round(Number(floors)) || 1
+      ));
       let normalizedTerrainFloors = terrainFloors || (data.v === 3 ? 1 : (normalizedKind ? 1 : normalizedFloors));
       // Houses-on-stilts guard: any built / man-made / planted kind that
       // doesn't naturally sit on raised stone gets clamped to flat
@@ -27043,7 +27092,7 @@ function neighborStarVector(edge, index) {
         terrainFloors: normalizedTerrainFloors,
         kind: normalizedKind,
         floors: normalizedFloors,
-        buildingType: buildingType || null,
+        buildingType: normalizedBType,
         fenceSide: normalizedKind === 'fence' ? normalizeFenceSide(fenceSide) : null,
         extras: normalizedExtras,
         rotationY, offsetX, offsetZ,
