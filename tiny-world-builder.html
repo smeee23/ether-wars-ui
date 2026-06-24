@@ -18278,14 +18278,9 @@ function neighborStarVector(edge, index) {
       return;
     }
 
-    // The "primary" cell is whichever cell's mesh visually represents the change.
-    // For house placements that join/extend a cluster, that's the cluster anchor —
-    // not the click cell, since the click cell may render nothing.
-    let primaryX = x, primaryZ = z;
-    if (nextKind === 'house') {
-      const c = findHouseCluster(x, z);
-      primaryX = c.anchorX; primaryZ = c.anchorZ;
-    }
+    // The edited tile owns the placement/delete animation. Neighbor meshes may
+    // still refresh for adjacency, but they should not bounce.
+    const primaryX = x, primaryZ = z;
 
     // Collect every cell whose rendered mesh might need to change: this cell,
     // its 4 neighbours, AND every house connected to those (so a cluster split

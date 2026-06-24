@@ -32,6 +32,9 @@ Expected behavior:
 - Object/building `floors` are per-cell. Do not propagate levels to adjacent
   matching buildings or resources during placement, upgrade, deletion, or
   adjacency re-rendering.
+- Placement/delete animations belong to the edited tile. Neighbor cells may
+  re-render for adjacency, but should not receive the drop/bounce/impact
+  animation for another tile's change.
 - Same-kind rock neighbours may connect visually, but must not inherit or
   scale from a neighbor's `floors`.
 - Crop/terraform greenhouse side masking must compare the same panel profile
