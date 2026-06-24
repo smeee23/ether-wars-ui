@@ -4908,7 +4908,8 @@
 
   // -------- constants --------
   // GRID is the fixed home board edge length. The playable board is always
-  // 30x30; larger surroundings are visual ghost boards outside the home grid.
+  // 30x30. Ghost preview boards are retained for future modes but disabled
+  // for the current EtherWars gameplay.
   // Temporary mock Resources struct for frontend-only playtesting.
   // TODO(contract/indexer): replace these values with contract, indexer, or S3
   // game-state snapshot data when real game-state integration lands.
@@ -4933,6 +4934,7 @@
   const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
   const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-30.v1';
+  const ENABLE_GHOST_BOARDS = false;
   const BASE_TERRAIN = 'stone';
   let GRID = HOME_GRID_DEFAULT;
 
@@ -5227,6 +5229,7 @@
   }
 
   function maxRenderVisibleDistanceForGrid(grid) {
+    if (!ENABLE_GHOST_BOARDS) return 0;
     return renderBudgetForGrid(grid).maxDistance;
   }
 
@@ -5238,6 +5241,7 @@
 
   function previewSettingsForGrid(grid, explored) {
     const g = coerceGridSize(grid, GRID);
+    if (!ENABLE_GHOST_BOARDS) return { distance: 0, visibleSize: g };
     const budget = renderBudgetForGrid(g);
     const distance = Math.min(budget.maxDistance, g <= 12 ? 3 : 2);
     const visibleSize = explored ? maxRenderVisibleSizeForGrid(g) : g;
@@ -5261,6 +5265,7 @@
     return previewSettingsForGrid(GRID, true).visibleSize;
   }
   function expandVisibleSizeOnFirstMove() {
+    if (!ENABLE_GHOST_BOARDS) return false;
     if (!renderAutoExpand) return false;
     if (hasUserPanned) return false;
     hasUserPanned = true;
@@ -5349,7 +5354,7 @@
   }
 
   function ghostBoardsEnabledForGrid() {
-    return !!renderAutoExpand && renderBudgetForGrid(GRID).ghostRadius > 0;
+    return ENABLE_GHOST_BOARDS && !!renderAutoExpand && renderBudgetForGrid(GRID).ghostRadius > 0;
   }
 
   function clearGhostBoardsOnly() {
@@ -5671,6 +5676,14 @@
     const m = renderer.info.memory;
     const programs = (renderer.info.programs && renderer.info.programs.length) || 0;
     const ghostQueue = (typeof pendingGhostBoards !== 'undefined') ? pendingGhostBoards.length : 0;
+    let sceneObjects = 0;
+    let sceneMeshes = 0;
+    if (scene && typeof scene.traverse === 'function') {
+      scene.traverse(o => {
+        sceneObjects++;
+        if (o && o.isMesh) sceneMeshes++;
+      });
+    }
     statsOverlay.textContent =
       'fps     ' + fps.toFixed(1) + '\n' +
       'frame   ' + avg.toFixed(2) + 'ms\n' +
@@ -5680,6 +5693,9 @@
       'mats    ' + (typeof fadeMatCache !== 'undefined' ? fadeMatCache.size : '-') + '\n' +
       'progs   ' + programs + '\n' +
       'texs    ' + m.textures + '\n' +
+      'objs    ' + sceneObjects.toLocaleString() + '\n' +
+      'meshes  ' + sceneMeshes.toLocaleString() + '\n' +
+      'world   ' + (typeof worldGroup !== 'undefined' ? worldGroup.children.length : 0) + '\n' +
       'ghosts  ' + (typeof ghostBoards !== 'undefined' ? ghostBoards.size : 0) +
         (ghostQueue ? ' (+' + ghostQueue + ')' : '') + '\n' +
       'crops   ' + (typeof cropPositions !== 'undefined' ? cropPositions.size : 0) + '\n' +
@@ -14877,6 +14893,10 @@ function neighborStarVector(edge, index) {
   }
 
   function rebuildExistingGhostBoards() {
+    if (!ghostBoardsEnabledForGrid()) {
+      clearGhostBoardsOnly();
+      return;
+    }
     const coords = [...ghostBoards.values()].map(board => [board.userData.boardX, board.userData.boardZ]);
     for (const [boardX, boardZ] of coords) rebuildGhostBoard(boardX, boardZ);
     ensureGhostBoardsAroundTarget();
@@ -14950,6 +14970,15 @@ function neighborStarVector(edge, index) {
   }
 
   function updateGhostRenderBubble() {
+    if (!ghostBoardsEnabledForGrid()) {
+      if (ghostBoards.size || pendingGhostBoards.length || cheapGhostTerrainBuckets.size) {
+        clearGhostBoardsOnly();
+      }
+      setUnsavedBannerVisible(false);
+      updateHomeBoardFade();
+      syncHoverVisibility();
+      return;
+    }
     const cx = boardFromTargetCoord(target.x);
     const cz = boardFromTargetCoord(target.z);
     let anyUnsavedVisible = false;
@@ -15022,6 +15051,7 @@ function neighborStarVector(edge, index) {
   const pendingGhostBoards = [];
   const pendingGhostBoardSet = new Set();
   function enqueueGhostBoard(bx, bz) {
+    if (!ghostBoardsEnabledForGrid()) return;
     if (bx === 0 && bz === 0) return;
     const key = ghostBoardKey(bx, bz);
     if (ghostBoards.has(key) || pendingGhostBoardSet.has(key)) return;
@@ -15047,6 +15077,7 @@ function neighborStarVector(edge, index) {
   // neighbouring GRID² board to full-quality meshes just because
   // renderVisibleSize is clamped to at least GRID.
   function getDesiredGhostDetail(boardX, boardZ) {
+    if (!ghostBoardsEnabledForGrid()) return 'cheap';
     const cx = boardFromTargetCoord(target.x);
     const cz = boardFromTargetCoord(target.z);
     const dist = Math.max(Math.abs(boardX - cx), Math.abs(boardZ - cz));
@@ -15064,6 +15095,11 @@ function neighborStarVector(edge, index) {
   // camera movement. Rebuilds any ghost boards whose desired detail level has
   // changed so that quality is only reduced when the user is actually zoomed out.
   function reevaluateGhostDetailLevels() {
+    if (!ghostBoardsEnabledForGrid()) {
+      clearPendingGhostBoards();
+      if (ghostBoards.size || cheapGhostTerrainBuckets.size) clearGhostBoardsOnly();
+      return;
+    }
     for (const board of ghostBoards.values()) {
       const bx = board.userData.boardX;
       const bz = board.userData.boardZ;
@@ -15079,6 +15115,7 @@ function neighborStarVector(edge, index) {
   // upgrades nearby ghosts to full quality and downgrades far ones.
   let lastGhostDetailCheck = 0;
   function maybeReevaluateGhostDetails() {
+    if (!ghostBoardsEnabledForGrid()) return;
     const now = performance.now();
     if (now - lastGhostDetailCheck > 350) {   // ~3 times per second is plenty
       lastGhostDetailCheck = now;
@@ -23383,12 +23420,16 @@ function neighborStarVector(edge, index) {
       if (homeRenderQueue.length) processHomeRenderQueue(5);
     }
 
-    // Drain the ghost-board build queue in small slices so visible-distance
-    // changes and Reset don't lock up the frame.
-    if (pendingGhostBoards.length) processGhostBoardQueue(6);
+    if (ENABLE_GHOST_BOARDS) {
+      // Drain the ghost-board build queue in small slices so visible-distance
+      // changes and Reset don't lock up the frame.
+      if (pendingGhostBoards.length) processGhostBoardQueue(6);
 
-    // React to camera movement/zoom for progressive ghost quality
-    maybeReevaluateGhostDetails();
+      // React to camera movement/zoom for progressive ghost quality.
+      maybeReevaluateGhostDetails();
+    } else if (pendingGhostBoards.length || ghostBoards.size || cheapGhostTerrainBuckets.size) {
+      clearGhostBoardsOnly();
+    }
 
     // Sway only the roots that can actually animate. Scanning every cell
     // every frame becomes noticeable once generated worlds reach 32/48.
@@ -28438,11 +28479,20 @@ function neighborStarVector(edge, index) {
     }
     paintSize();
     function syncAutoExpandControl() {
-      if (autoExpandEl) autoExpandEl.checked = !!renderAutoExpand;
+      if (!autoExpandEl) return;
+      autoExpandEl.checked = ENABLE_GHOST_BOARDS && !!renderAutoExpand;
+      autoExpandEl.disabled = !ENABLE_GHOST_BOARDS;
     }
     syncAutoExpandControl();
     if (autoExpandEl) {
       autoExpandEl.addEventListener('change', () => {
+        if (!ENABLE_GHOST_BOARDS) {
+          renderAutoExpand = false;
+          syncAutoExpandControl();
+          clearGhostBoardsOnly();
+          requestMinimapRepaint();
+          return;
+        }
         renderAutoExpand = !!autoExpandEl.checked;
         try { localStorage.setItem(RENDER_LS.autoExpand, renderAutoExpand ? '1' : '0'); } catch (_) {}
         if (renderAutoExpand) {
