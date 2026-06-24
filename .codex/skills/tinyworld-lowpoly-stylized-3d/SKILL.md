@@ -55,6 +55,11 @@ Use this together with:
 - Air Command force-shield wall panels should stay entrance-sized and centered
   on the plane-entry opening; do not stretch them across the full building
   height or down to the terrain base.
+- Habitat hatch/door details should be anchored from the lower shell edge, not
+  from the level-scaled body center, so repeated level upgrades do not lift the
+  entrance away from the ground.
+- Command Center (`skyscraper`) should share the habitat-style dome and
+  antenna/dish comms silhouette in both detailed and voxel/preview factories.
 - When voxel stamps need to match built-in procedural structures, prefer passing targeted material overrides that reuse shared `M.*` materials instead of copying equivalent hex colors into the voxel palette.
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.

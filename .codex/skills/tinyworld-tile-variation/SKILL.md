@@ -29,7 +29,11 @@ Expected behavior:
 - Terrain height changes must rebuild the visible tile mesh immediately, even when terrain/kind did not change.
 - Object intensity changes must rebuild the object mesh, not the ground mesh.
 - Object variations should remain the same `kind` unless a schema change is explicitly requested.
-- Same-kind rock neighbours should blend by neighbour strength, not render as identical stamped cells.
+- Object/building `floors` are per-cell. Do not propagate levels to adjacent
+  matching buildings or resources during placement, upgrade, deletion, or
+  adjacency re-rendering.
+- Same-kind rock neighbours may connect visually, but must not inherit or
+  scale from a neighbor's `floors`.
 - Crop/terraform greenhouse side masking must compare the same panel profile
   that is actually rendered. If tree boxes render at crop-dome height, their
   adjacency profile must also be crop-dome height, and out-of-bounds neighbors

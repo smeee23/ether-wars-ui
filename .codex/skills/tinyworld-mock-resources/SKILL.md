@@ -74,6 +74,9 @@ Validation:
   `army`, civilian buildings contribute `shelter`. Keep UI labels, role color,
   cost text, placement spending, erase refunds, stat/resource accounting, and
   the 1:1 cost/effect rule derived from that central table.
+- Command Center (`highrise` / `skyscraper`) is a civilian shelter building:
+  cost 30 credits and produce 30 Shelter. Air Command remains the military
+  house variant.
 - Oxygen Generation Plant is a resource-backed non-house building in
   `RESOURCE_BUILD_RULES`: it spends `gold`, contributes `oxygen`, upgrades
   through the generic repeat-click `floors` path, and relies on

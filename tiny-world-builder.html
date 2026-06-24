@@ -7300,16 +7300,11 @@
       g.add(m);
     });
 
-    function sideLevel(dir) {
-      return typeof n[dir] === 'number' ? n[dir] : (n[dir] ? 1 : 0);
-    }
-
     function addOutcrop(dir) {
       const alongX = dir === 'n' || dir === 's';
-      const sideExtra = Math.max(0, sideLevel(dir) - 1);
-      const sideGrow = 1 + (extra + sideExtra) * 0.045;
+      const sideGrow = 1 + extra * 0.045;
       const foot = new THREE.Mesh(
-        roundedBox((alongX ? 0.42 : 0.26) * sideGrow, 0.07 + (extra + sideExtra) * 0.006, (alongX ? 0.26 : 0.42) * sideGrow, 0.03),
+        roundedBox((alongX ? 0.42 : 0.26) * sideGrow, 0.07 + extra * 0.006, (alongX ? 0.26 : 0.42) * sideGrow, 0.03),
         M.rockDk
       );
       foot.position.set(
@@ -7321,22 +7316,22 @@
       g.add(foot);
 
       const shelf = new THREE.Mesh(
-        new THREE.BoxGeometry((alongX ? 0.48 : 0.34) * sideGrow, 0.16 + (extra + sideExtra) * 0.010, (alongX ? 0.36 : 0.48) * sideGrow),
+        new THREE.BoxGeometry((alongX ? 0.48 : 0.34) * sideGrow, 0.16 + extra * 0.010, (alongX ? 0.36 : 0.48) * sideGrow),
         dir === 'n' || dir === 'w' ? M.rockDk : M.rock
       );
       shelf.position.set(
         dir === 'w' ? -0.36 : dir === 'e' ? 0.36 : 0,
-        0.09 + (extra + sideExtra) * 0.009,
+        0.09 + extra * 0.009,
         dir === 'n' ? -0.36 : dir === 's' ? 0.36 : 0
       );
       shelf.rotation.set(0.08, alongX ? 0.18 : -0.22, dir === 'e' || dir === 's' ? 0.06 : -0.04);
       g.add(shelf);
 
-      const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + (extra + sideExtra) * 0.007, 0), dir === 'e' || dir === 'n' ? M.rockHi : M.rockDk);
-      crown.scale.set(1.10 + jitter(30) * 0.18, 0.60 + (extra + sideExtra) * 0.024, 0.90 + jitter(31) * 0.18);
+      const crown = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + extra * 0.007, 0), dir === 'e' || dir === 'n' ? M.rockHi : M.rockDk);
+      crown.scale.set(1.10 + jitter(30) * 0.18, 0.60 + extra * 0.024, 0.90 + jitter(31) * 0.18);
       crown.position.set(
         dir === 'w' ? -0.39 : dir === 'e' ? 0.39 : (dir === 'n' ? -0.10 : 0.10),
-        0.20 + (extra + sideExtra) * 0.014,
+        0.20 + extra * 0.014,
         dir === 'n' ? -0.39 : dir === 's' ? 0.39 : (dir === 'w' ? 0.10 : -0.10)
       );
       crown.rotation.y = dir === 'n' ? 0.8 : dir === 's' ? -0.4 : dir === 'e' ? 1.6 : -1.1;
@@ -8322,6 +8317,21 @@
   return smallScale;                  // 1-2
 }
 
+  function addCommandCenterComms(g, roofY) {
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), M.habitatWindow);
+    dome.scale.set(1, 0.62, 1);
+    dome.position.set(-0.10, roofY + 0.16, -0.06);
+    g.add(dome);
+
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.34, 6), M.habitatTrim);
+    mast.position.set(0.34, roofY + 0.30, -0.12);
+    g.add(mast);
+    const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.05, 0.035, 10), M.habitatWindow);
+    dish.position.set(0.34, roofY + 0.48, -0.12);
+    dish.rotation.x = Math.PI / 2.8;
+    g.add(dish);
+  }
+
   // Space-themed glass-sided Command Center. Chosen explicitly via the House
   // fly-out menu (buildingType = 'skyscraper'). Single-cell footprint
   // regardless of clustering. floors scales the height from the first level.
@@ -8359,10 +8369,7 @@
     const roof = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.05, D + 0.04), M.habitatTrim);
     roof.position.y = totalH + 0.025;
     g.add(roof);
-
-    const plasmaTurret = makePlasmaTurret(plasmaTurretScaleForLevel(f, 0.92));
-    plasmaTurret.position.y = totalH + 0.065;
-    g.add(plasmaTurret);
+    addCommandCenterComms(g, totalH + 0.05);
 
     // Ground-floor entrance — same hatch proportions/materials as the habitat.
     const hatch = new THREE.Mesh(getBoxGeometry(0.20, 0.24, 0.035), M.habitatBand);
@@ -8415,12 +8422,13 @@
     g.add(dome);
 
     const hatchOuterX = 0.57;
+    const hatchY = bodyY - bodyR + 0.20;
     const hatch = new THREE.Mesh(getBoxGeometry(0.20, 0.24, 0.035), M.habitatBand);
-    hatch.position.set(hatchOuterX + 0.030, bodyY, 0.12);
+    hatch.position.set(hatchOuterX + 0.030, hatchY, 0.12);
     hatch.rotation.y = Math.PI / 2;
     g.add(hatch);
     const hatchWindow = new THREE.Mesh(getBoxGeometry(0.09, 0.07, 0.018), M.habitatWindow);
-    hatchWindow.position.set(hatchOuterX + 0.060, bodyY + 0.05, 0.12);
+    hatchWindow.position.set(hatchOuterX + 0.060, hatchY + 0.05, 0.12);
     hatchWindow.rotation.y = Math.PI / 2;
     g.add(hatchWindow);
     const step = new THREE.Mesh(getBoxGeometry(0.24, 0.05, 0.16), M.step);
@@ -10344,9 +10352,8 @@
       if (i % 2 === 0) vbox(g, 0.84, 0.025, 0.84, 0, i * floorH + 0.02, 0, M.habitatTrim);
     }
     vbox(g, 0.88, 0.08, 0.88, 0, h + 0.04, 0, M.habitatTrim);
-    const plasmaTurret = makePlasmaTurret(plasmaTurretScaleForLevel(f, 1));
-    plasmaTurret.position.y = h + 0.09;
-    g.add(plasmaTurret);
+    addCommandCenterComms(g, h + 0.08);
+
     vbox(g, 0.20, 0.24, 0.035, 0, 0.12, 0.42, M.habitatBand);
     vbox(g, 0.09, 0.07, 0.018, 0, 0.17, 0.45, M.habitatWindow);
     vbox(g, 0.24, 0.05, 0.16, 0, 0.03, 0.47, M.step);
@@ -16303,7 +16310,7 @@ function neighborStarVector(edge, index) {
   function getRockNeighbors(x, z) {
     function probe(nx, nz) {
       const c = getWorldCell(nx, nz);
-      return c.kind === 'rock' ? (c.floors || 1) : 0;
+      return c.kind === 'rock';
     }
     return {
       n: probe(x, z - 1),
@@ -16315,8 +16322,8 @@ function neighborStarVector(edge, index) {
 
   function getGhostRockNeighbors(cells, x, z) {
     function probe(nx, nz) {
-      if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) return 0;
-      return cells[nx][nz].kind === 'rock' ? (cells[nx][nz].floors || 1) : 0;
+      if (nx < 0 || nx >= GRID || nz < 0 || nz >= GRID) return false;
+      return cells[nx][nz].kind === 'rock';
     }
     return {
       n: probe(x, z - 1),
@@ -16912,8 +16919,8 @@ function neighborStarVector(edge, index) {
     sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
     sheep: { label: 'Sheep', cost: { gold: 20 }, effect: { food: 20 } },
     cow: { label: 'Cow', cost: { gold: 40 }, effect: { food: 40 } },
-    highrise: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 30 } },
-    skyscraper: { label: 'Command Center', role: 'military', cost: { gold: 30 }, effect: { army: 30 } },
+    highrise: { label: 'Command Center', role: 'civilian', cost: { gold: 30 }, effect: { shelter: 30 } },
+    skyscraper: { label: 'Command Center', role: 'civilian', cost: { gold: 30 }, effect: { shelter: 30 } },
     'air-command': { label: 'Air Command', role: 'military', cost: { gold: 45 }, effect: { army: 45 } },
     habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 24 } },
     fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 10 } },
@@ -18238,13 +18245,6 @@ function neighborStarVector(edge, index) {
       if (!suppressSave && typeof fireWebhook === 'function') fireWebhook('cell.set', { x, z, cell: world[x][z] });
     };
 
-    // For house clusters, every cell shares the floors count. Propagate to all.
-    if (nextKind === 'house' && floorsChanged) {
-      for (const c of bfsHouseCluster(x, z)) {
-        if (c.x !== x || c.z !== z) world[c.x][c.z].floors = newFloors;
-      }
-    }
-
     if (terrainChanged || tileHeightChanged || forceTile || borderStateChanged) {
       renderCellTile(x, z, { animate, delay: tileDelay });
     } else if (!cellMeshes[x + ',' + z] || !cellMeshes[x + ',' + z].tile) {
@@ -18993,7 +18993,7 @@ function neighborStarVector(edge, index) {
     { id: 'house',  label: 'House',  kind: 'house', color: '#3a72c8', shortcut: '5', group: 'build',
       variants: [
         { id: 'tower',      label: 'Tower',          buildingType: 'tower',      hint: 'civilian shelter tower' },
-        { id: 'highrise',   label: 'Command Center', buildingType: 'skyscraper', hint: 'military command structure' },
+        { id: 'highrise',   label: 'Command Center', buildingType: 'skyscraper', hint: 'civilian shelter command' },
         { id: 'air-command', label: 'Air Command',   buildingType: 'air-command', hint: 'military air command' },
         { id: 'habitat',    label: 'Habitat',        buildingType: 'habitat',    hint: 'civilian shelter module' },
       ],
@@ -25040,7 +25040,7 @@ function neighborStarVector(edge, index) {
     '- Use terrain as the base primitive: grass=open space, path=paved/concrete, dirt=earth/fields, water=canals/ponds. Use terrainFloors for platforms, terraces, steps, banks, ramps, plinths, hills, mountains, and cliffs.',
     '- Use fences as line primitives: rails, walls, borders, pens, queue barriers, garden edging, pier rails, and road gates. Set fenceSide deliberately.',
     '- Use rocks as sparse sculptural props only: boulders, monuments, rubble, stepping stones, and focal landmarks. Do not use rock props to represent broad hills or mountains.',
-    '- Use explicit house variants as massing primitives: towers and habitats for civilian shelter, Command Centers and Air Command for military structures. Do not emit null/default house buildingType.',
+    '- Use explicit house variants as massing primitives: towers, habitats, and Command Centers for civilian shelter, and Air Command for military structures. Do not emit null/default house buildingType.',
     '- Buildings must sit directly on flat grass or dirt. Do not put houses on path, water, lava, raised terrain, decks, bridges, platforms, posts, or stilts.',
     '- Use crops/tufts/trees as texture primitives: fields, hedges, gardens, park planting, wild edges, orchards, and scale cues.',
     '- Prefer 3–5 clear assembled features over scattering many single unrelated cells. Make the construction legible from the default isometric camera.',
