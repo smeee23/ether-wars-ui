@@ -13726,6 +13726,16 @@ function neighborStarVector(edge, index) {
     return land && land.label ? land.label : 'Home land';
   }
 
+  function isActiveControlledNeighborSlot(slot) {
+    return !!slot && controlledLandIdForNeighbor(slot.id) === activeControlledLandId();
+  }
+
+  function activeControlledNeighborSlot() {
+    const id = activeControlledLandId();
+    if (!id || !id.startsWith('neighbor:')) return null;
+    return neighborSlotById.get(id.slice('neighbor:'.length)) || null;
+  }
+
   function zeroResourceSnapshot() {
     const out = {};
     for (const key of RESOURCE_KEYS) out[key] = 0;
@@ -14447,8 +14457,10 @@ function neighborStarVector(edge, index) {
   function setActiveNeighborById(neighborId, source = 'dropdown', opts = {}) {
     const id = String(neighborId || '');
     if (id === HOME_NEIGHBOR_SELECTOR_ID) {
+      const activeSlot = activeControlledNeighborSlot();
       openNeighborStats(homeNeighborSlot());
       if (source === 'dropdown') setHoveredNeighborSlot(null);
+      if (activeSlot && opts.focus !== false) pivotCameraTowardNeighbor(activeSlot, source);
       return true;
     }
     const slot = id ? neighborSlotById.get(id) : null;
@@ -14456,6 +14468,12 @@ function neighborStarVector(edge, index) {
       activeNeighborSlotId = null;
       updateNeighborSlotActiveButtons();
       return false;
+    }
+    if (isActiveControlledNeighborSlot(slot)) {
+      openNeighborStats(homeNeighborSlot());
+      if (source === 'dropdown' || source === 'scene') setHoveredNeighborSlot(null);
+      if (opts.focus !== false) pivotCameraTowardNeighbor(slot, source);
+      return true;
     }
     openNeighborStats(slot);
     if (source === 'dropdown') setHoveredNeighborSlot(slot);
@@ -20316,7 +20334,7 @@ function neighborStarVector(edge, index) {
       const neighborSlot = pickNeighborSlot(e.clientX, e.clientY);
       if (neighborSlot) {
         setActiveNeighborById(neighborSlot.id, 'scene');
-        setHoveredNeighborSlot(neighborSlot);
+        setHoveredNeighborSlot(isActiveControlledNeighborSlot(neighborSlot) ? null : neighborSlot);
       } else if (currentHover) {
         // Plain click on the select tool is a no-op; the user must hold
         // shift to engage selection (shift+click for one cell, shift+drag

@@ -35,6 +35,11 @@ Use these helpers for the UI-only claim flow:
 - The stats panel title is land-scoped UI. Keep it in the form
   `Land Stats (Home land)` or `Land Stats (<neighbor label>)` via
   `activeControlledLandLabel()` when active controlled land changes.
+- When a claimed neighbor is the active controlled land, selecting or clicking
+  that same perimeter slot should open the synthetic Home land stats option and
+  still trigger the neighbor camera pivot. Selecting Home land from the
+  dropdown while on a claimed neighbor should pivot toward that claimed
+  neighbor slot too.
 
 Keep attack targets restricted to occupied rival slots. A user-claimed neighbor
 should stop reading as open/claimable, but should not become an attack target.
