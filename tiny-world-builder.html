@@ -590,6 +590,54 @@
   .player-stat-numeric {
     grid-template-columns: 82px 1fr;
   }
+  .player-stat.credit-transfer-trigger {
+    cursor: pointer;
+    border-radius: 8px;
+    margin: -3px;
+    padding: 3px;
+    transition: background 120ms ease, box-shadow 120ms ease;
+  }
+  .player-stat.credit-transfer-trigger:hover,
+  .player-stat.credit-transfer-trigger:focus-visible {
+    background: rgba(255, 255, 255, 0.48);
+    box-shadow: inset 0 0 0 1px rgba(80, 70, 54, 0.14);
+    outline: none;
+  }
+  .credit-transfer-card {
+    width: min(420px, calc(100vw - 32px));
+  }
+  .credit-transfer-row {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .credit-transfer-row strong {
+    color: var(--ink);
+  }
+  .credit-transfer-row output {
+    text-align: right;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .credit-transfer-row input[type="range"] {
+    min-width: 0;
+  }
+  .credit-transfer-status {
+    min-height: 16px;
+    font-size: 11px;
+    line-height: 1.3;
+    color: var(--muted);
+  }
+  .credit-transfer-status.success { color: #3d7a2a; }
+  .credit-transfer-status.error { color: #b84838; }
+  .credit-transfer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
   .colony-status-row {
     grid-template-columns: 82px 10px 44px 1fr;
   }
@@ -683,6 +731,73 @@
   }
   .neighbor-action-note.success { color: #3d7a2a; }
   .neighbor-action-note.error { color: #b84838; }
+  .neighbor-claim-action {
+    width: 100%;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+  .neighbor-open-land-action {
+    width: 100%;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+  .neighbor-load-aws-land-action {
+    width: 100%;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+  .neighbor-claim-action[hidden],
+  .neighbor-open-land-action[hidden],
+  .neighbor-load-aws-land-action[hidden] {
+    display: none;
+  }
+  .land-transition-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 82;
+    display: grid;
+    place-items: center;
+    background: rgba(12, 18, 24, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .land-transition-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .land-transition-card {
+    min-width: 118px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.64);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.82);
+    color: var(--ink);
+    box-shadow:
+      0 1px 2px rgba(20, 30, 50, 0.08),
+      0 18px 44px -16px rgba(40, 50, 80, 0.30);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .land-transition-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(60, 74, 86, 0.18);
+    border-top-color: #3d7a2a;
+    border-radius: 50%;
+    animation: land-transition-spin 760ms linear infinite;
+    flex: 0 0 auto;
+  }
+  @keyframes land-transition-spin {
+    to { transform: rotate(360deg); }
+  }
   .commit-preview {
     border: 1px solid rgba(120, 130, 150, 0.22);
     border-radius: 8px;
@@ -2226,6 +2341,17 @@
   .modal-card label {
     display: flex; flex-direction: column; gap: 4px;
     font-weight: 500; color: var(--muted);
+  }
+  .modal-card.credit-transfer-card {
+    width: min(420px, calc(100vw - 32px));
+  }
+  .modal-card .credit-transfer-row {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--muted);
   }
   .modal-card textarea,
   .modal-card input,
@@ -4033,8 +4159,8 @@
   </div>
 
   <div class="player-stats-panel" id="player-stats-panel" aria-label="Stats and actions">
-    <h3>User stats</h3>
-    <div class="player-stat player-stat-numeric">
+    <h3 id="player-stats-title">Land Stats (Home land)</h3>
+    <div class="player-stat player-stat-numeric credit-transfer-trigger" id="credit-transfer-trigger" role="button" tabindex="0" aria-haspopup="dialog">
       <span>Credits</span>
       <span class="player-stat-value" id="player-stat-gold">0</span>
     </div>
@@ -4132,6 +4258,9 @@
         <span>Last action</span>
         <strong id="neighbor-stat-neighbor">-</strong>
       </div>
+      <button class="btn neighbor-claim-action" id="neighbor-claim-action" type="button" hidden>Claim</button>
+      <button class="btn neighbor-open-land-action" id="neighbor-open-land-action" type="button" hidden>Open Land</button>
+      <button class="btn neighbor-load-aws-land-action" id="neighbor-load-aws-land-action" type="button" hidden>Load AWS Land</button>
       <div class="neighbor-action-panel" aria-label="Round action controls">
         <label class="neighbor-action-row">Action
           <select id="neighbor-round-action">
@@ -4575,6 +4704,33 @@
       <div class="modal-foot confirm-actions">
         <button class="btn confirm-cancel" id="confirm-reset-cancel" type="button">Cancel</button>
         <button class="btn confirm-destructive" id="confirm-reset-ok" type="button">Reset world</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="credit-transfer-modal" class="modal" hidden>
+    <form class="modal-card credit-transfer-card" role="dialog" aria-modal="true" aria-labelledby="credit-transfer-title" onsubmit="return false">
+      <div class="modal-head">
+        <strong id="credit-transfer-title">Send credits</strong>
+        <button class="modal-close" id="credit-transfer-close" title="Close" aria-label="Close">×</button>
+      </div>
+      <label class="credit-transfer-row">From
+        <select id="credit-transfer-from"></select>
+      </label>
+      <label class="credit-transfer-row">To
+        <select id="credit-transfer-to"></select>
+      </label>
+      <label class="credit-transfer-row">Amount
+        <input id="credit-transfer-amount" type="range" min="0" max="0" step="1" value="0" />
+      </label>
+      <div class="credit-transfer-row">
+        <span>Credits</span>
+        <output id="credit-transfer-amount-value">0</output>
+      </div>
+      <div class="credit-transfer-status" id="credit-transfer-status"></div>
+      <div class="credit-transfer-actions">
+        <button class="btn" id="credit-transfer-cancel" type="button">Cancel</button>
+        <button class="btn" id="credit-transfer-send" type="button">Send</button>
       </div>
     </form>
   </div>
@@ -13166,6 +13322,21 @@
   neighborHitGroup.name = 'neighborHitAreas';
   worldGroup.add(neighborHitGroup);
   const surroundingLandTintMaterials = new Map();
+  const NEIGHBOR_CLAIM_GLOW_COLOR = '#38d56f';
+  const neighborClaimGlowMaterial = new THREE.MeshBasicMaterial({
+    color: NEIGHBOR_CLAIM_GLOW_COLOR,
+    transparent: true,
+    opacity: 0.18,
+    depthTest: true,
+    depthWrite: false,
+  });
+  const neighborClaimOutlineMaterial = new THREE.MeshBasicMaterial({
+    color: NEIGHBOR_CLAIM_GLOW_COLOR,
+    transparent: true,
+    opacity: 0.62,
+    depthTest: true,
+    depthWrite: false,
+  });
   const neighborHitMaterial = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
@@ -13173,8 +13344,22 @@
     depthWrite: false,
   });
   const neighborHighlightById = new Map();
+  const neighborClaimGlowById = new Map();
   const neighborSlotById = new Map();
   let hoveredNeighborSlotId = null;
+
+  function isNeighborClaimable(neighbor) {
+    return !!neighbor && !!neighbor.id && !neighbor.occupied && !neighbor.claimedByCurrentUser;
+  }
+
+  function isNeighborClaimedByCurrentUser(neighbor) {
+    return !!neighbor && !!neighbor.claimedByCurrentUser;
+  }
+
+  function neighborOwnershipLabel(neighbor) {
+    if (isNeighborClaimedByCurrentUser(neighbor)) return 'Claimed';
+    return neighbor && neighbor.occupied ? 'Occupied' : 'Open land';
+  }
 
   function surroundingLandTintMaterial(color, occupied, role = 'cap') {
     const clean = normalizeHexColor(color) || '#e6e6e6';
@@ -13304,6 +13489,42 @@ function neighborStarVector(edge, index) {
     return group;
   }
 
+  function makeNeighborClaimGlow(slot) {
+    const pos = neighborSlotWorldPosition(slot);
+    const group = new THREE.Group();
+    group.name = 'neighbor-claim-glow-' + slot.id;
+    group.position.copy(pos);
+    group.userData = { visualOnly: true, neighborSlot: slot.id, neighborClaimGlow: true };
+
+    const halo = new THREE.Mesh(new THREE.SphereGeometry(17, 10, 8), neighborClaimGlowMaterial);
+    halo.userData.noShadow = true;
+    group.add(halo);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(31, 0.78, 8, 40), neighborClaimOutlineMaterial);
+    ring.rotation.x = Math.PI / 2;
+    ring.rotation.z = 0.42;
+    ring.scale.set(1.08, 0.82, 1);
+    ring.renderOrder = -5;
+    ring.userData.noShadow = true;
+    group.add(ring);
+
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(39, 0.42, 6, 36), neighborClaimGlowMaterial);
+    outer.rotation.x = Math.PI / 2;
+    outer.rotation.z = -0.18;
+    outer.scale.set(1.18, 0.72, 1);
+    outer.renderOrder = -5;
+    outer.userData.noShadow = true;
+    group.add(outer);
+
+    return group;
+  }
+
+  function setNeighborClaimGlow(neighbor, enabled) {
+    if (!neighbor || !neighbor.id) return;
+    const glow = neighborClaimGlowById.get(neighbor.id);
+    if (glow) glow.visible = !!enabled;
+  }
+
   function makeSurroundingLandSlot(slot) {
     const edge = slot.edge;
     const index = slot.index === 1 ? 1 : 0;
@@ -13311,6 +13532,10 @@ function neighborStarVector(edge, index) {
     group.name = 'surrounding-land-' + slot.id;
     group.userData = { visualOnly: true, neighborSlot: slot.id };
     group.add(makeNeighborStarVisual(slot, index, slot.color));
+    const claimGlow = makeNeighborClaimGlow(slot);
+    claimGlow.visible = isNeighborClaimable(slot);
+    neighborClaimGlowById.set(slot.id, claimGlow);
+    group.add(claimGlow);
     return group;
   }
 
@@ -13374,12 +13599,14 @@ function neighborStarVector(edge, index) {
       disposeGroup(child);
     }
     neighborHighlightById.clear();
+    neighborClaimGlowById.clear();
     neighborSlotById.clear();
     for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
       if (!slot || !['north', 'east', 'south', 'west'].includes(slot.edge)) continue;
       neighborSlotById.set(slot.id, slot);
       surroundingLandGroup.add(makeSurroundingLandSlot(slot));
       neighborHitGroup.add(makeNeighborHitSlot(slot));
+      setNeighborClaimGlow(slot, isNeighborClaimable(slot));
     }
     updateNeighborSlotHighlights();
   }
@@ -13406,6 +13633,19 @@ function neighborStarVector(edge, index) {
   const neighborWagerGoldEl = document.getElementById('neighbor-wager-gold');
   const neighborWagerGoldValueEl = document.getElementById('neighbor-wager-gold-value');
   const neighborWagerNoteEl = document.getElementById('neighbor-wager-note');
+  const neighborClaimActionEl = document.getElementById('neighbor-claim-action');
+  const neighborOpenLandActionEl = document.getElementById('neighbor-open-land-action');
+  const neighborLoadAwsLandActionEl = document.getElementById('neighbor-load-aws-land-action');
+  const creditTransferTriggerEl = document.getElementById('credit-transfer-trigger');
+  const creditTransferModalEl = document.getElementById('credit-transfer-modal');
+  const creditTransferCloseEl = document.getElementById('credit-transfer-close');
+  const creditTransferCancelEl = document.getElementById('credit-transfer-cancel');
+  const creditTransferFromEl = document.getElementById('credit-transfer-from');
+  const creditTransferToEl = document.getElementById('credit-transfer-to');
+  const creditTransferAmountEl = document.getElementById('credit-transfer-amount');
+  const creditTransferAmountValueEl = document.getElementById('credit-transfer-amount-value');
+  const creditTransferSendEl = document.getElementById('credit-transfer-send');
+  const creditTransferStatusEl = document.getElementById('credit-transfer-status');
   const neighborCommitActionEl = document.getElementById('neighbor-commit-action');
   const neighborCommitPreviewEl = document.getElementById('neighbor-commit-preview');
   const neighborCommitPreviewHashEl = document.getElementById('neighbor-commit-preview-hash');
@@ -13426,12 +13666,432 @@ function neighborStarVector(edge, index) {
     selectedTargetNeighborId: null,
     wagerAmount: 0,
   };
+  const HOME_CONTROLLED_LAND_ID = 'home';
+  const HOME_NEIGHBOR_SELECTOR_ID = '__home-land';
+  const controlledLandState = {
+    activeLandId: HOME_CONTROLLED_LAND_ID,
+    lands: new Map(),
+  };
+  let landTransitionOverlayEl = null;
 
   function isClickableNeighborSlot(slot) {
     return !!slot && !!slot.occupied;
   }
 
+  function isHomeNeighborSlot(slot) {
+    return !!slot && slot.id === HOME_NEIGHBOR_SELECTOR_ID;
+  }
+
+  function homeNeighborSlot() {
+    return {
+      id: HOME_NEIGHBOR_SELECTOR_ID,
+      label: 'Home land',
+      occupied: false,
+      claimedByCurrentUser: true,
+      controlledLandId: HOME_CONTROLLED_LAND_ID,
+      stats: {
+        gold: resources.gold || 0,
+        army: resources.army || 0,
+        food: resources.food || 0,
+        water: resources.water || 0,
+        oxygen: resources.oxygen || 0,
+        shelter: resources.shelter || 0,
+        population: collectPlayerStats().population || 0,
+        neighbor: activeControlledLandId() === HOME_CONTROLLED_LAND_ID ? 'Current land' : 'Claimed',
+      },
+    };
+  }
+
+  function controlledLandIdForNeighbor(neighborId) {
+    return 'neighbor:' + String(neighborId || '');
+  }
+
+  function controlledLandIdForPanelSlot(slot) {
+    if (isHomeNeighborSlot(slot)) return HOME_CONTROLLED_LAND_ID;
+    return slot && slot.id ? controlledLandIdForNeighbor(slot.id) : '';
+  }
+
+  function activeControlledLandId() {
+    return controlledLandState.activeLandId || HOME_CONTROLLED_LAND_ID;
+  }
+
+  function activeControlledLandLabel() {
+    const id = activeControlledLandId();
+    if (id === HOME_CONTROLLED_LAND_ID) return 'Home land';
+    if (id && id.startsWith('neighbor:')) {
+      const slot = neighborSlotById.get(id.slice('neighbor:'.length));
+      if (slot) return neighborDisplayLabel(slot);
+    }
+    const land = controlledLandState.lands.get(id);
+    return land && land.label ? land.label : 'Home land';
+  }
+
+  function zeroResourceSnapshot() {
+    const out = {};
+    for (const key of RESOURCE_KEYS) out[key] = 0;
+    return out;
+  }
+
+  function zeroRoundActionSnapshot() {
+    return {
+      selectedAction: 'defend',
+      selectedTargetNeighborId: null,
+      wagerAmount: 0,
+    };
+  }
+
+  function blankControlledWorldState() {
+    return {
+      v: STORAGE_VERSION,
+      gridSize: GRID,
+      cells: [],
+      cameraMode: DEFAULT_CAMERA_MODE,
+      toolId: selectedTool && selectedTool.id,
+    };
+  }
+
+  function createBlankControlledLand(id, label, sourceNeighborId) {
+    return {
+      id,
+      label: label || 'Claimed land',
+      sourceNeighborId: sourceNeighborId || null,
+      claimedByCurrentUser: true,
+      worldState: blankControlledWorldState(),
+      resources: zeroResourceSnapshot(),
+      allocations: {
+        roundAction: zeroRoundActionSnapshot(),
+      },
+      validation: {
+        status: 'local-ui-only',
+        checks: ['blank-claimed-land'],
+      },
+      updatedAt: Date.now(),
+    };
+  }
+
+  function cloneRoundActionState(state) {
+    return {
+      selectedAction: state && state.selectedAction || 'defend',
+      selectedTargetNeighborId: state && state.selectedTargetNeighborId || null,
+      wagerAmount: coerceNonNegativeStat(state && state.wagerAmount) || 0,
+    };
+  }
+
+  function normalizeControlledLandRecord(record) {
+    if (!record || !record.id) return null;
+    const resourcesIn = record.resources || {};
+    const resourcesOut = {};
+    for (const key of RESOURCE_KEYS) resourcesOut[key] = coerceNonNegativeStat(resourcesIn[key]) || 0;
+    return {
+      id: String(record.id),
+      label: record.label || (record.id === HOME_CONTROLLED_LAND_ID ? 'Home land' : 'Claimed land'),
+      sourceNeighborId: record.sourceNeighborId || null,
+      claimedByCurrentUser: !!record.claimedByCurrentUser || record.id === HOME_CONTROLLED_LAND_ID,
+      worldState: normalizeRestorableWorldState(record.worldState || blankControlledWorldState()),
+      resources: resourcesOut,
+      allocations: {
+        roundAction: cloneRoundActionState(record.allocations && record.allocations.roundAction),
+      },
+      validation: record.validation || { status: 'local-ui-only' },
+      updatedAt: coerceNonNegativeStat(record.updatedAt) || Date.now(),
+    };
+  }
+
+  function snapshotCurrentControlledLand(id, opts = {}) {
+    const previous = controlledLandState.lands.get(id) || {};
+    return {
+      id,
+      label: opts.label || previous.label || (id === HOME_CONTROLLED_LAND_ID ? 'Home land' : 'Claimed land'),
+      sourceNeighborId: opts.sourceNeighborId !== undefined ? opts.sourceNeighborId : (previous.sourceNeighborId || null),
+      claimedByCurrentUser: id === HOME_CONTROLLED_LAND_ID ? true : !!previous.claimedByCurrentUser,
+      worldState: getSerializableWorldState(),
+      resources: getResourceSnapshot(),
+      allocations: {
+        roundAction: cloneRoundActionState(roundActionState),
+      },
+      validation: {
+        status: 'local-ui-only',
+        checks: ['client-controlled-land'],
+      },
+      updatedAt: Date.now(),
+    };
+  }
+
+  function saveActiveControlledLandSnapshot() {
+    const id = activeControlledLandId();
+    const sourceSlot = id.startsWith('neighbor:')
+      ? neighborSlotById.get(id.slice('neighbor:'.length))
+      : null;
+    const label = sourceSlot ? neighborDisplayLabel(sourceSlot) : 'Home land';
+    const record = snapshotCurrentControlledLand(id, {
+      label,
+      sourceNeighborId: sourceSlot ? sourceSlot.id : null,
+    });
+    controlledLandState.lands.set(id, record);
+    return record;
+  }
+
+  function ensureHomeControlledLand() {
+    if (!controlledLandState.lands.has(HOME_CONTROLLED_LAND_ID)) {
+      controlledLandState.lands.set(HOME_CONTROLLED_LAND_ID, snapshotCurrentControlledLand(HOME_CONTROLLED_LAND_ID, {
+        label: 'Home land',
+        sourceNeighborId: null,
+      }));
+    }
+    return controlledLandState.lands.get(HOME_CONTROLLED_LAND_ID);
+  }
+
+  function ensureControlledLandForNeighbor(slot) {
+    if (!slot || !slot.id) return null;
+    const landId = controlledLandIdForNeighbor(slot.id);
+    let land = controlledLandState.lands.get(landId);
+    if (!land) {
+      land = createBlankControlledLand(landId, neighborDisplayLabel(slot), slot.id);
+      controlledLandState.lands.set(landId, land);
+    }
+    return land;
+  }
+
+  function applyResourceSnapshot(snapshot) {
+    const source = snapshot || {};
+    for (const key of RESOURCE_KEYS) resources[key] = coerceNonNegativeStat(source[key]) || 0;
+  }
+
+  function applyRoundActionSnapshot(snapshot) {
+    Object.assign(roundActionState, cloneRoundActionState(snapshot));
+  }
+
+  function loadControlledLand(landId, opts = {}) {
+    const id = landId || HOME_CONTROLLED_LAND_ID;
+    ensureHomeControlledLand();
+    const land = controlledLandState.lands.get(id);
+    if (!land || !land.worldState) return false;
+    if (opts.saveCurrent !== false) saveActiveControlledLandSnapshot();
+    controlledLandState.activeLandId = id;
+    applyResourceSnapshot(land.resources);
+    applyRoundActionSnapshot(land.allocations && land.allocations.roundAction);
+    const ok = applyState(land.worldState, { keepCamera: !!opts.keepCamera });
+    if (!ok) return false;
+    renderNeighborSelector();
+    if (activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId)) {
+      openNeighborStats(neighborSlotById.get(activeNeighborSlotId));
+    }
+    updateNeighborSlotActiveButtons();
+    schedulePlayerStatsUpdate();
+    saveLocalGameState();
+    return true;
+  }
+
+  function ensureLandTransitionOverlay() {
+    if (landTransitionOverlayEl) return landTransitionOverlayEl;
+    const overlay = document.createElement('div');
+    overlay.className = 'land-transition-overlay';
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.innerHTML = '<div class="land-transition-card"><span class="land-transition-spinner" aria-hidden="true"></span><span id="land-transition-label">Loading land</span></div>';
+    document.body.appendChild(overlay);
+    landTransitionOverlayEl = overlay;
+    return overlay;
+  }
+
+  function setLandTransitionVisible(visible, label) {
+    const overlay = ensureLandTransitionOverlay();
+    const text = overlay.querySelector('#land-transition-label');
+    if (text) text.textContent = label || 'Loading land';
+    overlay.classList.toggle('active', !!visible);
+  }
+
+  function transitionToControlledLand(landId, label, opts = {}) {
+    setLandTransitionVisible(true, label || 'Loading land');
+    return new Promise(resolve => {
+      window.setTimeout(() => {
+        const ok = loadControlledLand(landId, opts);
+        window.setTimeout(() => {
+          setLandTransitionVisible(false);
+          resolve(ok);
+        }, 220);
+      }, 180);
+    });
+  }
+
+  function openNeighborControlledLand(slot) {
+    if (!isNeighborClaimedByCurrentUser(slot)) return false;
+    const land = ensureControlledLandForNeighbor(slot);
+    if (!land) return false;
+    transitionToControlledLand(land.id, 'Loading land');
+    return true;
+  }
+
+  function serializeControlledLands() {
+    ensureHomeControlledLand();
+    saveActiveControlledLandSnapshot();
+    return Array.from(controlledLandState.lands.values()).map(land => ({
+      id: land.id,
+      label: land.label,
+      sourceNeighborId: land.sourceNeighborId || null,
+      claimedByCurrentUser: !!land.claimedByCurrentUser,
+      worldState: land.worldState || blankControlledWorldState(),
+      resources: land.resources || zeroResourceSnapshot(),
+      allocations: {
+        roundAction: cloneRoundActionState(land.allocations && land.allocations.roundAction),
+      },
+      validation: land.validation || { status: 'local-ui-only' },
+      updatedAt: land.updatedAt || Date.now(),
+    }));
+  }
+
+  function applyControlledLandsState(saved) {
+    controlledLandState.lands.clear();
+    const lands = saved && Array.isArray(saved.lands) ? saved.lands : [];
+    for (const record of lands) {
+      const land = normalizeControlledLandRecord(record);
+      if (land) controlledLandState.lands.set(land.id, land);
+    }
+    controlledLandState.activeLandId = saved && saved.activeLandId || HOME_CONTROLLED_LAND_ID;
+    ensureHomeControlledLand();
+  }
+
+  function landCreditBalance(land) {
+    return coerceNonNegativeStat(land && land.resources && land.resources.gold) || 0;
+  }
+
+  function ownedControlledLandsForTransfer() {
+    ensureHomeControlledLand();
+    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
+      if (isNeighborClaimedByCurrentUser(slot)) ensureControlledLandForNeighbor(slot);
+    }
+    saveActiveControlledLandSnapshot();
+    return Array.from(controlledLandState.lands.values())
+      .filter(land => land && (land.id === HOME_CONTROLLED_LAND_ID || land.claimedByCurrentUser))
+      .sort((a, b) => {
+        if (a.id === HOME_CONTROLLED_LAND_ID) return -1;
+        if (b.id === HOME_CONTROLLED_LAND_ID) return 1;
+        return String(a.label || a.id).localeCompare(String(b.label || b.id));
+      });
+  }
+
+  function setCreditTransferStatus(message, tone) {
+    if (!creditTransferStatusEl) return;
+    creditTransferStatusEl.textContent = message || '';
+    creditTransferStatusEl.className = 'credit-transfer-status' + (tone ? ' ' + tone : '');
+  }
+
+  function populateCreditTransferSelects() {
+    if (!creditTransferFromEl || !creditTransferToEl) return [];
+    const lands = ownedControlledLandsForTransfer();
+    const previousFrom = creditTransferFromEl.value || activeControlledLandId();
+    const previousTo = creditTransferToEl.value;
+    creditTransferFromEl.innerHTML = '';
+    creditTransferToEl.innerHTML = '';
+    for (const land of lands) {
+      const label = (land.label || land.id) + ' (' + landCreditBalance(land) + ' credits)';
+      const fromOpt = document.createElement('option');
+      fromOpt.value = land.id;
+      fromOpt.textContent = label;
+      creditTransferFromEl.appendChild(fromOpt);
+      const toOpt = document.createElement('option');
+      toOpt.value = land.id;
+      toOpt.textContent = label;
+      creditTransferToEl.appendChild(toOpt);
+    }
+    const fromFallback = lands.find(land => land.id === previousFrom) || lands[0] || null;
+    const toFallback = lands.find(land => land.id === previousTo && (!fromFallback || land.id !== fromFallback.id))
+      || lands.find(land => !fromFallback || land.id !== fromFallback.id)
+      || lands[1]
+      || null;
+    creditTransferFromEl.value = fromFallback ? fromFallback.id : '';
+    creditTransferToEl.value = toFallback ? toFallback.id : '';
+    creditTransferFromEl.disabled = lands.length < 2;
+    creditTransferToEl.disabled = lands.length < 2;
+    return lands;
+  }
+
+  function updateCreditTransferControls(resetAmount = false) {
+    if (!creditTransferAmountEl || !creditTransferSendEl) return;
+    const lands = ownedControlledLandsForTransfer();
+    const fromLand = lands.find(land => land.id === creditTransferFromEl.value);
+    const toLand = lands.find(land => land.id === creditTransferToEl.value);
+    const max = fromLand && toLand && fromLand.id !== toLand.id ? landCreditBalance(fromLand) : 0;
+    creditTransferAmountEl.max = String(max);
+    let amount = resetAmount ? 0 : (coerceNonNegativeStat(creditTransferAmountEl.value) || 0);
+    if (amount > max) amount = max;
+    if (amount === 0 && max > 0 && !resetAmount) amount = 1;
+    creditTransferAmountEl.value = String(amount);
+    creditTransferAmountEl.disabled = max <= 0;
+    if (creditTransferAmountValueEl) {
+      const fromLabel = fromLand ? fromLand.label || fromLand.id : '-';
+      const toLabel = toLand ? toLand.label || toLand.id : '-';
+      creditTransferAmountValueEl.textContent = amount + ' / ' + max + ' from ' + fromLabel + ' to ' + toLabel;
+    }
+    creditTransferSendEl.disabled = !(lands.length >= 2 && fromLand && toLand && fromLand.id !== toLand.id && amount > 0 && amount <= max);
+    if (lands.length < 2) setCreditTransferStatus('Claim another land before sending credits.', 'error');
+    else if (fromLand && toLand && fromLand.id === toLand.id) setCreditTransferStatus('Choose two different lands.', 'error');
+    else if (max <= 0) setCreditTransferStatus('The selected source land has no credits to send.', 'error');
+    else setCreditTransferStatus('', '');
+  }
+
+  function openCreditTransferMenu() {
+    if (!creditTransferModalEl) return;
+    populateCreditTransferSelects();
+    updateCreditTransferControls(true);
+    openTinyModal(creditTransferModalEl, creditTransferFromEl || creditTransferCloseEl);
+  }
+
+  function closeCreditTransferMenu() {
+    if (creditTransferModalEl) closeTinyModal(creditTransferModalEl);
+  }
+
+  function applyCreditTransfer(fromId, toId, amount) {
+    const fromLand = controlledLandState.lands.get(fromId);
+    const toLand = controlledLandState.lands.get(toId);
+    const n = coerceNonNegativeStat(amount) || 0;
+    if (!fromLand || !toLand || fromId === toId || n <= 0) return false;
+    const fromCredits = landCreditBalance(fromLand);
+    if (n > fromCredits) return false;
+    fromLand.resources = Object.assign(zeroResourceSnapshot(), fromLand.resources || {}, { gold: fromCredits - n });
+    toLand.resources = Object.assign(zeroResourceSnapshot(), toLand.resources || {}, { gold: landCreditBalance(toLand) + n });
+    fromLand.updatedAt = Date.now();
+    toLand.updatedAt = Date.now();
+    const active = controlledLandState.lands.get(activeControlledLandId());
+    if (active && (active.id === fromId || active.id === toId)) applyResourceSnapshot(active.resources);
+    schedulePlayerStatsUpdate();
+    return true;
+  }
+
+  async function sendCreditTransfer() {
+    const lands = ownedControlledLandsForTransfer();
+    const fromLand = lands.find(land => land.id === creditTransferFromEl.value);
+    const toLand = lands.find(land => land.id === creditTransferToEl.value);
+    const amount = coerceNonNegativeStat(creditTransferAmountEl && creditTransferAmountEl.value) || 0;
+    if (!fromLand || !toLand || fromLand.id === toLand.id || amount <= 0 || amount > landCreditBalance(fromLand)) {
+      updateCreditTransferControls(false);
+      return;
+    }
+    const ok = window.confirm('Send ' + amount + ' credits from ' + (fromLand.label || fromLand.id) + ' to ' + (toLand.label || toLand.id) + '?');
+    if (!ok) return;
+    if (!applyCreditTransfer(fromLand.id, toLand.id, amount)) {
+      setCreditTransferStatus('Transfer could not be applied.', 'error');
+      return;
+    }
+    saveLocalGameState();
+    populateCreditTransferSelects();
+    updateCreditTransferControls(true);
+    setCreditTransferStatus('Saved locally. Saving AWS draft...', '');
+    if (creditTransferSendEl) creditTransferSendEl.disabled = true;
+    try {
+      const result = await saveInterRoundStateToAws();
+      setCreditTransferStatus('Sent credits and saved AWS draft: ' + result.key, 'success');
+      if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus('Credit transfer saved to AWS: ' + result.key, 'success');
+    } catch (err) {
+      console.warn('[credit-transfer] AWS save failed:', err.message || err);
+      setCreditTransferStatus('Sent locally. AWS save failed: ' + (err.message || err), 'error');
+      if (typeof setAwsDraftStatus === 'function') setAwsDraftStatus('Credit transfer saved locally. AWS save failed: ' + (err.message || err), 'error');
+    } finally {
+      updateCreditTransferControls(true);
+    }
+  }
+
   function defaultNeighborStats(slot) {
+    const claimed = isNeighborClaimedByCurrentUser(slot);
     return {
       gold: slot && slot.occupied ? 10 : 0,
       army: slot && slot.occupied ? 10 : 0,
@@ -13440,12 +14100,15 @@ function neighborStarVector(edge, index) {
       oxygen: 0,
       shelter: slot && slot.occupied ? 10 : 0,
       population: slot && slot.occupied ? 10 : 0,
-      neighbor: slot && slot.occupied ? 'Occupied' : 'Open land',
+      neighbor: claimed ? 'Claimed' : (slot && slot.occupied ? 'Occupied' : 'Open land'),
     };
   }
 
   function statsForNeighborSlot(slot) {
-    return Object.assign(defaultNeighborStats(slot), (slot && slot.stats) || {});
+    if (isHomeNeighborSlot(slot)) return Object.assign(defaultNeighborStats(slot), slot.stats || {});
+    const stats = Object.assign(defaultNeighborStats(slot), (slot && slot.stats) || {});
+    if (isNeighborClaimedByCurrentUser(slot)) stats.neighbor = 'Claimed';
+    return stats;
   }
 
   function activeNeighborSlots() {
@@ -13469,21 +14132,26 @@ function neighborStarVector(edge, index) {
     placeholder.value = '';
     placeholder.textContent = 'Select neighbor...';
     neighborStatsSelectorEl.appendChild(placeholder);
+    const homeOpt = document.createElement('option');
+    homeOpt.value = HOME_NEIGHBOR_SELECTOR_ID;
+    homeOpt.textContent = activeControlledLandId() === HOME_CONTROLLED_LAND_ID ? 'Home land (current)' : 'Home land';
+    neighborStatsSelectorEl.appendChild(homeOpt);
     for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
       if (!slot || !slot.id) continue;
       const opt = document.createElement('option');
       opt.value = slot.id;
       opt.textContent = neighborDisplayLabel(slot);
-      if (!slot.occupied) opt.textContent += ' (open)';
+      if (isNeighborClaimedByCurrentUser(slot)) opt.textContent += ' (claimed)';
+      else if (isNeighborClaimable(slot)) opt.textContent += ' (open)';
       neighborStatsSelectorEl.appendChild(opt);
     }
     neighborStatsSelectorEl.disabled = SURROUNDING_NEIGHBOR_SLOTS.length === 0;
-    neighborStatsSelectorEl.value = neighborSlotById.has(current) ? current : '';
+    neighborStatsSelectorEl.value = current === HOME_NEIGHBOR_SELECTOR_ID || neighborSlotById.has(current) ? current : '';
   }
 
   function syncNeighborSelector() {
     if (!neighborStatsSelectorEl) return;
-    neighborStatsSelectorEl.value = activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId) ? activeNeighborSlotId : '';
+    neighborStatsSelectorEl.value = activeNeighborSlotId === HOME_NEIGHBOR_SELECTOR_ID || (activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId)) ? activeNeighborSlotId : '';
   }
 
   function currentGoldAmount() {
@@ -13571,6 +14239,122 @@ function neighborStarVector(edge, index) {
     updateNeighborSlotHighlights();
   }
 
+  function syncNeighborClaimAction(slot) {
+    if (!neighborClaimActionEl) return;
+    const claimable = isNeighborClaimable(slot);
+    neighborClaimActionEl.hidden = !claimable;
+    neighborClaimActionEl.disabled = !claimable;
+    if (neighborOpenLandActionEl) {
+      const openable = isNeighborClaimedByCurrentUser(slot);
+      const landId = controlledLandIdForPanelSlot(slot);
+      neighborOpenLandActionEl.hidden = !openable;
+      neighborOpenLandActionEl.disabled = !openable || activeControlledLandId() === landId;
+      neighborOpenLandActionEl.textContent = activeControlledLandId() === landId ? 'Current Land' : 'Open Land';
+    }
+    if (neighborLoadAwsLandActionEl) {
+      const loadable = isHomeNeighborSlot(slot) || isNeighborClaimedByCurrentUser(slot);
+      neighborLoadAwsLandActionEl.hidden = !loadable;
+      neighborLoadAwsLandActionEl.disabled = !loadable;
+    }
+  }
+
+  function claimNeighborLand(neighborId) {
+    const slot = neighborSlotById.get(String(neighborId || ''));
+    if (!isNeighborClaimable(slot)) return false;
+    ensureHomeControlledLand();
+    saveActiveControlledLandSnapshot();
+    slot.claimedByCurrentUser = true;
+    slot.claimedAt = Date.now();
+    // TODO(contract): replace this local owner marker with the real land claim transaction result.
+    slot.owner = 'current-user';
+    slot.stats = Object.assign({}, slot.stats || {}, {
+      neighbor: 'Claimed',
+      landConquered: Math.max(1, coerceNonNegativeStat(slot.stats && slot.stats.landConquered) || 0),
+    });
+    ensureControlledLandForNeighbor(slot);
+    setNeighborClaimGlow(slot, false);
+    renderNeighborSelector();
+    openNeighborStats(slot);
+    syncRoundActionControls(false);
+    openNeighborControlledLand(slot);
+    // TODO(persistence): hydrate claimed neighbors from indexed or saved game state when durable ownership exists.
+    saveLocalGameState();
+    return true;
+  }
+
+  function getSerializableNeighborClaimState() {
+    return SURROUNDING_NEIGHBOR_SLOTS
+      .filter(slot => slot && slot.id && isNeighborClaimedByCurrentUser(slot))
+      .map(slot => ({
+        id: slot.id,
+        owner: slot.owner || 'current-user',
+        claimedAt: slot.claimedAt || null,
+      }));
+  }
+
+  function applyNeighborClaimState(claims) {
+    if (!Array.isArray(claims)) return;
+    for (const claim of claims) {
+      if (!claim || !claim.id) continue;
+      const slot = neighborSlotById.get(String(claim.id));
+      if (!slot || slot.occupied) continue;
+      slot.claimedByCurrentUser = true;
+      slot.owner = claim.owner || 'current-user';
+      slot.claimedAt = claim.claimedAt || null;
+      slot.stats = Object.assign({}, slot.stats || {}, { neighbor: 'Claimed' });
+      ensureControlledLandForNeighbor(slot);
+      setNeighborClaimGlow(slot, false);
+    }
+    renderNeighborSelector();
+    if (activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId)) {
+      openNeighborStats(neighborSlotById.get(activeNeighborSlotId));
+    } else {
+      ensureSelectedNeighborStats();
+    }
+    syncRoundActionControls(false);
+  }
+
+  function selectedPanelControlledLandId() {
+    if (activeNeighborSlotId === HOME_NEIGHBOR_SELECTOR_ID) return HOME_CONTROLLED_LAND_ID;
+    return activeNeighborSlotId ? controlledLandIdForNeighbor(activeNeighborSlotId) : '';
+  }
+
+  async function loadSelectedPanelLandFromAws() {
+    const landId = selectedPanelControlledLandId();
+    if (!landId) return false;
+    setLandTransitionVisible(true, 'Loading AWS land');
+    if (neighborLoadAwsLandActionEl) neighborLoadAwsLandActionEl.disabled = true;
+    try {
+      const state = await fetchAwsInterRoundStateDraft();
+      const record = awsLandRecordForId(state, landId);
+      if (!record || !record.worldState) {
+        throw new Error(landId === HOME_CONTROLLED_LAND_ID ? 'Home land was not found in the saved AWS state.' : 'That claimed land was not found in the saved AWS state.');
+      }
+      if (activeControlledLandId() !== record.id) saveActiveControlledLandSnapshot();
+      controlledLandState.lands.set(record.id, normalizeControlledLandRecord(record));
+      if (record.sourceNeighborId) {
+        const slot = neighborSlotById.get(record.sourceNeighborId);
+        if (slot && !slot.occupied) {
+          slot.claimedByCurrentUser = true;
+          slot.owner = 'current-user';
+          slot.stats = Object.assign({}, slot.stats || {}, { neighbor: 'Claimed' });
+          setNeighborClaimGlow(slot, false);
+        }
+      }
+      const ok = loadControlledLand(record.id, { saveCurrent: false });
+      if (!ok) throw new Error('AWS land could not be applied.');
+      setAwsDraftStatus('Loaded AWS land: ' + (record.label || record.id), 'success');
+      return true;
+    } catch (err) {
+      console.warn('[aws-land-load] failed:', err.message || err);
+      setAwsDraftStatus('Load AWS land failed: ' + (err.message || err), 'error');
+      return false;
+    } finally {
+      if (neighborLoadAwsLandActionEl) neighborLoadAwsLandActionEl.disabled = false;
+      window.setTimeout(() => setLandTransitionVisible(false), 220);
+    }
+  }
+
   function getHomeBoardCenterWorldPosition() {
     return DEFAULT_TARGET.clone();
   }
@@ -13654,13 +14438,19 @@ function neighborStarVector(edge, index) {
       setScopedColonyStatusRow('neighbor-stat', key, stats[key] || 0, population);
     }
     const neighborEl = document.getElementById('neighbor-stat-neighbor');
-    if (neighborEl) neighborEl.textContent = stats.neighbor || '-';
+    if (neighborEl) neighborEl.textContent = stats.neighbor || neighborOwnershipLabel(slot) || '-';
+    syncNeighborClaimAction(slot);
     syncRoundActionControls(true);
     updateNeighborSlotActiveButtons();
   }
 
   function setActiveNeighborById(neighborId, source = 'dropdown', opts = {}) {
     const id = String(neighborId || '');
+    if (id === HOME_NEIGHBOR_SELECTOR_ID) {
+      openNeighborStats(homeNeighborSlot());
+      if (source === 'dropdown') setHoveredNeighborSlot(null);
+      return true;
+    }
     const slot = id ? neighborSlotById.get(id) : null;
     if (!slot) {
       activeNeighborSlotId = null;
@@ -13710,6 +14500,55 @@ function neighborStarVector(edge, index) {
       roundActionState.wagerAmount = Math.round(Number(neighborWagerGoldEl.value) || 0);
       syncRoundActionControls(false);
       saveLocalGameState();
+    });
+  }
+  if (neighborClaimActionEl) {
+    neighborClaimActionEl.addEventListener('click', () => {
+      if (!activeNeighborSlotId) return;
+      claimNeighborLand(activeNeighborSlotId);
+    });
+  }
+  if (neighborOpenLandActionEl) {
+    neighborOpenLandActionEl.addEventListener('click', () => {
+      if (activeNeighborSlotId === HOME_NEIGHBOR_SELECTOR_ID) {
+        transitionToControlledLand(HOME_CONTROLLED_LAND_ID, 'Loading home land');
+        return;
+      }
+      const slot = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
+      if (slot) openNeighborControlledLand(slot);
+    });
+  }
+  if (neighborLoadAwsLandActionEl) {
+    neighborLoadAwsLandActionEl.addEventListener('click', () => {
+      loadSelectedPanelLandFromAws();
+    });
+  }
+  if (creditTransferTriggerEl) {
+    creditTransferTriggerEl.addEventListener('click', openCreditTransferMenu);
+    creditTransferTriggerEl.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      openCreditTransferMenu();
+    });
+  }
+  if (creditTransferFromEl) {
+    creditTransferFromEl.addEventListener('change', () => {
+      if (creditTransferToEl && creditTransferToEl.value === creditTransferFromEl.value) {
+        const lands = ownedControlledLandsForTransfer();
+        const next = lands.find(land => land.id !== creditTransferFromEl.value);
+        if (next) creditTransferToEl.value = next.id;
+      }
+      updateCreditTransferControls(true);
+    });
+  }
+  if (creditTransferToEl) creditTransferToEl.addEventListener('change', () => updateCreditTransferControls(true));
+  if (creditTransferAmountEl) creditTransferAmountEl.addEventListener('input', () => updateCreditTransferControls(false));
+  if (creditTransferSendEl) creditTransferSendEl.addEventListener('click', sendCreditTransfer);
+  if (creditTransferCancelEl) creditTransferCancelEl.addEventListener('click', closeCreditTransferMenu);
+  if (creditTransferCloseEl) creditTransferCloseEl.addEventListener('click', closeCreditTransferMenu);
+  if (creditTransferModalEl) {
+    creditTransferModalEl.addEventListener('click', e => {
+      if (e.target === creditTransferModalEl) closeCreditTransferMenu();
     });
   }
   function setAwsDraftStatus(message, tone) {
@@ -13790,6 +14629,9 @@ function neighborStarVector(edge, index) {
   window.__tinyworldNeighborSlots = SURROUNDING_NEIGHBOR_SLOTS;
   window.__tinyworldRoundActionState = roundActionState;
   window.__setTinyworldNeighborSlots = setSurroundingNeighborSlots;
+  window.__tinyworldClaimNeighborLand = claimNeighborLand;
+  window.__tinyworldControlledLandState = controlledLandState;
+  window.__tinyworldOpenControlledLand = loadControlledLand;
   buildSurroundingLand();
   renderNeighborSelector();
   rebuildNeighborSlotButtons();
@@ -16147,13 +16989,49 @@ function neighborStarVector(edge, index) {
   }
 
   function currentResourceSnapshotForAws() {
+    return awsResourceSnapshotFromLocal(resources);
+  }
+
+  function awsResourceSnapshotFromLocal(localResources) {
+    const source = localResources || {};
     return {
-      credits: coerceNonNegativeStat(resources.gold) || 0,
-      food: coerceNonNegativeStat(resources.food) || 0,
-      water: coerceNonNegativeStat(resources.water) || 0,
-      oxygen: coerceNonNegativeStat(resources.oxygen) || 0,
-      shelter: coerceNonNegativeStat(resources.shelter) || 0,
-      fleet: coerceNonNegativeStat(resources.army) || 0,
+      credits: coerceNonNegativeStat(source.gold) || 0,
+      food: coerceNonNegativeStat(source.food) || 0,
+      water: coerceNonNegativeStat(source.water) || 0,
+      oxygen: coerceNonNegativeStat(source.oxygen) || 0,
+      shelter: coerceNonNegativeStat(source.shelter) || 0,
+      fleet: coerceNonNegativeStat(source.army) || 0,
+    };
+  }
+
+  function localResourceSnapshotFromAws(proposedResources) {
+    const source = proposedResources || {};
+    return {
+      gold: coerceNonNegativeStat(source.credits) || 0,
+      food: coerceNonNegativeStat(source.food) || 0,
+      water: coerceNonNegativeStat(source.water) || 0,
+      oxygen: coerceNonNegativeStat(source.oxygen) || 0,
+      shelter: coerceNonNegativeStat(source.shelter) || 0,
+      army: coerceNonNegativeStat(source.fleet) || 0,
+    };
+  }
+
+  function controlledLandRecordFromInterRoundLand(land) {
+    if (!land) return null;
+    const id = land.landId || land.id;
+    if (!id) return null;
+    return {
+      id,
+      label: land.label || (id === HOME_CONTROLLED_LAND_ID ? 'Home land' : 'Claimed land'),
+      sourceNeighborId: land.sourceNeighborId || null,
+      claimedByCurrentUser: land.claimedByCurrentUser !== false,
+      worldState: land.proposedWorld || land.worldState,
+      resources: localResourceSnapshotFromAws(land.proposedResources),
+      allocations: {
+        roundAction: cloneRoundActionState(land.roundAction),
+      },
+      validation: land.validation || { status: 'aws-restored' },
+      updatedAt: Date.parse(land.updatedAt) || Date.now(),
     };
   }
 
@@ -16616,6 +17494,89 @@ function neighborStarVector(edge, index) {
     };
   }
 
+  function buildControlledLandInterRoundEntries(lastRevealState) {
+    const lastCredits = coerceNonNegativeStat(lastRevealState && lastRevealState.credits) || 0;
+    return serializeControlledLands().map(land => {
+      const resourcesForAws = awsResourceSnapshotFromLocal(land.resources);
+      const action = cloneRoundActionState(land.allocations && land.allocations.roundAction);
+      const wagerAmount = coerceNonNegativeStat(action.wagerAmount) || 0;
+      const creditSpend = land.id === HOME_CONTROLLED_LAND_ID
+        ? Math.max(0, lastCredits - resourcesForAws.credits)
+        : coerceNonNegativeStat(land.proposedAllocations && land.proposedAllocations.creditSpend) || 0;
+      return {
+        landId: land.id,
+        label: land.label,
+        sourceNeighborId: land.sourceNeighborId || null,
+        proposedWorld: land.worldState || blankControlledWorldState(),
+        proposedResources: resourcesForAws,
+        proposedAllocations: {
+          creditSpend,
+          wagerAmount,
+        },
+        roundAction: {
+          selectedAction: action.selectedAction || 'defend',
+          wagerAmount,
+          selectedTargetNeighborId: action.selectedTargetNeighborId || null,
+        },
+        validation: land.validation || {
+          status: 'local-ui-only',
+          checks: ['client-controlled-land'],
+        },
+        updatedAt: new Date(land.updatedAt || Date.now()).toISOString(),
+      };
+    });
+  }
+
+  function applyInterRoundControlledLands(interRoundState) {
+    const lands = Array.isArray(interRoundState && interRoundState.lands) ? interRoundState.lands : [];
+    if (!lands.length) return false;
+    const records = lands.map(controlledLandRecordFromInterRoundLand).filter(Boolean);
+    applyControlledLandsState({
+      activeLandId: interRoundState.activeLandId || HOME_CONTROLLED_LAND_ID,
+      lands: records,
+    });
+    for (const record of records) {
+      if (!record.sourceNeighborId) continue;
+      const slot = neighborSlotById.get(record.sourceNeighborId);
+      if (!slot || slot.occupied) continue;
+      slot.claimedByCurrentUser = true;
+      slot.owner = 'current-user';
+      slot.stats = Object.assign({}, slot.stats || {}, { neighbor: 'Claimed' });
+      setNeighborClaimGlow(slot, false);
+    }
+    renderNeighborSelector();
+    updateNeighborSlotActiveButtons();
+    return true;
+  }
+
+  function legacyHomeLandRecordFromInterRoundState(interRoundState) {
+    if (!interRoundState || !interRoundState.proposedWorld) return null;
+    return {
+      id: HOME_CONTROLLED_LAND_ID,
+      label: 'Home land',
+      sourceNeighborId: null,
+      claimedByCurrentUser: true,
+      worldState: interRoundState.proposedWorld,
+      resources: localResourceSnapshotFromAws(interRoundState.proposedResources),
+      allocations: {
+        roundAction: cloneRoundActionState(interRoundState.roundAction),
+      },
+      validation: interRoundState.validation || { status: 'aws-restored' },
+      updatedAt: Date.now(),
+    };
+  }
+
+  function awsLandRecordForId(state, landId) {
+    const draft = state && state.interRoundState ? state : { interRoundState: state };
+    const interRoundState = draft && draft.interRoundState;
+    if (!interRoundState || typeof interRoundState !== 'object') return null;
+    const targetId = landId || HOME_CONTROLLED_LAND_ID;
+    const lands = Array.isArray(interRoundState.lands) ? interRoundState.lands : [];
+    const match = lands.find(land => (land.landId || land.id) === targetId);
+    if (match) return controlledLandRecordFromInterRoundLand(match);
+    return targetId === HOME_CONTROLLED_LAND_ID ? legacyHomeLandRecordFromInterRoundState(interRoundState) : null;
+  }
+
   function buildInterRoundStateDraft() {
     const auth = authoritativeGameState || awsGameState;
     const lastRevealState = auth && auth.lastRevealState;
@@ -16651,6 +17612,8 @@ function neighborStarVector(edge, index) {
       roundNumber,
       lastRevealState,
       interRoundState: {
+        activeLandId: activeControlledLandId(),
+        lands: buildControlledLandInterRoundEntries(lastRevealState),
         proposedWorld: worldSnapshot,
         proposedResources,
         proposedAllocations: {
@@ -17146,6 +18109,8 @@ function neighborStarVector(edge, index) {
     playerStatsUpdateQueued = false;
     const panel = document.getElementById('player-stats-panel');
     if (!panel) return;
+    const titleEl = document.getElementById('player-stats-title');
+    if (titleEl) titleEl.textContent = 'Land Stats (' + activeControlledLandLabel() + ')';
     const stats = collectPlayerStats();
     setPlayerStat('gold', resources.gold || 0, 0);
     for (const key of COLONY_STATUS_KEYS) {
@@ -19616,7 +20581,13 @@ function neighborStarVector(edge, index) {
   });
 
   document.getElementById('reset').addEventListener('click', () => confirmReset());
-  document.getElementById('home').addEventListener('click', flyHomeCamera);
+  document.getElementById('home').addEventListener('click', () => {
+    if (activeControlledLandId() !== HOME_CONTROLLED_LAND_ID) {
+      transitionToControlledLand(HOME_CONTROLLED_LAND_ID, 'Loading home land');
+      return;
+    }
+    flyHomeCamera();
+  });
   const perspBtn = document.getElementById('persp');
   perspBtn.addEventListener('click', togglePerspective);
 
@@ -26649,6 +27620,11 @@ function neighborStarVector(edge, index) {
       allocations: {
         roundAction: Object.assign({}, roundActionState),
       },
+      neighborClaims: getSerializableNeighborClaimState(),
+      controlledLands: {
+        activeLandId: activeControlledLandId(),
+        lands: serializeControlledLands(),
+      },
       playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
       selection: Array.from(selectedCells),
       camera: {
@@ -26717,7 +27693,9 @@ function neighborStarVector(edge, index) {
       console.warn('[local save] ignoring invalid saved state', state);
       return false;
     }
-    const resourceState = state.resources || {};
+    applyControlledLandsState(state.controlledLands);
+    const activeLand = controlledLandState.lands.get(activeControlledLandId());
+    const resourceState = (activeLand && activeLand.resources) || state.resources || {};
     for (const key of RESOURCE_KEYS) {
       const value = coerceNonNegativeStat(resourceState[key]);
       if (value !== null) resources[key] = value;
@@ -26727,13 +27705,17 @@ function neighborStarVector(edge, index) {
     if (state.playerGameState && typeof state.playerGameState === 'object') {
       window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, state.playerGameState);
     }
-    if (state.allocations && state.allocations.roundAction) {
+    const roundActionSource = (activeLand && activeLand.allocations && activeLand.allocations.roundAction)
+      || (state.allocations && state.allocations.roundAction);
+    if (roundActionSource) {
       Object.assign(roundActionState, {
-        selectedAction: state.allocations.roundAction.selectedAction || roundActionState.selectedAction,
-        selectedTargetNeighborId: state.allocations.roundAction.selectedTargetNeighborId || null,
-        wagerAmount: coerceNonNegativeStat(state.allocations.roundAction.wagerAmount) || 0,
+        selectedAction: roundActionSource.selectedAction || roundActionState.selectedAction,
+        selectedTargetNeighborId: roundActionSource.selectedTargetNeighborId || null,
+        wagerAmount: coerceNonNegativeStat(roundActionSource.wagerAmount) || 0,
       });
     }
+    // TODO(persistence/indexer): replace this local UI restoration with authoritative land ownership hydration.
+    applyNeighborClaimState(state.neighborClaims);
     if (Array.isArray(state.selection)) {
       selectedCells.clear();
       for (const key of state.selection) {
@@ -26749,7 +27731,8 @@ function neighborStarVector(edge, index) {
       if (Number.isFinite(state.camera.azimuth)) azimuth = state.camera.azimuth;
       if (Number.isFinite(state.camera.polar)) polar = state.camera.polar;
     }
-    const ok = applyState(state.worldState, { keepCamera: true });
+    const effectiveWorldState = (activeLand && activeLand.worldState) || state.worldState;
+    const ok = applyState(effectiveWorldState, { keepCamera: true });
     if (!ok) return false;
     if (state.camera && state.camera.mode && ['ortho', 'topdown', 'perspective', 'fp'].includes(state.camera.mode)) {
       setCameraMode(state.camera.mode);
@@ -26796,6 +27779,11 @@ function neighborStarVector(edge, index) {
       worldState: normalizedWorldState,
       allocations: {
         roundAction: Object.assign({}, roundActionState),
+      },
+      neighborClaims: getSerializableNeighborClaimState(),
+      controlledLands: {
+        activeLandId: activeControlledLandId(),
+        lands: serializeControlledLands(),
       },
       playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
       selection: [],
@@ -26912,26 +27900,13 @@ function neighborStarVector(edge, index) {
       throw new Error('AWS saved state is missing proposedWorld.');
     }
     clearLocalGameState();
-    const proposedResources = interRoundState.proposedResources || {};
-    const proposed = {
-      gold: proposedResources.credits,
-      food: proposedResources.food,
-      water: proposedResources.water,
-      oxygen: proposedResources.oxygen,
-      shelter: proposedResources.shelter,
-      army: proposedResources.fleet,
-    };
-    for (const key of RESOURCE_KEYS) {
-      const value = coerceNonNegativeStat(proposed[key]);
-      if (value !== null) resources[key] = value;
-    }
-    const action = interRoundState.roundAction || {};
-    Object.assign(roundActionState, {
-      selectedAction: action.selectedAction || roundActionState.selectedAction,
-      selectedTargetNeighborId: action.selectedTargetNeighborId || null,
-      wagerAmount: coerceNonNegativeStat(action.wagerAmount) || 0,
-    });
-    const proposedWorld = normalizeRestorableWorldState(interRoundState.proposedWorld);
+    const restoredMultipleLands = applyInterRoundControlledLands(interRoundState);
+    const activeLand = restoredMultipleLands ? controlledLandState.lands.get(activeControlledLandId()) : null;
+    const proposedResources = activeLand ? awsResourceSnapshotFromLocal(activeLand.resources) : (interRoundState.proposedResources || {});
+    applyResourceSnapshot(localResourceSnapshotFromAws(proposedResources));
+    const action = activeLand && activeLand.allocations ? activeLand.allocations.roundAction : (interRoundState.roundAction || {});
+    applyRoundActionSnapshot(action);
+    const proposedWorld = normalizeRestorableWorldState((activeLand && activeLand.worldState) || interRoundState.proposedWorld);
     if (!proposedWorld) throw new Error('AWS saved state proposedWorld could not be applied.');
     if (!applyState(proposedWorld, {
       keepCamera: true,

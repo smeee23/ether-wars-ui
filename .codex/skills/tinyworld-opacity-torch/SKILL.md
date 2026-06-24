@@ -9,9 +9,20 @@ The opacity *torch* is gone. The home board is always fully rendered;
 Preview cells reveal one-by-one as the camera pans into them, and stay
 revealed forever after that (a breadcrumb trail behind the user).
 
-Mental model:
+Current EtherWars mode:
 
-- Every user has one editable home board (size `GRID`, default 8).
+- `ENABLE_GHOST_BOARDS` in `tiny-world-builder.html` is `false` by default.
+  Preview-board code is intentionally retained for future modes, but the
+  current game should not enqueue, build, render, update, or spend per-frame
+  work on surrounding boards.
+- When touching preview-board visibility or panning behavior, keep the
+  disabled path cheap: clear stale ghost boards, leave the main `GRID x GRID`
+  board, asteroid underside, stars, sky, clouds, neighbor UI, resources, and
+  save/load state alone.
+
+Mental model when ghost boards are enabled:
+
+- Every user has one editable home board (size `GRID`, default 20).
 - The home `GRID x GRID` region is **always** at full opacity, full
   color, full scale — never fades, never pops.
 - Preview boards surround the home board and preview other users' content.

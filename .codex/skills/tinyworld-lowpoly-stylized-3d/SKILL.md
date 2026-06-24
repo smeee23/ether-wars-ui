@@ -33,6 +33,14 @@ Use this together with:
 - Flying ambient objects should be scaled to feel like toys above the board, not real-world aircraft; crop duster wingspan target is around 1–1.5 tiles.
 - Rooftop defensive visuals should be separate visual-only factories with named subgroups for future rotation/tracking; do not add firing, damage, projectile, or combat behavior unless explicitly requested.
 - Level-gated rooftop visuals should derive from existing `floors` / build level state and shared helpers, not new saved fields; keep thresholds consistent across detailed, voxel, ghost, and thumbnail render paths.
+- Air Command supports 6 visual levels: level 1 base only; level 2 two
+  opposite mini turrets; level 3 four mini turrets; level 4 medium main
+  cannon only; level 5 large main cannon only; level 6 large main cannon
+  plus two opposite mini turrets.
+- Crystal Weapons Platform / Crystal Mining Rig supports 6 visual levels
+  with one centered plasma turret: level 1 base; level 2 larger turret;
+  level 3 taller rig; level 4 larger turret; level 5 taller rig; level 6
+  larger turret plus taller rig.
 - If visual tracking is requested, keep it set-based in the animation loop, rotate only the named yaw/root group, and treat existing flying scene roots as targets without adding combat state.
 - Board-level decorative landforms, such as a floating asteroid underside, should live as standalone `worldGroup` children with `userData.visualOnly`, no `gx/gz` raycast metadata, and no writes to `world`, `cellMeshes`, `setCell`, `tilePos`, or `makeTile`.
 - Curved decorative landforms should reuse the existing terrain-side material palette when possible, and can be split into static low-poly material bands for lit rim, mid rock, and shadow body instead of adding lights or post-processing.
@@ -44,6 +52,9 @@ Use this together with:
 - Prefer 2–4 materials per object: body, dark trim, highlight, accent.
 - Never mutate shared `M.*` material colors for one instance; clone or create a new material. The one allowed global exception is `applySeasonFoliage()`, which centrally retints shared foliage/grass materials for season changes.
 - Sci-fi crop/building shields should reuse `M.greenhouseGlass` / `makeForceShieldMaterial()` so pulse, Fresnel rim, opacity, and fade-cache uniform syncing stay shared and cheap.
+- Air Command force-shield wall panels should stay entrance-sized and centered
+  on the plane-entry opening; do not stretch them across the full building
+  height or down to the terrain base.
 - When voxel stamps need to match built-in procedural structures, prefer passing targeted material overrides that reuse shared `M.*` materials instead of copying equivalent hex colors into the voxel palette.
 - For imported texture variants, create explicit material variants and swap them at the model mesh level.
 - For toolbar thumbnails, increase contrast/saturation carefully so icons read against the white toolbar, but keep the in-world material natural.
@@ -74,6 +85,10 @@ Use this together with:
   move through any hold-offset distance at low-pass speed before freezing
   travel for the hold.
 - Aircraft route targeting should use named live index helpers for the intended destination type, such as `airCommandPositions` plus `getAirCommandFlightTarget()`, instead of reusing unrelated gameplay indexes like crops.
+- Air Command spacecraft low-pass altitude is target-relative: derive the
+  landing/dust Y from the selected building's stable `userData.baseY` /
+  terrain base and then add `FLIGHT_DUST_ALT`, rather than treating
+  `FLIGHT_DUST_ALT` as an absolute world height.
 - For first-pass vehicle conversions, prefer additive primitives attached after GLB load over editing/replacing the GLB. Keep the existing flight root, path state, speed, scale, and update loop intact; hide obsolete named nodes such as propellers only when the GLB hierarchy can remain in place.
 - Particle effects should be capped and use cheap cloned `MeshBasicMaterial`; dispose particle materials when particles die.
 
