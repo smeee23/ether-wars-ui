@@ -30,7 +30,7 @@
       radial-gradient(circle at 68% 86%, rgba(142, 215, 139, calc(var(--backdrop-strength, 0.78) * 0.34)), transparent 36%),
       linear-gradient(135deg, var(--bg), color-mix(in srgb, var(--bg) 72%, #8fb8ff 28%) 45%, color-mix(in srgb, var(--bg) 70%, #ffd29a 30%));
     color: var(--ink);
-    font-family: var(--ui-font);
+    font-family: var(--brand-font);
     -webkit-font-smoothing: antialiased;
     user-select: none;
     -webkit-user-select: none;
@@ -2477,7 +2477,7 @@
     margin-bottom: 2px;
   }
   .modal-card:not(.welcome-card) .modal-head strong {
-    font-family: var(--ui-font);
+    font-family: var(--brand-font);
     font-weight: 600;
     font-size: 22px;
     line-height: 1.08;
@@ -2718,7 +2718,7 @@
     border: 1px solid rgba(255,255,255,0.72);
     background: rgba(42,39,34,0.72);
     color:  #000000;
-    font: 800 13px/1 var(--ui-font);
+    font: 800 13px/1 var(--brand-font);
     letter-spacing: 0.08em;
     text-transform: uppercase;
     box-shadow: 0 12px 32px rgba(0,0,0,0.28);
@@ -16909,40 +16909,54 @@ function neighborStarVector(edge, index) {
 
   const CROP_KINDS = new Set(['crop', 'corn', 'wheat', 'pumpkin', 'carrot', 'sunflower']);
   const OXYGEN_TERRAIN_KINDS = new Set(['grass', 'dirt']);
-  const OXYGEN_PLANT_KINDS = new Set(['tree', 'tuft', 'flower', 'bush']);
+  const OXYGEN_PLANT_KINDS = new Set(['tree', 'flower', 'bush']);
   const RESOURCE_KEYS = ['gold', 'food', 'water', 'oxygen', 'shelter', 'army'];
-  const OXYGEN_PER_LEVEL = 18;
+  const RESOURCE_TIER_AMOUNTS = { small: 10, medium: 40, large: 100 };
+
+  function resourceRule(label, itemId, resource, tier, role) {
+    const amount = RESOURCE_TIER_AMOUNTS[tier] || 0;
+    const rule = {
+      label,
+      itemId,
+      resource,
+      tier,
+      cost: { gold: amount },
+      effect: { [resource]: amount },
+    };
+    if (role) rule.role = role;
+    return rule;
+  }
+
   // Temporary frontend-only building economics for the mock Resources model.
   // TODO(contract/indexer): replace this table with canonical costs/effects
   // from contract/indexer state or a versioned game-state snapshot.
   const RESOURCE_BUILD_RULES = {
-    water: { label: 'Well / Water', cost: { gold: 10 }, effect: { water: 10 } },
-    grass: { label: 'Grass', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    dirt: { label: 'Dirt', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    tree: { label: 'Tree', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    tuft: { label: 'Tuft', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    flower: { label: 'Flower', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    bush: { label: 'Bush', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    crop: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
-    corn: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
-    wheat: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
-    pumpkin: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
-    carrot: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
-    sunflower: { label: 'Farm', cost: { gold: 8 }, effect: { food: 8 } },
-    sheep: { label: 'Sheep', cost: { gold: 20 }, effect: { food: 20 } },
-    cow: { label: 'Cow', cost: { gold: 40 }, effect: { food: 40 } },
-    highrise: { label: 'Command Center', role: 'civilian', cost: { gold: 30 }, effect: { shelter: 30 } },
-    skyscraper: { label: 'Command Center', role: 'civilian', cost: { gold: 30 }, effect: { shelter: 30 } },
-    'air-command': { label: 'Air Command', role: 'military', cost: { gold: 45 }, effect: { army: 45 } },
-    habitat: { label: 'Habitat', role: 'civilian', cost: { gold: 24 }, effect: { shelter: 24 } },
-    fence: { label: 'Wall', cost: { gold: 10 }, effect: { shelter: 10 } },
-    'oxygen-plant': { label: 'Oxygen Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { oxygen: OXYGEN_PER_LEVEL } },
-    'water-plant': { label: 'Water Generation Plant', role: 'life-support', cost: { gold: 18 }, effect: { water: OXYGEN_PER_LEVEL } },
-    tower: { label: 'Tower', role: 'civilian', cost: { gold: 25 }, effect: { shelter: 25 } },
-    'crystal-mining-rig': { label: 'Crystal Weapons Platform', role: 'military', cost: { gold: 60 }, effect: { army: 60 } },
+    water: resourceRule('Water Tile', 'water', 'water', 'small', 'life-support'),
+    grass: resourceRule('Grass', 'grass', 'oxygen', 'small', 'life-support'),
+    dirt: resourceRule('Dirt', 'dirt', 'oxygen', 'small', 'life-support'),
+    flower: resourceRule('Flower', 'flower', 'oxygen', 'small', 'life-support'),
+    tree: resourceRule('Tree', 'tree', 'oxygen', 'medium', 'life-support'),
+    bush: resourceRule('Bush', 'bush', 'oxygen', 'medium', 'life-support'),
+    crop: resourceRule('Crop', 'crop', 'food', 'small'),
+    corn: resourceRule('Corn', 'corn', 'food', 'small'),
+    wheat: resourceRule('Wheat', 'wheat', 'food', 'small'),
+    pumpkin: resourceRule('Pumpkin', 'pumpkin', 'food', 'medium'),
+    carrot: resourceRule('Carrot', 'carrot', 'food', 'medium'),
+    sunflower: resourceRule('Sunflower', 'sunflower', 'food', 'medium'),
+    sheep: resourceRule('Sheep', 'sheep', 'food', 'large'),
+    cow: resourceRule('Cow', 'cow', 'food', 'large'),
+    highrise: resourceRule('Command Center', 'highrise', 'shelter', 'large', 'civilian'),
+    skyscraper: resourceRule('Command Center', 'skyscraper', 'shelter', 'large', 'civilian'),
+    'air-command': resourceRule('Air Command', 'air-command', 'army', 'large', 'military'),
+    habitat: resourceRule('Habitat', 'habitat', 'shelter', 'small', 'civilian'),
+    fence: resourceRule('Fence', 'fence', 'army', 'small', 'military'),
+    'oxygen-plant': resourceRule('Oxygen Generation Plant', 'oxygen-plant', 'oxygen', 'large', 'life-support'),
+    'water-plant': resourceRule('Water Generation Plant', 'water-plant', 'water', 'large', 'life-support'),
+    tower: resourceRule('Tower', 'tower', 'shelter', 'medium', 'civilian'),
+    'crystal-mining-rig': resourceRule('Crystal Weapons Platform', 'crystal-mining-rig', 'army', 'medium', 'military'),
     // TODO(contract/indexer): Barracks is reserved for the future army-building
     // tool/model. No visual placement is created here.
-    barracks: { label: 'Barracks', cost: { gold: 30 }, effect: { army: 30 }, placeholder: true },
+    barracks: Object.assign(resourceRule('Barracks', 'barracks', 'army', 'medium', 'military'), { placeholder: true }),
   };
   let playerStatsUpdateQueued = false;
   const PLAYER_GAME_STATE_MOCK = {
@@ -17777,6 +17791,13 @@ function neighborStarVector(edge, index) {
   }
 
   function resourceToneForRule(rule) {
+    if (rule && rule.resource) {
+      if (rule.resource === 'army') return 'army';
+      if (rule.resource === 'oxygen') return 'oxygen';
+      if (rule.resource === 'water') return 'water';
+      if (rule.resource === 'shelter') return 'shelter';
+      if (rule.resource === 'food') return 'food';
+    }
     const effect = rule && rule.effect || {};
     if (effect.army) return 'army';
     if (effect.oxygen) return 'oxygen';
@@ -17786,9 +17807,16 @@ function neighborStarVector(edge, index) {
     return null;
   }
 
+  function formatResourceTier(tier) {
+    if (!tier) return '';
+    return tier.charAt(0).toUpperCase() + tier.slice(1);
+  }
+
   function formatResourceRuleSummary(rule) {
     if (!rule) return '';
     const parts = [];
+    const tierLabel = formatResourceTier(rule.tier);
+    if (tierLabel) parts.push(tierLabel);
     const goldCost = Math.max(0, Math.round((rule.cost && rule.cost.gold) || 0));
     if (goldCost) parts.push('Credits ' + goldCost);
     const effect = rule.effect || {};

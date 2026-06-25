@@ -23,8 +23,13 @@ requireIncludes('function applyTool(', 'tool application');
 requireIncludes('function doClear(', 'clear action');
 requireIncludes('function trySpendForPlacementWithReplacement(', 'resource replacement accounting');
 requireIncludes('function trySpendMockResourcesForReplacement(', 'full-level replacement refund helper');
-requireIncludes("sheep: { label: 'Sheep', cost: { gold: 20 }, effect: { food: 20 } }", 'sheep food resource rule');
-requireIncludes("cow: { label: 'Cow', cost: { gold: 40 }, effect: { food: 40 } }", 'cow food resource rule');
+requireIncludes("const RESOURCE_TIER_AMOUNTS = { small: 10, medium: 40, large: 100 };", 'resource tier credit amounts');
+requireIncludes('function resourceRule(', 'centralized resource rule helper');
+requireIncludes("sheep: resourceRule('Sheep', 'sheep', 'food', 'large')", 'sheep large food resource rule');
+requireIncludes("cow: resourceRule('Cow', 'cow', 'food', 'large')", 'cow large food resource rule');
+requireIncludes("fence: resourceRule('Fence', 'fence', 'army', 'small', 'military')", 'fence army resource rule');
+requireIncludes("'crystal-mining-rig': resourceRule('Crystal Weapons Platform', 'crystal-mining-rig', 'army', 'medium', 'military')", 'crystal mining rig army resource rule');
+requireIncludes("skyscraper: resourceRule('Command Center', 'skyscraper', 'shelter', 'large', 'civilian')", 'command center shelter resource rule');
 requireIncludes('function makeCowUnit(', 'leveled cow herd unit factory');
 requireIncludes('function makeSheepUnit(', 'leveled sheep herd unit factory');
 requireIncludes('function togglePerspective(', 'camera toggle');
@@ -44,18 +49,10 @@ requireIncludes('customDepthMaterial', 'cloud shadow depth material');
 requireIncludes('vendor/three/three.r128.min.js', 'self-hosted Three.js');
 requireIncludes('vendor/three/GLTFLoader.r128.js', 'self-hosted GLTFLoader');
 
-const oxygenMatch = html.match(/const OXYGEN_PER_LEVEL = (\d+);/);
-const oxygenPerLevel = oxygenMatch ? Number(oxygenMatch[1]) : NaN;
-const resourceRuleLine = /^\s+['"]?[\w-]+['"]?: \{ label: .*?cost: \{ gold: (\d+) \}, effect: \{ \w+: ([^ }]+) \}/gm;
+const resourceRuleLine = /^\s+['"]?[\w-]+['"]?: resourceRule\('[^']+', '[^']+', '\w+', '(small|medium|large)'/gm;
 let checkedResourceRules = 0;
 for (const match of html.matchAll(resourceRuleLine)) {
   checkedResourceRules++;
-  const cost = Number(match[1]);
-  const rawEffect = match[2].replace(/[,}]/g, '');
-  const effect = rawEffect === 'OXYGEN_PER_LEVEL' ? oxygenPerLevel : Number(rawEffect);
-  if (effect !== cost) {
-    fail(`resource reward must match credit cost: cost ${cost}, effect ${rawEffect}`);
-  }
 }
 if (checkedResourceRules < 10) fail('resource reward parity check did not find expected rules');
 

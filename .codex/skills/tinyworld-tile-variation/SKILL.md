@@ -57,6 +57,9 @@ Implementation guardrails:
 - If adding a new visual variation, route it through the factory for the existing `kind`.
 - Rock and hill variants need visible contact skirts/talus at tile level so stacked or connected geometry reads grounded.
 - Connected fence/wall rails should overlap tile boundaries slightly; never leave visible gaps in a run.
+- Bridge code is legacy/not currently needed for normal play. Keep Bridge out
+  of toolbar/menu groups unless explicitly requested, even if bridge rendering
+  and save/load support remain in the file temporarily.
 - Do not let `addEnhancementBits` double-scale a kind that now handles its own levels internally.
 - Do not use object `floors` to raise ground. Old saves may overload `floors`; migrate object cells to `terrainFloors: 1`.
 

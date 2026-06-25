@@ -9,9 +9,10 @@ Use this while the Resources model is frontend/mock-state only.
 
 - Keep mock `resources` in `tiny-world-builder.html` near the other mock player constants.
 - Keep cost/effect rules in `RESOURCE_BUILD_RULES`; do not spread resource economics into individual mesh factories.
-- Resource rewards are 1:1 with credit cost: every resource-producing
-  `RESOURCE_BUILD_RULES` entry must keep its existing `cost.gold` unchanged
-  and set its single resource `effect` to that same value. Upgrades, deletes,
+- Resource rewards are 1:1 with the configured credit tier: small spends cost
+  10 credits, medium spends cost 40 credits, and large spends cost 100 credits.
+  Every resource-producing `RESOURCE_BUILD_RULES` entry should set its single
+  resource `effect` to the same value as `cost.gold`. Upgrades, deletes,
   replacement refunds, AWS drafts, commit validation, and server validation all
   rely on this parity.
 - `gold` is the spendable resource. Supported placements should call `trySpendMockResourcesForPlacement(selectedTool)` immediately before mutating world state.
@@ -65,8 +66,8 @@ Use this while the Resources model is frontend/mock-state only.
 Validation:
 
 - Placing supported farm, water, shelter, wall/fence, or army tools spends gold and updates the matching resource immediately.
-- Sheep and Cow are Food resource infrastructure. Sheep cost 20 credits and
-  produce 20 Food per level; Cow cost 40 credits and produce 40 Food per level.
+- Food hierarchy: Crop, Corn, and Wheat are small Food spends; Pumpkin, Carrot,
+  and Sunflower are medium Food spends; Sheep and Cow are large Food spends.
   Their visual `floors` upgrades should add smaller lambs/calves around the
   adult while relying on the same placement, replacement, refund, save/load,
   AWS draft, and 1:1 validation paths as other resource buildings.
@@ -74,9 +75,15 @@ Validation:
   `army`, civilian buildings contribute `shelter`. Keep UI labels, role color,
   cost text, placement spending, erase refunds, stat/resource accounting, and
   the 1:1 cost/effect rule derived from that central table.
-- Command Center (`highrise` / `skyscraper`) is a civilian shelter building:
-  cost 30 credits and produce 30 Shelter. Air Command remains the military
-  house variant.
+- Toolbar resource text uses per-resource tones from `resourceToneForRule()`:
+  Army red, Oxygen green, Water blue, Shelter grey, Food brown.
+- Army hierarchy: Fence is a small Army/Fleet spend, Crystal Mining Rig is a
+  medium Army/Fleet spend, and Air Command is a large Army/Fleet spend.
+- Shelter hierarchy: Habitat is a small Shelter spend, Tower is a medium
+  Shelter spend, and Command Center (`highrise` / `skyscraper`) is a large
+  Shelter spend. Air Command remains the military house variant.
+- Water hierarchy: Water terrain is a small Water spend, and Water Generation
+  Plant is a large Water spend. There is no medium Water option yet.
 - Oxygen Generation Plant is a resource-backed non-house building in
   `RESOURCE_BUILD_RULES`: it spends `gold`, contributes `oxygen`, upgrades
   through the generic repeat-click `floors` path, and relies on
@@ -92,8 +99,9 @@ Validation:
   and apply one water-plant level. The same replacement accounting applies to
   habitats/shelter, fleet/army buildings, voxel resource stamps, and house
   building-type swaps.
-- Grass, Dirt, Tree, Tuft, Flower, and Bush are also oxygen-backed rules in
-  `RESOURCE_BUILD_RULES`. Keep them on the same placement/refund helpers as
-  Oxygen Generation Plant rather than directly mutating oxygen stats.
+- Oxygen hierarchy: Grass, Dirt, and Flower are small Oxygen spends; Tree and
+  Bush are medium Oxygen spends; Oxygen Generation Plant is a large Oxygen
+  spend. Tuft is decorative and should not be added back to
+  `RESOURCE_BUILD_RULES` unless a tier is intentionally assigned.
 - Insufficient gold blocks placement and leaves the world unchanged.
 - Unsupported decorative tools keep normal world-builder behavior.
