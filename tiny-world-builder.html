@@ -3601,7 +3601,7 @@
     .settings-tab { white-space: nowrap; }
   }
   .welcome-card {
-    width: min(620px, calc(100vw - 32px));
+    width: min(680px, calc(100vw - 32px));
     padding: 22px 24px 18px;
     gap: 12px;
 
@@ -3633,6 +3633,9 @@
     line-height: 1.55;
     margin: 0;
   }
+  .welcome-copy strong {
+    color: var(--ink);
+  }
   .welcome-tips {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -3657,6 +3660,64 @@
     font-size: 15px;
     color: #666;
     margin: 4px 0 16px;
+  }
+  .welcome-lobby-status {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 10px;
+    align-items: stretch;
+  }
+  .welcome-lobby-countdown,
+  .welcome-lobby-entrants {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.48);
+    padding: 12px;
+  }
+  .welcome-lobby-label {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0;
+    margin-bottom: 5px;
+  }
+  .welcome-lobby-value {
+    display: block;
+    color: var(--ink);
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1.05;
+  }
+  .welcome-lobby-note {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    margin-top: 5px;
+  }
+  .welcome-lobby-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .welcome-lobby-field {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.38);
+    padding: 9px 10px;
+    min-width: 0;
+  }
+  .welcome-lobby-field dt {
+    color: var(--muted);
+    font-size: 11px;
+    margin: 0 0 4px;
+  }
+  .welcome-lobby-field dd {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0;
+    overflow-wrap: anywhere;
   }
 
   .welcome-options {
@@ -3733,6 +3794,8 @@
   }
   @media (max-width: 600px) {
     .welcome-tips { grid-template-columns: 1fr; }
+    .welcome-lobby-status,
+    .welcome-lobby-grid { grid-template-columns: 1fr; }
   }
 
   /* -------- auth modal -------- */
@@ -4750,38 +4813,82 @@
   <div id="welcome-modal" class="modal" hidden>
     <form class="modal-card welcome-card" role="dialog" aria-modal="true" aria-labelledby="welcome-title" onsubmit="return false">
       <div class="modal-head">
-        <strong id="welcome-title" class="welcome-title">EtherWars</strong>
-        <button class="modal-close" id="welcome-close" title="Close" aria-label="Close welcome dialog">×</button>
+        <strong id="welcome-title" class="welcome-title">Tournament <em>Lobby</em></strong>
+        <button class="modal-close" id="welcome-close" title="Close" aria-label="Close tournament lobby">×</button>
       </div>
 
       <div class="welcome-subtitle">
-        Choose how you'd like to begin
+        EtherWars colony battle queue
       </div>
 
-      <!-- Original instructions / tips -->
+      <p class="welcome-copy">
+        Players enter a <strong>tournament colony battle</strong>, build and allocate resources, then commit
+        and reveal actions each round. Survive eliminations and compete for tournament rewards.
+      </p>
+
+      <div class="welcome-lobby-status">
+        <div class="welcome-lobby-countdown">
+          <span class="welcome-lobby-label">Tournament starts in</span>
+          <span class="welcome-lobby-value" id="welcome-lobby-countdown">--:--:--</span>
+          <span class="welcome-lobby-note" id="welcome-lobby-start-time">Daily at 16:00 local time</span>
+        </div>
+        <div class="welcome-lobby-entrants">
+          <span class="welcome-lobby-label">Entrants</span>
+          <span class="welcome-lobby-value">
+            <span id="welcome-lobby-entrants">--</span>/<span id="welcome-lobby-max-entrants">--</span>
+          </span>
+          <span class="welcome-lobby-note">Frontend placeholder lobby</span>
+        </div>
+      </div>
+
+      <dl class="welcome-lobby-grid" aria-label="Tournament details">
+        <div class="welcome-lobby-field">
+          <dt>Entry cost</dt>
+          <dd id="welcome-lobby-entry-cost">--</dd>
+        </div>
+        <div class="welcome-lobby-field">
+          <dt>Tournament ID</dt>
+          <dd id="welcome-lobby-tournament-id">--</dd>
+        </div>
+        <div class="welcome-lobby-field">
+          <dt>Commit duration</dt>
+          <dd id="welcome-lobby-commit-duration">--</dd>
+        </div>
+        <div class="welcome-lobby-field">
+          <dt>Reveal duration</dt>
+          <dd id="welcome-lobby-reveal-duration">--</dd>
+        </div>
+        <div class="welcome-lobby-field">
+          <dt>Contract</dt>
+          <dd id="welcome-lobby-contract-address">--</dd>
+        </div>
+        <div class="welcome-lobby-field">
+          <dt>Schedule</dt>
+          <dd id="welcome-lobby-schedule">--</dd>
+        </div>
+      </dl>
+
       <div class="welcome-tips">
         <div class="welcome-tip">
-          <strong>Tap or click to build</strong>
-          Select a tool, then tap any tile to place it.
+          <strong>Build</strong>
+          Allocate terrain, buildings, and resources before the commit window closes.
         </div>
         <div class="welcome-tip">
-          <strong>Move the camera</strong>
-          One finger or left-drag to orbit · two fingers / right-drag / Space to pan · pinch or scroll to zoom.
+          <strong>Commit</strong>
+          Lock the round action as a hidden commitment before opponents reveal.
         </div>
         <div class="welcome-tip">
-          <strong>Keep going</strong>
-          Use Reset, Clear, Export, Import, and Render from the top bar.
+          <strong>Reveal</strong>
+          Reveal actions, resolve eliminations, and push toward tournament rewards.
         </div>
       </div>
 
       <div class="welcome-options">
-        <!-- Farm - Primary / Default -->
         <button class="welcome-option primary" id="welcome-farm" type="button">
-          <div class="option-title">Start with the Farm</div>
-          <div class="option-desc">Empty home grid ready to build on</div>
+          <div class="option-title">Enter Lobby</div>
+          <div class="option-desc">Continue to the colony board and prepare your round</div>
         </button>
 
-        <!-- Vehicle Demo -->
         <button class="welcome-option" id="welcome-vehicle" type="button">
           <div class="option-title">Vehicle Demo</div>
           <div class="option-desc">Roads + multiple cars &amp; trucks driving around</div>
@@ -4789,7 +4896,7 @@
       </div>
 
       <div class="welcome-footer">
-        The Farm starts as an empty grid. Use <strong>Reset</strong> anytime to clear back to it.
+        Tournament values are mock frontend data until contract or indexer state is wired in.
       </div>
     </form>
   </div>
@@ -12342,6 +12449,7 @@
   function dismissWelcomeForDemo() {
     const modal = document.getElementById('welcome-modal');
     if (!modal || modal.hidden) return;
+    if (typeof stopLobbyCountdown === 'function') stopLobbyCountdown(modal);
     if (typeof closeTinyModal === 'function') closeTinyModal(modal);
     else modal.hidden = true;
   }
@@ -28698,8 +28806,19 @@ function neighborStarVector(edge, index) {
   // announcement worth re-showing to previously-dismissed users.
   const WELCOME_NOTICE_ID = '2026-05-11-jigsaw';
   const WELCOME_LS_KEY = 'tinyworld:welcome:dismissedId';
+  const LOBBY_TOURNAMENT_PLACEHOLDER_CONFIG = Object.freeze({
+    entrants: 0,
+    maxEntrants: 100,
+    entryCostEth: '0.001',
+    commitDurationHours: 12,
+    revealDurationHours: 12,
+    tournamentId: 1,
+    tournamentAddress: '0x0000000000000000000000000000000000000000',
+    dailyStartHour: 16,
+  });
+
   function startFarmWorld() {
-    loadInitialScene();
+    if (!cellMeshes || !Object.keys(cellMeshes).length) loadInitialScene();
   }
 
   function startVehicleDemo() {
@@ -28707,6 +28826,104 @@ function neighborStarVector(edge, index) {
     const seed = 424242;
     runSeededVehicleDemo(seed, { showBadge: true, large: false });
     if (typeof dismissWelcomeForDemo === 'function') dismissWelcomeForDemo();
+  }
+
+  function getLobbyTournamentConfig() {
+    const fallback = LOBBY_TOURNAMENT_PLACEHOLDER_CONFIG;
+    const external = (window.__tinyworldTournamentConfig && typeof window.__tinyworldTournamentConfig === 'object')
+      ? window.__tinyworldTournamentConfig
+      : {};
+    const gameState = (typeof getPlayerGameState === 'function' && getPlayerGameState()) || {};
+    return {
+      entrants: external.entrants ?? gameState.tournamentEntrants ?? fallback.entrants,
+      maxEntrants: external.maxEntrants ?? gameState.tournamentMaxEntrants ?? fallback.maxEntrants,
+      entryCostEth: external.entryCostEth ?? gameState.tournamentEntryCostEth ?? fallback.entryCostEth,
+      commitDurationHours: external.commitDurationHours ?? gameState.commitDurationHours ?? fallback.commitDurationHours,
+      revealDurationHours: external.revealDurationHours ?? gameState.revealDurationHours ?? fallback.revealDurationHours,
+      tournamentId: external.tournamentId ?? gameState.tournamentId ?? fallback.tournamentId,
+      tournamentAddress: external.tournamentAddress ?? external.contractAddress ?? gameState.tournamentAddress ?? fallback.tournamentAddress,
+      dailyStartHour: external.dailyStartHour ?? gameState.dailyStartHour ?? fallback.dailyStartHour,
+    };
+  }
+
+  function formatEthCost(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return '0 ETH';
+    return /\beth\b/i.test(text) ? text : text + ' ETH';
+  }
+
+  function shortAddress(address) {
+    const text = String(address || '').trim();
+    if (text.length <= 12) return text || '-';
+    return text.slice(0, 6) + '...' + text.slice(-4);
+  }
+
+  function getNextDailyStartTime(hour, now = new Date()) {
+    const h = Math.max(0, Math.min(23, Math.round(Number(hour) || 0)));
+    const target = new Date(now);
+    target.setHours(h, 0, 0, 0);
+    if (target <= now) target.setDate(target.getDate() + 1);
+    return target;
+  }
+
+  function formatCountdown(ms) {
+    const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return [hours, minutes, seconds].map(v => String(v).padStart(2, '0')).join(':');
+  }
+
+  function formatLobbyHour(hour) {
+    const h = Math.max(0, Math.min(23, Math.round(Number(hour) || 0)));
+    return String(h).padStart(2, '0') + ':00';
+  }
+
+  function setLobbyText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+  }
+
+  function updateLobbyCountdown(modal) {
+    if (!modal) return;
+    if (!modal.isConnected) {
+      stopLobbyCountdown(modal);
+      return;
+    }
+    if (modal.hidden) return;
+    const config = modal.__lobbyTournamentConfig || getLobbyTournamentConfig();
+    const nextStart = getNextDailyStartTime(config.dailyStartHour);
+    setLobbyText('welcome-lobby-countdown', formatCountdown(nextStart.getTime() - Date.now()));
+    setLobbyText('welcome-lobby-start-time', 'Daily at ' + formatLobbyHour(config.dailyStartHour) + ' local time');
+  }
+
+  function renderLobbyTournamentConfig(modal) {
+    const config = getLobbyTournamentConfig();
+    if (modal) modal.__lobbyTournamentConfig = config;
+    setLobbyText('welcome-lobby-entrants', Math.max(0, Math.round(Number(config.entrants) || 0)));
+    setLobbyText('welcome-lobby-max-entrants', Math.max(0, Math.round(Number(config.maxEntrants) || 0)));
+    setLobbyText('welcome-lobby-entry-cost', formatEthCost(config.entryCostEth));
+    setLobbyText('welcome-lobby-tournament-id', config.tournamentId);
+    setLobbyText('welcome-lobby-commit-duration', config.commitDurationHours + ' hours');
+    setLobbyText('welcome-lobby-reveal-duration', config.revealDurationHours + ' hours');
+    setLobbyText('welcome-lobby-contract-address', shortAddress(config.tournamentAddress));
+    const contractEl = document.getElementById('welcome-lobby-contract-address');
+    if (contractEl) contractEl.title = String(config.tournamentAddress || '');
+    setLobbyText('welcome-lobby-schedule', 'Daily ' + formatLobbyHour(config.dailyStartHour));
+    updateLobbyCountdown(modal);
+  }
+
+  function stopLobbyCountdown(modal) {
+    if (!modal || modal.__lobbyCountdownTimerId === null || modal.__lobbyCountdownTimerId === undefined) return;
+    window.clearInterval(modal.__lobbyCountdownTimerId);
+    modal.__lobbyCountdownTimerId = null;
+  }
+
+  function startLobbyCountdown(modal) {
+    if (!modal) return;
+    stopLobbyCountdown(modal);
+    updateLobbyCountdown(modal);
+    modal.__lobbyCountdownTimerId = window.setInterval(() => updateLobbyCountdown(modal), 1000);
   }
 
   function initWelcomeDialog() {
@@ -28720,7 +28937,9 @@ function neighborStarVector(edge, index) {
 
     // Show welcome unless the user came with ?demo=vehicles (direct jump to cars)
     if (!isDirectVehicleDemo) {
+      renderLobbyTournamentConfig(modal);
       openTinyModal(modal, farmBtn || closeBtn);
+      startLobbyCountdown(modal);
     } else {
       // Direct demo URL → auto-dismiss welcome and run the demo
       if (typeof dismissWelcomeForDemo === 'function') {
@@ -28729,11 +28948,12 @@ function neighborStarVector(edge, index) {
     }
 
     function closeAndStart(startFn) {
+      stopLobbyCountdown(modal);
       closeTinyModal(modal);
       if (typeof startFn === 'function') startFn();
     }
 
-    modal.__closeModalHandler = () => closeTinyModal(modal);
+    modal.__closeModalHandler = () => closeAndStart(startFarmWorld);
     closeBtn.addEventListener('click', () => closeAndStart(startFarmWorld));
 
     if (farmBtn) farmBtn.addEventListener('click', () => closeAndStart(startFarmWorld));
@@ -29269,7 +29489,6 @@ function neighborStarVector(edge, index) {
   function bootApp() {
     if (appBooted) return;
     appBooted = true;
-    //initWelcomeDialog();
     buildToolbar();
     selectTool(DEFAULT_TOOL);
     const loadedStateSource = loadState();
@@ -29296,6 +29515,7 @@ function neighborStarVector(edge, index) {
         carCount: vehicleDemoRequest.carCount,
       }), 0);
     }
+    initWelcomeDialog();
   }
 
   // -------- minimap (ported from OWB hud.js redrawMinimap) --------
