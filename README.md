@@ -1,180 +1,68 @@
 # EtherWars
 
-<img width="1324" height="1016" alt="Screenshot 2026-05-11 at 07 09 24" src="https://github.com/user-attachments/assets/1b19a5f7-def5-42bf-b85f-01714f502afa" />
+EtherWars is a browser-based tournament colony battle game. Players build a
+small colony, manage resources, commit hidden round actions, reveal them later,
+and try to survive eliminations for tournament rewards.
+
+The current app is frontend-only for local play and prototyping. Tournament,
+contract, entrant, and reward data are mocked until backend or onchain data is
+wired in.
 
 ## Run
 
 ```bash
 npm run dev
-# serves EtherWars at the compatibility URL http://localhost:3000/tiny-world-builder
-# use another port with: npm run dev -- 3001
-
-# or open the compatibility HTML entry point directly
-open tiny-world-builder.html
 ```
 
-## Deploy
+Open the local URL printed by the dev server:
 
-The app deploys as a static site on Vercel or Netlify. Both host configs run
-`./publish.sh` and serve the generated `dist/` directory. Three.js r128 and
-GLTFLoader are self-hosted from `vendor/three/` so deploys do not depend on
-runtime CDNs.
+```text
+http://localhost:3000/tiny-world-builder
+```
+
+The route and HTML filename are still kept for compatibility while the game is
+branded as EtherWars.
+
+## Basic Controls
+
+| Action | Input |
+| --- | --- |
+| Place a build item | Click a cell |
+| Erase | `E`, then click |
+| Raise/lower terrain | `R` / `F` over a cell |
+| Switch tools | `1`-`9` and toolbar shortcuts |
+| Orbit camera | Drag |
+| Pan camera | Right-drag or Space + drag |
+| Zoom | Scroll wheel |
+| Clear board | `C` |
+| Toggle camera mode | `P` or `I` |
+
+## Tournament Flow
+
+1. Enter the tournament lobby.
+2. Build and allocate colony resources.
+3. Commit a hidden action for the round.
+4. Reveal the action during the reveal phase.
+5. Resolve eliminations and continue toward tournament rewards.
+
+## Development
 
 ```bash
 npm test
 npm run build
-
-# Vercel
-vercel deploy
-
-# Netlify
-netlify deploy --build
-# or connect the repo in Netlify; netlify.toml supplies build/publish settings
 ```
 
-## Controls
+The app is a static single-file Three.js game with self-hosted runtime assets in
+`vendor/three/`. Deployments use `publish.sh` to generate `dist/`.
 
-| Action            | Input                                  |
-| ----------------- | -------------------------------------- |
-| Place             | click a cell                           |
-| Erase             | `E` then click, or pick the eraser     |
-| Orbit             | drag                                   |
-| Zoom              | scroll wheel                           |
-| Stack/enhance item | click the same object tool on an existing object (max 8) |
-| Raise/lower terrain | `R` / `F` over the hovered cell      |
-| Switch tool       | `1`–`9`, then letter shortcuts shown in the toolbar |
-| Toggle camera     | `P` or `I` (isometric ⇄ soft ⇄ perspective) |
-| Reset to preset   | reset button                           |
-| Clear to grass    | `C`                                    |
-
-## Vehicle runtime (Road AI)
-
-Shareable seeded demo:
+## Key Files
 
 ```text
-http://localhost:3000/
-# redirects to /tiny-world-builder?demo=vehicles&seed=tide-ridge-428 in the local dev server
-# /tiny-world-builder with no query redirects there too
-```
-
-The `/tiny-world-builder` route and `tiny-world-builder.html` filename are kept
-as compatibility entry points while the game-facing branding moves to
-EtherWars.
-
-Direct seeded URL:
-
-```text
-http://localhost:3000/tiny-world-builder?demo=vehicles&seed=tide-ridge-428
-```
-
-Large-scale route stress URL:
-
-```text
-http://localhost:3000/tiny-world-builder?demo=vehicles-large&seed=metro-culdesac-48&stats=1
-```
-
-Large demo URL params:
-
-- `size=` / `mapSize=` / `grid=` / `gridSize=` — rounded to the nearest valid demo grid size from `12` through `48` (`12`, `16`, `20`, `32`, `48`).
-- `cars=` / `carCount=` / `vehicles=` / `vehicleCount=` — clamped to `1..120` and capped by available unique route endpoints.
-
-Example:
-
-```text
-http://localhost:3000/tiny-world-builder?demo=vehicles-large&seed=ridge-loop-917&size=48&cars=18&stats=1
-```
-
-The large route defaults to a deterministic 48×48 map with arterial roads,
-ring roads, bridge crossings, cul-de-sac endpoints, and 36 runtime vehicles
-retargeting through long paths. Use it for route planner / traffic scale checks;
-the default bare-port redirect still opens the smaller watchable demo.
-
-Loading either URL creates the map, places delivery bots, assigns targets, and starts
-vehicles driving. The seed is deterministic; change the `seed=` value to get the
-same road layout with different deterministic scenery.
-
-You can also drive runtime vehicles through the same relay/API path used by `send-command.js`.
-
-- `vehicle-spawn --x <n> --z <n> --mode auto|manual --goalX <n> --goalZ <n>`
-- `vehicle-goal --id <id> --x <n> --z <n>`
-- `vehicle-controls --id <id> [--forward] [--reverse] [--left] [--right]`
-- `vehicle-remove --id <id|all>`
-- `vehicle-clear`
-
-Vehicles only move on `path` cells (or bridge cells used as road bridges). Placed objects on paths become live traffic blockers, so dropping a rock/tree/house/fence onto a road makes active cars reroute around that cell or stop if no alternate path exists. Runtime traffic checks also keep cars from passing through each other: vehicles brake/yield inside the collision envelope and, when blocked long enough, reroute around occupied road cells if the network has an alternate path.
-
-For live telemetry in the browser console:
-
-```js
-window.__getVehicleRuntimeSnapshot()
-```
-
-## Tools
-
-`Grass` · `Path` · `Dirt` · `Water` · `Stone` · `Lava` · `Sand` · `Snow` ·
-`House` · `Tree` · `Fence` · `Rock` · `Bridge` · `Crop` · `Corn` · `Wheat` ·
-`Pumpkin` · `Carrot` · `Sunflower` · `Tuft` · `Flower` · `Bush` · `Cow` ·
-`Sheep` · `Erase`.
-
-Terrain/object rules are normalized by the renderer: crops force dirt
-underneath, bridges force water, and ordinary objects do not float on water.
-Paths, shorelines, water foam, bridges, fences, explicit house variants, and
-rocks are adjacency-aware — placing a neighbor re-renders surrounding cells
-so roads join, rivers get banks, bridge direction updates, fence walls connect,
-variant towers stay coherent near other house variants, and rock cells grow into craggy
-outcrops.
-
-## Architecture
-
-EtherWars is a single `<script>` block, currently ~16k lines of vanilla JS, organised by section
-comments (`// -------- xyz --------`). The model is split cleanly:
-
-- **`world[x][z]`** — intent: `{ terrain, kind, floors }` per cell.
-- **`cellMeshes['x,z']`** — rendered Three.js groups for each cell.
-- **`setCell(x, z, opts)`** — single mutation entry point. Updates `world`,
-  rebuilds the cell's tile/object meshes, and re-renders any neighbors that
-  care about adjacency (fences and explicit house variants).
-
-A shared `dropAnims` queue ease-outs new tiles/objects into place. Other
-per-frame animations (tree sway, crop bob, smoke origin) check
-`obj.userData.landing` so they yield while a piece is still falling in.
-
-Newer systems are still routed through that same contract:
-
-- **Preview boards** lazily generate surrounding boards as the camera pans; preview distance/window/opacity settings auto-scale from board size but remain user-adjustable.
-- **AI generation / Auto** validate sparse v4 worlds against the embedded schema.
-- **Local world slots** keep multiple named saves in browser storage.
-- **Weather, time, clouds, and crop duster** are decorative scene systems layered on the same renderer.
-- **Command palette** indexes tools, views, settings, and terrain raise/lower actions.
-
-## Validation
-
-```bash
-npm test        # syntax, schema parity, local assets, static smoke checks
-npm run build   # publish checks + dist generation
-```
-
-Manual browser smoke checklist after visual changes: page loads with no console
-errors; place/erase works; `C`, `P`/`I`, `R`/`F`, and tool shortcuts respond;
-fence neighbors update; cloud shadow at 0% still leaves visible clouds.
-After resource-accounting changes, replace a leveled resource building with a
-different resource building and verify the old building's full multi-level cost
-is refunded, its output is removed, and the new level-1 cost/output is applied.
-Resource outputs should remain 1:1 with credit cost for each level.
-For animal resources, build and upgrade Sheep and Cow, verify lambs/calves appear
-for higher levels, and confirm Sheep adds 20 Food per level while Cow adds 40
-Food per level with matching delete/refund/replacement behavior.
-
-See [AGENTS.md](./AGENTS.md) for guidance on extending the codebase.
-
-## Files
-
-```
-tiny-world-builder.html          EtherWars app compatibility entry point
-README.md                        this file
-AGENTS.md                        guidance for AI coding agents
-world.schema.json                import/export schema mirrored into the app
-tools/check.js                   static syntax/schema/asset check
-tools/smoke-static.js            no-browser smoke guard for key app contracts
-vendor/three/                    self-hosted Three.js r128 runtime files
+tiny-world-builder.html   Main EtherWars app entry point
+README.md                 Project overview
+AGENTS.md                 Agent/development guidance
+world.schema.json         World import/export schema
+tools/check.js            Static checks
+tools/smoke-static.js     Static smoke tests
+vendor/three/             Self-hosted Three.js runtime
 ```
