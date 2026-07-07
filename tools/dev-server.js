@@ -150,6 +150,25 @@ function sanitizeForPublicJson(value, depth = 0) {
   return out;
 }
 
+function normalizeAwsTableId(body, lastRevealState) {
+  const value = body && (body.tableId || body.tableID || body.table_id)
+    || lastRevealState && (lastRevealState.tableId || lastRevealState.tableID || lastRevealState.table_id)
+    || null;
+  return value === null || value === undefined ? null : String(value);
+}
+
+function normalizeAwsTablePlayerIds(body, lastRevealState, playerId) {
+  const source = body && (body.tablePlayerIds || body.playerIds || body.playerIDs || body.playerIdsForTable)
+    || lastRevealState && (lastRevealState.tablePlayerIds || lastRevealState.playerIds || lastRevealState.playerIDs || lastRevealState.playerIdsForTable)
+    || [];
+  const ids = Array.isArray(source)
+    ? source.map(id => String(id || '').trim()).filter(Boolean)
+    : [];
+  const selfId = String(playerId || '').trim();
+  if (selfId && !ids.includes(selfId)) ids.unshift(selfId);
+  return Array.from(new Set(ids));
+}
+
 function appendAiLog(entry) {
   try {
     fs.mkdirSync(aiLogDir, { recursive: true });
@@ -678,6 +697,8 @@ function validateInterRoundStatePayload(body) {
   }
 
   const updatedAt = new Date().toISOString();
+  const tableId = normalizeAwsTableId(body, lastRevealState);
+  const tablePlayerIds = normalizeAwsTablePlayerIds(body, lastRevealState, playerId);
   const safeBody = sanitizeForPublicJson({
     ...body,
     interRoundState: {
@@ -686,6 +707,8 @@ function validateInterRoundStatePayload(body) {
     },
     phase,
     playerId,
+    tableId,
+    tablePlayerIds,
     roundNumber,
     updatedAt,
     serverValidation: {

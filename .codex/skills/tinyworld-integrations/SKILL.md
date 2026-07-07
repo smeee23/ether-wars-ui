@@ -51,6 +51,8 @@ Future AWS/indexer round-state architecture:
 - Reveal round ends.
 - Indexer reads contract results.
 - AWS stores `lastRevealState`, the authoritative starting point for the next commit round:
+  - table id (`tableId`)
+  - player ids assigned to that table (`tablePlayerIds`)
   - credits
   - food
   - water
@@ -64,6 +66,7 @@ Future AWS/indexer round-state architecture:
 - Commit round begins.
 - User edits the visual world, chooses attack/defend/build actions, and allocates credits.
 - AWS stores `interRoundState`, the proposed/pending state for the current commit round:
+  - table id and table player ids copied from the hydrated AWS/indexer state
   - proposed world
   - proposed allocations
   - proposed wager

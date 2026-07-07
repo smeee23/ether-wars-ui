@@ -736,6 +736,11 @@
     padding: 7px 8px;
     font-size: 11px;
   }
+  .player-expansion-claim-action {
+    width: 100%;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
   .neighbor-open-land-action {
     width: 100%;
     padding: 7px 8px;
@@ -747,6 +752,7 @@
     font-size: 11px;
   }
   .neighbor-claim-action[hidden],
+  .player-expansion-claim-action[hidden],
   .neighbor-open-land-action[hidden],
   .neighbor-load-aws-land-action[hidden] {
     display: none;
@@ -4285,6 +4291,7 @@
       <span>Round number</span>
       <strong id="player-stat-round-number">1</strong>
     </div>
+    <button class="btn player-expansion-claim-action" id="player-expansion-claim-action" type="button" hidden>Claim Expansion</button>
 
     <div class="neighbor-stats-panel" id="neighbor-stats-panel" aria-label="Neighbor stats">
       <div class="stats-panel-header">
@@ -13519,6 +13526,8 @@
   }
 
 function neighborStarVector(edge, index) {
+  const lane = Math.max(0, Math.round(Number(index) || 0));
+  const offset = [-0.75, -0.25, 0.25, 0.75][lane % 4];
   const yMap = {
     north: [0.20, 0.22],
     east:  [0.24, 0.28],
@@ -13526,21 +13535,21 @@ function neighborStarVector(edge, index) {
     west:  [0.28, 0.26]
   };
 
-  const y = yMap[edge][index];
+  const y = yMap[edge][lane % 2];
 
   if (edge === 'north') {
-    return new THREE.Vector3(index === 0 ? -0.55 : 0.55, y, -1);
+    return new THREE.Vector3(offset, y, -1);
   }
 
   if (edge === 'south') {
-    return new THREE.Vector3(index === 0 ? -0.55 : 0.55, y, 1);
+    return new THREE.Vector3(offset, y, 1);
   }
 
   if (edge === 'east') {
-    return new THREE.Vector3(1, y, index === 0 ? -0.55 : 0.55);
+    return new THREE.Vector3(1, y, offset);
   }
 
-  return new THREE.Vector3(-1, y, index === 0 ? -0.55 : 0.55);
+  return new THREE.Vector3(-1, y, offset);
 }
 
   function neighborStarPosition(edge, index) {
@@ -13760,6 +13769,7 @@ function neighborStarVector(edge, index) {
   const neighborWagerGoldEl = document.getElementById('neighbor-wager-gold');
   const neighborWagerGoldValueEl = document.getElementById('neighbor-wager-gold-value');
   const neighborWagerNoteEl = document.getElementById('neighbor-wager-note');
+  const playerExpansionClaimActionEl = document.getElementById('player-expansion-claim-action');
   const neighborClaimActionEl = document.getElementById('neighbor-claim-action');
   const neighborOpenLandActionEl = document.getElementById('neighbor-open-land-action');
   const neighborLoadAwsLandActionEl = document.getElementById('neighbor-load-aws-land-action');
@@ -13784,6 +13794,8 @@ function neighborStarVector(edge, index) {
   let activeNeighborSlotId = null;
   let neighborPivotTween = null;
   let lastCommitPreviewHash = '';
+  let neighborNames = [];
+  let expansionAvailable = false;
   // Temporary frontend-only round action state.
   // TODO(contract/indexer): hydrate this from indexed round state later.
   // TODO(commit/reveal): submit the selected action through commit/reveal once
@@ -14256,9 +14268,58 @@ function neighborStarVector(edge, index) {
     return activeNeighborSlots()[0] || SURROUNDING_NEIGHBOR_SLOTS.find(Boolean) || null;
   }
 
+  function getNeighborNameFromPlayerId(playerId, fallbackLabel) {
+    if (!neighborNames.length || !playerId) return fallbackLabel;
+
+    const match = String(playerId).match(/\d+/);
+    if (!match) return fallbackLabel;
+
+    const playerNumber = Number(match[0]);
+    if (!Number.isFinite(playerNumber) || playerNumber <= 0) return fallbackLabel;
+
+    const index = (playerNumber - 1) % neighborNames.length;
+    return neighborNames[index] || fallbackLabel;
+  }
+
+  function neighborPlayerId(slot) {
+    if (!slot) return null;
+    if (slot.playerId) return slot.playerId;
+    if (!slot.occupied) return null;
+    const auth = authoritativeGameState || awsGameState;
+    const ids = auth && Array.isArray(auth.tablePlayerIds) ? auth.tablePlayerIds : [];
+    const currentPlayerId = auth && auth.playerId ? String(auth.playerId) : '';
+    const neighborIds = ids.map(id => String(id || '').trim())
+      .filter(id => id && id !== currentPlayerId);
+    const occupiedSlots = SURROUNDING_NEIGHBOR_SLOTS.filter(candidate => candidate && candidate.occupied);
+    const index = occupiedSlots.indexOf(slot);
+    return index >= 0 && index < neighborIds.length ? neighborIds[index] : null;
+  }
+
   function neighborDisplayLabel(slot) {
     if (!slot) return 'Neighbor';
-    return slot.label || slot.name || slot.username || slot.playerName || slot.id || 'Neighbor';
+    const fallbackLabel = slot.label || slot.name || slot.username || slot.playerName || slot.id || 'Neighbor';
+    return getNeighborNameFromPlayerId(neighborPlayerId(slot), fallbackLabel);
+  }
+
+  function refreshNeighborDisplayLabels() {
+    renderNeighborSelector();
+    if (activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId)) {
+      openNeighborStats(neighborSlotById.get(activeNeighborSlotId));
+    }
+    if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
+  }
+
+  async function loadNeighborNames() {
+    try {
+      const response = await fetch('assets/neighbor_names.csv', { cache: 'no-store' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const text = await response.text();
+      neighborNames = text.split(',').map(name => name.trim()).filter(Boolean);
+      refreshNeighborDisplayLabels();
+    } catch (err) {
+      neighborNames = [];
+      console.warn('[neighbor-names] failed to load; using directional labels:', err.message || err);
+    }
   }
 
   function renderNeighborSelector() {
@@ -14336,7 +14397,7 @@ function neighborStarVector(edge, index) {
     for (const slot of slots) {
       const opt = document.createElement('option');
       opt.value = slot.id;
-      opt.textContent = slot.label || slot.id;
+      opt.textContent = neighborDisplayLabel(slot);
       neighborAttackTargetEl.appendChild(opt);
     }
     neighborAttackTargetEl.disabled = false;
@@ -14377,10 +14438,10 @@ function neighborStarVector(edge, index) {
   }
 
   function syncNeighborClaimAction(slot) {
-    if (!neighborClaimActionEl) return;
-    const claimable = isNeighborClaimable(slot);
-    neighborClaimActionEl.hidden = !claimable;
-    neighborClaimActionEl.disabled = !claimable;
+    if (neighborClaimActionEl) {
+      neighborClaimActionEl.hidden = true;
+      neighborClaimActionEl.disabled = true;
+    }
     if (neighborOpenLandActionEl) {
       const openable = isNeighborClaimedByCurrentUser(slot);
       const landId = controlledLandIdForPanelSlot(slot);
@@ -14393,6 +14454,62 @@ function neighborStarVector(edge, index) {
       neighborLoadAwsLandActionEl.hidden = !loadable;
       neighborLoadAwsLandActionEl.disabled = !loadable;
     }
+  }
+
+  function syncPlayerExpansionClaimAction() {
+    if (!playerExpansionClaimActionEl) return;
+    playerExpansionClaimActionEl.hidden = !expansionAvailable;
+    playerExpansionClaimActionEl.disabled = !expansionAvailable;
+  }
+
+  function firstUnoccupiedNeighborSlot() {
+    return SURROUNDING_NEIGHBOR_SLOTS.find(slot => slot && isNeighborClaimable(slot)) || null;
+  }
+
+  function createExpansionNeighborSlot() {
+    const edges = ['north', 'east', 'south', 'west'];
+    let edge = edges[0];
+    let index = 0;
+    for (const candidateEdge of edges) {
+      const used = SURROUNDING_NEIGHBOR_SLOTS
+        .filter(slot => slot && slot.edge === candidateEdge)
+        .map(slot => Math.max(0, Math.round(Number(slot.index) || 0)));
+      const maxIndex = used.length ? Math.max(...used) : -1;
+      edge = candidateEdge;
+      index = maxIndex + 1;
+      if (index <= 1) break;
+    }
+    const id = edge + '-' + index;
+    const slot = {
+      id,
+      edge,
+      index,
+      occupied: false,
+      color: '#aebaa5',
+      label: 'Open land',
+      stats: {
+        army: 0,
+        food: 0,
+        trade: 0,
+        landConquered: 0,
+        neighbor: 'Open land',
+        contractAddress: '0x2fe5b...67e4c',
+      },
+    };
+    SURROUNDING_NEIGHBOR_SLOTS.push(slot);
+    buildSurroundingLand();
+    renderNeighborSelector();
+    rebuildNeighborSlotButtons();
+    return slot;
+  }
+
+  function claimNextExpansionLand() {
+    if (!expansionAvailable) return false;
+    const slot = firstUnoccupiedNeighborSlot() || createExpansionNeighborSlot();
+    if (!slot || !claimNeighborLand(slot.id)) return false;
+    expansionAvailable = false;
+    syncPlayerExpansionClaimAction();
+    return true;
   }
 
   function claimNeighborLand(neighborId) {
@@ -14647,6 +14764,11 @@ function neighborStarVector(edge, index) {
       saveLocalGameState();
     });
   }
+  if (playerExpansionClaimActionEl) {
+    playerExpansionClaimActionEl.addEventListener('click', () => {
+      claimNextExpansionLand();
+    });
+  }
   if (neighborClaimActionEl) {
     neighborClaimActionEl.addEventListener('click', () => {
       if (!activeNeighborSlotId) return;
@@ -14781,6 +14903,8 @@ function neighborStarVector(edge, index) {
   renderNeighborSelector();
   rebuildNeighborSlotButtons();
   ensureSelectedNeighborStats();
+  syncPlayerExpansionClaimAction();
+  loadNeighborNames();
 
   // -------- home board border --------
   // No visible board marker. The old dark rectangle/outline under the start
@@ -17088,6 +17212,34 @@ function neighborStarVector(edge, index) {
     return null;
   }
 
+  function normalizeAwsTableId(data, lastRevealState) {
+    const value = data && (data.tableId || data.tableID || data.table_id)
+      || lastRevealState && (lastRevealState.tableId || lastRevealState.tableID || lastRevealState.table_id)
+      || null;
+    return value === null || value === undefined ? null : String(value);
+  }
+
+  function normalizeAwsTablePlayerIds(data, lastRevealState, playerId) {
+    const source = data && (data.tablePlayerIds || data.playerIds || data.playerIDs || data.playerIdsForTable)
+      || lastRevealState && (lastRevealState.tablePlayerIds || lastRevealState.playerIds || lastRevealState.playerIDs || lastRevealState.playerIdsForTable)
+      || [];
+    const ids = Array.isArray(source)
+      ? source.map(id => String(id || '').trim()).filter(Boolean)
+      : [];
+    const selfId = String(playerId || '').trim();
+    if (selfId && !ids.includes(selfId)) ids.unshift(selfId);
+    return Array.from(new Set(ids));
+  }
+
+  function normalizeAwsExpansionAvailable(data, lastRevealState) {
+    const value = data && data.expansionAvailable !== undefined
+      ? data.expansionAvailable
+      : lastRevealState && lastRevealState.expansionAvailable;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
+    return !!value;
+  }
+
   function validateAwsMockStats(data) {
     if (!data || typeof data !== 'object') return null;
     if (typeof data.source !== 'string' || !data.source) return null;
@@ -17106,10 +17258,17 @@ function neighborStarVector(edge, index) {
     const roundNumber = coerceNonNegativeStat(lastRevealState.roundNumber);
     const entriesRemaining = coerceNonNegativeStat(lastRevealState.entriesRemaining);
     const maxEntries = coerceNonNegativeStat(lastRevealState.maxEntries);
+    const playerId = data.playerId || lastRevealState.playerId || null;
+    const tableId = normalizeAwsTableId(data, lastRevealState);
+    const tablePlayerIds = normalizeAwsTablePlayerIds(data, lastRevealState, playerId);
+    const expansionAvailable = normalizeAwsExpansionAvailable(data, lastRevealState);
 
     return {
       source: data.source,
-      playerId: data.playerId || null,
+      playerId,
+      tableId,
+      tablePlayerIds,
+      expansionAvailable,
       phase,
       lastRevealState,
       interRoundState: data.interRoundState || null,
@@ -17138,6 +17297,9 @@ function neighborStarVector(edge, index) {
     window.__tinyworldAwsGameState = validated;
     window.__tinyworldAuthoritativeGameState = validated;
     window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, validated.gameState);
+    expansionAvailable = !!validated.expansionAvailable;
+    syncPlayerExpansionClaimAction();
+    if (typeof refreshNeighborDisplayLabels === 'function') refreshNeighborDisplayLabels();
     if (!opts.preserveLocalResources) {
       for (const key of RESOURCE_KEYS) {
         resources[key] = validated.resources[key];
@@ -17752,6 +17914,8 @@ function neighborStarVector(edge, index) {
     const selectedAction = actionState.selectedAction || 'defend';
     const wagerAmount = coerceNonNegativeStat(actionState.wagerAmount) || 0;
     const playerId = auth.playerId || 'player-1';
+    const tableId = auth.tableId || lastRevealState.tableId || null;
+    const tablePlayerIds = Array.isArray(auth.tablePlayerIds) ? auth.tablePlayerIds : [];
     const proposedResources = currentResourceSnapshotForAws();
     const lastCredits = coerceNonNegativeStat(lastRevealState.credits) || 0;
     const creditSpend = Math.max(0, lastCredits - proposedResources.credits);
@@ -17767,6 +17931,8 @@ function neighborStarVector(edge, index) {
     const draft = {
       source: 'tiny-world-builder',
       playerId,
+      tableId,
+      tablePlayerIds,
       phase: 'commit',
       roundNumber,
       lastRevealState,

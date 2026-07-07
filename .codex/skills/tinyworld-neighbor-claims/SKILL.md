@@ -18,6 +18,11 @@ Use these helpers for the UI-only claim flow:
 - `setNeighborClaimGlow(neighbor, enabled)` toggles the green claim glow.
 - `claimNeighborLand(neighborId)` marks a slot as claimed by the current user
   in local/UI state.
+- `expansionAvailable` comes from hydrated AWS mock/indexer state. When true,
+  show the single player-panel Claim button and route it through
+  `claimNextExpansionLand()`, which claims the first unoccupied neighbor slot
+  in existing slot order or appends a visual-only open slot before claiming.
+  Do not show per-neighbor open-land Claim buttons.
 - `controlledLandState` stores the currently active player-controlled land and
   a map of saved land records. `home` is the original land; claimed neighbors
   use `neighbor:{slotId}`.

@@ -1,0 +1,43 @@
+{
+    "source": "etherwars-mock-indexer",
+    "phase": "commit",
+    "playerId": "player-1",
+    "tableId": "table-1",
+    "tablePlayerIds": [
+      "player-1",
+      "player-2",
+      "player-3",
+      "player-4"
+    ],
+    "lastRevealState": {
+      "playerId": "player-1",
+      "tableId": "table-1",
+      "tablePlayerIds": [
+        "player-1",
+        "player-2",
+        "player-3",
+        "player-4"
+      ],
+      "credits": 500,
+      "food": 40,
+      "water": 40,
+      "oxygen": 40,
+      "shelter": 40,
+      "fleet": 40,
+      "population": 24,
+      "roundNumber": 1,
+      "entriesRemaining": 22,
+      "maxEntries": 200,
+      "playerStatus": "active",
+      "previousWorld": {
+        "v": 4,
+        "gridSize": 20,
+        "cells": [],
+        "cameraMode": "ortho",
+        "toolId": "house"
+      }
+    },
+    "expansionAvailable": true,
+    "interRoundState": null,
+    "updatedAt": "2026-07-07T00:00:00.000Z"
+  }
