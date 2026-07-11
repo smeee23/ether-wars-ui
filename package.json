@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node tools/dev-server.js",
     "build": "./publish.sh",
+    "aws:upload-json": "tools/upload-asset-json-to-s3.sh",
     "check": "node tools/check.js",
     "smoke": "node tools/smoke-static.js",
     "demo:vehicles": "node plugins/examples/vehicle-road-demo.js",

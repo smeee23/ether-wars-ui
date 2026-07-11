@@ -52,6 +52,15 @@ npm test
 npm run build
 ```
 
+Upload a JSON fixture from `assets/` to a guarded key under `etherwars/` in
+the `justcausepools` bucket using the project venv and `S3ReadWrite.py`:
+
+```bash
+npm run aws:upload-json -- mock_tournament_stats.json etherwars/tournaments/mock_tournament-1/mock_tournament-1.json
+```
+
+Run `npm run aws:upload-json -- --help` for constraints and usage.
+
 The app is a static single-file Three.js game with self-hosted runtime assets in
 `vendor/three/`. Deployments use `publish.sh` to generate `dist/`.
 

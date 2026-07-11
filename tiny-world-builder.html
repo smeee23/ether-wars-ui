@@ -422,11 +422,7 @@
     -webkit-backdrop-filter: blur(22px) saturate(180%);
   }
   .crowd-panel {
-    position: fixed;
-    top: auto;
-    right: auto;
-    bottom: 72px;
-    left: 74px;
+    position: static;
     z-index: 42;
     width: 248px;
     max-height: calc(100vh - 190px);
@@ -448,7 +444,7 @@
     position: fixed;
     top: auto;
     right: 14px;
-    top: 324px;
+    top: 34px;
     z-index: 42;
     width: 250px;
     max-width: calc(100vw - 32px);
@@ -500,6 +496,22 @@
     display: flex;
     flex-direction: column;
     gap: 5px;
+  }
+  .colony-contract-address {
+    display: grid;
+    gap: 3px;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .colony-contract-address code {
+    color: var(--ink);
+    font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: 0;
+    text-transform: none;
+    overflow-wrap: anywhere;
   }
   .colony-toggle-label {
     font-size: 9.5px;
@@ -982,14 +994,6 @@
   }
 
   @media (max-width: 900px) {
-    .crowd-panel {
-      top: auto;
-      right: auto;
-      bottom: 72px;
-      left: 8px;
-      width: 210px;
-      max-height: 42vh;
-    }
     .player-stats-panel {
       top: auto;
       right: 8px;
@@ -2822,12 +2826,56 @@
   .showcase-exit:hover { background: rgba(42,39,34,0.88); }
 
   /* --- Minimap --- */
-  .minimap-wrap {
+  .lower-left-ui {
     position: fixed;
-    /* Default anchor: top-right, under the appbar icon pill.
-       Overridden by JS-set top/left when the user drags it. */
-    top: 72px; right: 24px;
-    bottom: auto; left: auto;
+    top: 96px;
+    bottom: 24px;
+    left: 18px;
+    z-index: 42;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    max-width: calc(100vw - 36px);
+    pointer-events: none;
+  }
+  .lower-left-ui > *,
+  .lower-left-main-row > * { pointer-events: auto; }
+  .lower-left-main-row {
+    display: flex;
+    flex: 0 1 auto;
+    align-items: flex-end;
+    gap: 12px;
+    min-height: 0;
+    max-width: 100%;
+  }
+  .lower-left-ui .controls {
+    position: static;
+    flex: 1 1 auto;
+    top: auto;
+    left: auto;
+    right: auto;
+    transform: none;
+    min-height: 44px;
+    max-height: 100%;
+  }
+  .lower-left-ui .appbar {
+    position: static;
+    flex: 0 0 auto;
+  }
+  .lower-left-ui .crowd-panel {
+    position: static;
+    flex: 0 1 248px;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: 248px;
+    max-height: min(360px, 42vh);
+  }
+  .minimap-wrap {
+    position: static;
+    flex: 0 0 auto;
     z-index: 30;
     display: flex; align-items: flex-start; gap: 6px;
     flex-direction: row-reverse;
@@ -4171,13 +4219,33 @@
       width: 16px;
       height: 16px;
     }
-    .minimap-wrap {
-      top: 12px;
-      right: 12px;
-    }
     .minimap-card canvas {
       width: 118px;
       height: 118px;
+    }
+    .lower-left-ui {
+      top: 72px;
+      bottom: 8px;
+      left: 8px;
+      gap: 6px;
+      max-width: calc(100vw - 16px);
+    }
+    .lower-left-main-row {
+      display: grid;
+      grid-template-columns: 136px minmax(0, 1fr);
+      align-items: end;
+      gap: 8px;
+      width: calc(100vw - 16px);
+    }
+    .lower-left-ui .crowd-panel {
+      width: 100%;
+      max-height: min(300px, 34vh);
+      min-width: 0;
+      padding: 8px;
+    }
+    .lower-left-ui .controls {
+      min-height: 40px;
+      max-height: 100%;
     }
     .topbar-popup {
       top: 12px;
@@ -4288,6 +4356,9 @@
   <div id="cloud-layer"></div>
   <div id="tod-tint" aria-hidden="true"></div>
 
+  <!-- Lower-left controls, minimap, activity vehicles, and project link -->
+  <div class="lower-left-ui" id="lower-left-ui">
+    <div class="lower-left-main-row">
   <!-- Minimap (top-down repaint of the home grid) -->
   <div class="minimap-wrap" id="minimap-wrap">
     <div class="minimap-card">
@@ -4343,6 +4414,8 @@
       <button class="btn" id="crowd-debug-live" type="button">Debug</button>
     </div>
   </div>
+    </div>
+  </div>
 
   <div class="player-stats-panel" id="player-stats-panel" aria-label="Stats and actions">
     <h3 id="player-stats-title">Land Stats (Home land)</h3>
@@ -4352,6 +4425,10 @@
         <button type="button" data-colony-index="0" aria-pressed="true">Colony 1</button>
         <button type="button" data-colony-index="1" aria-pressed="false">Colony 2</button>
         <button type="button" data-colony-index="2" aria-pressed="false">Colony 3</button>
+      </div>
+      <div class="colony-contract-address">
+        <span>Contract address</span>
+        <code id="player-colony-contract-address">Not available</code>
       </div>
     </div>
     <div class="player-colony-actions">
@@ -4433,6 +4510,10 @@
           <button type="button" data-colony-index="0" aria-pressed="true">Colony 1</button>
           <button type="button" data-colony-index="1" aria-pressed="false">Colony 2</button>
           <button type="button" data-colony-index="2" aria-pressed="false">Colony 3</button>
+        </div>
+        <div class="colony-contract-address">
+          <span>Contract address</span>
+          <code id="neighbor-colony-contract-address">Not available</code>
         </div>
       </div>
       <div class="colony-empty-state" id="neighbor-colony-empty" hidden>
@@ -14121,6 +14202,7 @@ function neighborStarVector(edge, index) {
     selectedNeighborColonyIndex: 0,
   };
   let playerPublicColonies = [null, null, null];
+  let playerPublicContractAddress = '';
   // Temporary frontend-only round action state.
   // TODO(contract/indexer): hydrate this from indexed round state later.
   // TODO(commit/reveal): submit the selected action through commit/reveal once
@@ -14139,11 +14221,13 @@ function neighborStarVector(edge, index) {
   const playerColonyToggleEl = document.getElementById('player-colony-toggle');
   const playerColonyEmptyEl = document.getElementById('player-colony-empty');
   const playerColonyStatsBodyEl = document.getElementById('player-colony-stats-body');
+  const playerColonyContractAddressEl = document.getElementById('player-colony-contract-address');
   const neighborColonyToggleBlockEl = document.getElementById('neighbor-colony-toggle-block');
   const neighborSelectionEmptyEl = document.getElementById('neighbor-selection-empty');
   const neighborColonyToggleEl = document.getElementById('neighbor-colony-toggle');
   const neighborColonyEmptyEl = document.getElementById('neighbor-colony-empty');
   const neighborColonyStatsBodyEl = document.getElementById('neighbor-colony-stats-body');
+  const neighborColonyContractAddressEl = document.getElementById('neighbor-colony-contract-address');
 
   function normalizedPublicColonies(record) {
     const source = record && Array.isArray(record.colonies) ? record.colonies : [];
@@ -14157,6 +14241,7 @@ function neighborStarVector(edge, index) {
         colonyId: colony.colonyId === undefined ? 'colony-' + (index + 1) : String(colony.colonyId),
         index,
         active: true,
+        contractAddress: String(colony.contractAddress || record.contractAddress || '').trim(),
         resources: {
           gold: coerceNonNegativeStat(colony.credits) || 0,
           food: coerceNonNegativeStat(colony.food) || 0,
@@ -14177,6 +14262,13 @@ function neighborStarVector(edge, index) {
   function firstActiveColonyIndex(colonies) {
     const index = (colonies || []).findIndex(colony => colony && colony.active);
     return index >= 0 ? index : 0;
+  }
+
+  function displayContractAddress(element, address) {
+    if (!element) return;
+    const value = String(address || '').trim();
+    element.textContent = value || 'Not available';
+    element.title = value;
   }
 
   function playerColonyLandId(index) {
@@ -14842,6 +14934,7 @@ function neighborStarVector(edge, index) {
     const next = Math.max(0, Math.min(2, Math.round(Number(index) || 0)));
     colonyNavigationState.selectedPlayerColonyIndex = next;
     const colony = playerPublicColonies[next];
+    displayContractAddress(playerColonyContractAddressEl, colony && colony.contractAddress || playerPublicContractAddress);
     renderPlayerColonyToggle();
     if (playerColonyEmptyEl) playerColonyEmptyEl.hidden = !!colony;
     if (playerColonyStatsBodyEl) playerColonyStatsBodyEl.hidden = !colony;
@@ -15068,6 +15161,9 @@ function neighborStarVector(edge, index) {
     const slot = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
     const colonies = normalizedPublicColonies(slot && slot.publicRecord);
     const colony = colonies[next];
+    const neighborContractAddress = colony && colony.contractAddress
+      || slot && slot.publicRecord && slot.publicRecord.contractAddress;
+    displayContractAddress(neighborColonyContractAddressEl, neighborContractAddress);
     if (neighborColonyToggleEl) {
       neighborColonyToggleEl.querySelectorAll('button[data-colony-index]').forEach(button => {
         const buttonIndex = Number(button.getAttribute('data-colony-index'));
@@ -15105,6 +15201,7 @@ function neighborStarVector(edge, index) {
           : 'No assigned neighbors are available.';
       }
       if (neighborColonyToggleBlockEl) neighborColonyToggleBlockEl.hidden = true;
+      displayContractAddress(neighborColonyContractAddressEl, '');
       if (neighborColonyEmptyEl) neighborColonyEmptyEl.hidden = true;
       if (neighborColonyStatsBodyEl) neighborColonyStatsBodyEl.hidden = true;
       updateNeighborSlotActiveButtons();
@@ -17748,6 +17845,7 @@ function neighborStarVector(edge, index) {
   }
 
   function syncPlayerColoniesFromPublic(record, preserveLocal) {
+    playerPublicContractAddress = String(record && record.contractAddress || '').trim();
     const normalized = normalizedPublicColonies(record);
     ensureHomeControlledLand();
     for (let index = 0; index < 3; index++) {
@@ -30562,6 +30660,8 @@ function neighborStarVector(edge, index) {
 
   (function wireMinimap() {
     const wrap = document.getElementById('minimap-wrap');
+    const lowerLeftUi = document.getElementById('lower-left-ui');
+    const lowerLeftRow = lowerLeftUi && lowerLeftUi.querySelector('.lower-left-main-row');
     const canvas = document.getElementById('minimap-canvas');
     const sizeEl = document.getElementById('minimap-size');
     const fpsEl = document.getElementById('minimap-fps');
@@ -30571,6 +30671,12 @@ function neighborStarVector(edge, index) {
     const objectsEl = document.getElementById('minimap-objects');
     const autoExpandEl = document.getElementById('minimap-autoexpand');
     if (!wrap) return;
+    if (lowerLeftUi && lowerLeftRow) {
+      const controls = document.querySelector('.controls');
+      const appbar = document.querySelector('.appbar');
+      if (controls) lowerLeftUi.insertBefore(controls, lowerLeftRow);
+      if (appbar) lowerLeftUi.appendChild(appbar);
+    }
     function paintSize() {
       if (!sizeEl) return;
       const n = (typeof minimapViewCellCount === 'function') ? minimapViewCellCount() : GRID;
@@ -30610,9 +30716,12 @@ function neighborStarVector(edge, index) {
     }
     
 
-    // -- draggable minimap --
-    // Stored as top/left offsets so any viewport size resolves the same.
-    const MINIMAP_POS_KEY = 'tinyworld:minimap.pos';
+    // -- draggable lower-left UI --
+    // The minimap chrome remains the drag handle, but the shared group moves
+    // together so its relationship to the controls, activity panel, and link
+    // cannot break after a drag.
+    const dragTarget = lowerLeftUi || wrap;
+    const MINIMAP_POS_KEY = 'tinyworld:lower-left-ui.pos.v1';
     function applyStoredMinimapPos() {
       try {
         const raw = localStorage.getItem(MINIMAP_POS_KEY);
@@ -30620,21 +30729,23 @@ function neighborStarVector(edge, index) {
         const p = JSON.parse(raw);
         if (!Number.isFinite(p.top) || !Number.isFinite(p.left)) return;
         // Clamp inside viewport.
-        const w = wrap.offsetWidth || 200;
-        const h = wrap.offsetHeight || 200;
+        const w = dragTarget.offsetWidth || 200;
+        const h = dragTarget.offsetHeight || 200;
         const top = Math.max(8, Math.min(window.innerHeight - h - 8, p.top));
         const left = Math.max(8, Math.min(window.innerWidth - w - 8, p.left));
-        wrap.style.top = top + 'px';
-        wrap.style.left = left + 'px';
-        wrap.style.right = 'auto';
-        wrap.style.bottom = 'auto';
+        dragTarget.style.width = Math.min(w, window.innerWidth - 16) + 'px';
+        dragTarget.style.height = Math.min(h, window.innerHeight - 16) + 'px';
+        dragTarget.style.top = top + 'px';
+        dragTarget.style.left = left + 'px';
+        dragTarget.style.right = 'auto';
+        dragTarget.style.bottom = 'auto';
       } catch (_) {}
     }
     let mmDrag = null;
     wrap.addEventListener('pointerdown', e => {
       // Don't hijack clicks on the canvas/buttons inside if any are added later.
       if (e.target.closest('button, a, input, select, textarea')) return;
-      const r = wrap.getBoundingClientRect();
+      const r = dragTarget.getBoundingClientRect();
       mmDrag = {
         startX: e.clientX,
         startY: e.clientY,
@@ -30651,14 +30762,16 @@ function neighborStarVector(edge, index) {
       if (!mmDrag.moved && Math.hypot(dx, dy) < 4) return;
       mmDrag.moved = true;
       wrap.classList.add('dragging');
-      const w = wrap.offsetWidth;
-      const h = wrap.offsetHeight;
+      const w = dragTarget.offsetWidth;
+      const h = dragTarget.offsetHeight;
       const top = Math.max(8, Math.min(window.innerHeight - h - 8, mmDrag.topAtStart + dy));
       const left = Math.max(8, Math.min(window.innerWidth - w - 8, mmDrag.leftAtStart + dx));
-      wrap.style.top = top + 'px';
-      wrap.style.left = left + 'px';
-      wrap.style.right = 'auto';
-      wrap.style.bottom = 'auto';
+      dragTarget.style.width = Math.min(w, window.innerWidth - 16) + 'px';
+      dragTarget.style.height = Math.min(h, window.innerHeight - 16) + 'px';
+      dragTarget.style.top = top + 'px';
+      dragTarget.style.left = left + 'px';
+      dragTarget.style.right = 'auto';
+      dragTarget.style.bottom = 'auto';
     });
     function endMinimapDrag() {
       if (!mmDrag) return;
@@ -30666,7 +30779,7 @@ function neighborStarVector(edge, index) {
       mmDrag = null;
       wrap.classList.remove('dragging');
       if (moved) {
-        const r = wrap.getBoundingClientRect();
+        const r = dragTarget.getBoundingClientRect();
         try {
           localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify({
             top: Math.round(r.top),

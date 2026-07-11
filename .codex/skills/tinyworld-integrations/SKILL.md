@@ -35,11 +35,21 @@ Future AWS/indexer round-state architecture:
   round identity is `roundNumber`, and table player order determines neighbor
   display order. Missing neighbor records show an explicit unavailable state;
   never synthesize resource values for them.
+- Public player and neighbor `colonies[]` arrays normalize through
+  `normalizedPublicColonies()` into exactly three UI positions. Preserve
+  separate selection state for the current player's colony, the neighbor
+  player, and that neighbor's colony. A neighbor remains one distant visual
+  slot regardless of colony count.
 
 - `S3ReadWrite.py` is the repo-local Ether Wars S3 utility. It must load local
   `.env` values without printing them, prefer standard `AWS_*` credential
   environment variables, only support explicit object read/write operations, and
   keep `.env` ignored.
+- `tools/upload-asset-json-to-s3.sh` is the guarded manual fixture uploader.
+  It accepts one JSON filename directly under `assets/` and one
+  `etherwars/.../*.json` object key, fixes the bucket to `justcausepools`, and
+  invokes `S3ReadWrite.py` through `.venv/bin/python`. Keep its path checks and
+  do not replace the venv call with a global Python installation.
 - The local dev bridge exposes `GET /api/mockstats` from `tools/dev-server.js`.
   It shells through the project Python/venv to `S3ReadWrite.py` and returns the
   strict JSON from `s3://justcausepools/etherwars/mockstats.json`. Keep AWS

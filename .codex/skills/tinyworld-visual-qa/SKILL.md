@@ -14,6 +14,7 @@ Checks:
 - Left-click places only on the editable home board.
 - Right-drag and Space+drag pan smoothly.
 - Dragging/clicking the minimap canvas pans the camera target while dragging the minimap chrome/footer still moves the widget.
+- The lower-left UI keeps the controls above a shared minimap/activity row and the GitHub link below it; moving the minimap chrome moves that group without separating the row.
 - Minimap colours should track live scene materials plus time/weather theme tint, not a stale fixed palette.
 - Orbit still works with normal left-drag.
 - Ghost boards do not become editable.

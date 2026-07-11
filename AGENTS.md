@@ -280,6 +280,14 @@ stateVersion
 updatedAt
 ```
 
+Every landlord public land file is expected to include `contractAddress`. It
+identifies the Ethereum contract associated with that published land state.
+Mock/indexer fixtures may temporarily contain an abbreviated placeholder, but
+production indexed records should contain the complete Ethereum address. The
+frontend may display this public value, but must not treat it as proof of
+ownership or authority without validating it against the active tournament and
+chain context.
+
 The public record must only contain information that is safe to reveal at its current stage of the round.
 
 ### Information Prohibited from Public AWS State
