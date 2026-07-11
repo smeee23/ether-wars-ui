@@ -81,6 +81,13 @@ Use this together with:
 ## Animation rules
 
 - Animate only transforms and opacity.
+- Static voxel-build stamp bodies and static custom parts must be grouped by
+  their actual shared material and merged into owned `BufferGeometry` meshes.
+  Keep force shields, glass, glow effects, turrets, doors, scrubbers, spinning
+  parts, and other independently animated or transparent components separate.
+  Preserve the guarded per-part mesh fallback and `voxelMergeDiagnostics`
+  metadata when changing this path; never dispose cached source geometries or
+  shared `M.*` / voxel palette materials when merged buildings are removed.
 - Respect the existing `userData.landing` pattern for placed cell objects.
 - For propellers: wrap or find the named prop mesh, spin around its local blade axis every frame, and add a translucent disc for high-RPM readability.
 - For aircraft: use shallow easing, pitch with climb/descent slope, and bank during turns. Do not teleport or dive straight down into the board.

@@ -9977,6 +9977,169 @@
     });
   }
 
+  function mergeTransformedBufferGeometries(entries) {
+    if (!Array.isArray(entries) || !entries.length) throw new Error('No voxel geometries to merge');
+    const transformed = [];
+    try {
+      for (const entry of entries) {
+        if (!entry || !entry.geometry || !entry.geometry.isBufferGeometry) {
+          throw new Error('Voxel merge received a non-buffer geometry');
+        }
+        const geometry = entry.geometry.clone();
+        geometry.applyMatrix4(entry.matrix || new THREE.Matrix4());
+        transformed.push(geometry);
+      }
+      const first = transformed[0];
+      const attributeNames = Object.keys(first.attributes);
+      if (!attributeNames.includes('position')) throw new Error('Voxel geometry has no position attribute');
+      for (const geometry of transformed) {
+        const names = Object.keys(geometry.attributes);
+        if (names.length !== attributeNames.length || attributeNames.some(name => !geometry.attributes[name])) {
+          throw new Error('Voxel geometry attribute layouts do not match');
+        }
+        for (const name of attributeNames) {
+          const a = first.attributes[name];
+          const b = geometry.attributes[name];
+          if (a.itemSize !== b.itemSize || a.normalized !== b.normalized || a.array.constructor !== b.array.constructor) {
+            throw new Error('Voxel geometry attribute formats do not match for ' + name);
+          }
+        }
+      }
+
+      const merged = new THREE.BufferGeometry();
+      for (const name of attributeNames) {
+        const sample = first.attributes[name];
+        let valueCount = 0;
+        for (const geometry of transformed) valueCount += geometry.attributes[name].array.length;
+        const values = new sample.array.constructor(valueCount);
+        let offset = 0;
+        for (const geometry of transformed) {
+          const source = geometry.attributes[name].array;
+          values.set(source, offset);
+          offset += source.length;
+        }
+        merged.setAttribute(name, new sample.constructor(values, sample.itemSize, sample.normalized));
+      }
+
+      let vertexOffset = 0;
+      let indexCount = 0;
+      for (const geometry of transformed) {
+        indexCount += geometry.index ? geometry.index.count : geometry.attributes.position.count;
+      }
+      const PositionIndexArray = transformed.reduce((total, geometry) => total + geometry.attributes.position.count, 0) > 65535
+        ? Uint32Array
+        : Uint16Array;
+      const indices = new PositionIndexArray(indexCount);
+      let indexOffset = 0;
+      for (const geometry of transformed) {
+        const source = geometry.index ? geometry.index.array : null;
+        const count = geometry.index ? geometry.index.count : geometry.attributes.position.count;
+        for (let i = 0; i < count; i++) indices[indexOffset + i] = vertexOffset + (source ? source[i] : i);
+        indexOffset += count;
+        vertexOffset += geometry.attributes.position.count;
+      }
+      merged.setIndex(new THREE.BufferAttribute(indices, 1));
+      merged.computeBoundingBox();
+      merged.computeBoundingSphere();
+      merged.userData = { mergedVoxelGeometry: true };
+      return merged;
+    } finally {
+      for (const geometry of transformed) geometry.dispose();
+    }
+  }
+
+  function voxelMergeGeometryEntry(geometry, x, y, z, rotation) {
+    const position = new THREE.Vector3(x || 0, y || 0, z || 0);
+    const quaternion = new THREE.Quaternion();
+    if (rotation) quaternion.setFromEuler(rotation);
+    const matrix = new THREE.Matrix4().compose(position, quaternion, new THREE.Vector3(1, 1, 1));
+    return { geometry, matrix };
+  }
+
+  function buildMergedVoxelMeshes(parts, opts = {}) {
+    if (!Array.isArray(parts) || !parts.length) throw new Error('No static voxel parts to merge');
+    const groups = new Map();
+    for (const part of parts) {
+      if (!part || !part.material || !part.geometry) throw new Error('Incomplete static voxel part');
+      const key = part.material.uuid;
+      let bucket = groups.get(key);
+      if (!bucket) {
+        bucket = { material: part.material, entries: [] };
+        groups.set(key, bucket);
+      }
+      bucket.entries.push(voxelMergeGeometryEntry(part.geometry, part.x, part.y, part.z, part.rotation));
+    }
+    const root = new THREE.Group();
+    try {
+      for (const bucket of groups.values()) {
+        const geometry = mergeTransformedBufferGeometries(bucket.entries);
+        const mesh = new THREE.Mesh(geometry, bucket.material);
+        mesh.userData = {
+          mergedVoxelBody: true,
+          mergedPartCount: bucket.entries.length,
+          materialUuid: bucket.material.uuid,
+          disposalOwned: true,
+        };
+        root.add(mesh);
+      }
+    } catch (err) {
+      disposeGroup(root);
+      throw err;
+    }
+    root.userData.voxelMergeDiagnostics = {
+      voxelCount: opts.voxelCount === undefined ? parts.length : opts.voxelCount,
+      previousEstimatedMeshCount: parts.length,
+      mergedMeshCount: root.children.length,
+      materialGroupCount: groups.size,
+      fallbackUsed: false,
+    };
+    return root;
+  }
+
+  function logVoxelMergeDiagnostics(stamp, diagnostics) {
+    if (!diagnostics) return;
+    const host = String(window.location && window.location.hostname || '').toLowerCase();
+    const development = window.location.protocol === 'file:'
+      || host === 'localhost'
+      || host === '127.0.0.1'
+      || host === '[::1]'
+      || host.endsWith('.local');
+    if (development) console.debug('[voxel-merge]', stamp && stamp.id || 'unknown', diagnostics);
+  }
+
+  function fallbackVoxelPartMeshes(parts) {
+    const root = new THREE.Group();
+    for (const part of parts) {
+      const geometry = part.geometry.clone();
+      geometry.userData = { fallbackVoxelGeometry: true };
+      const mesh = new THREE.Mesh(geometry, part.material);
+      mesh.position.set(part.x || 0, part.y || 0, part.z || 0);
+      if (part.rotation) mesh.rotation.copy(part.rotation);
+      root.add(mesh);
+    }
+    return root;
+  }
+
+  function buildVoxelMeshesWithFallback(stamp, parts, opts = {}) {
+    try {
+      const merged = buildMergedVoxelMeshes(parts, opts);
+      logVoxelMergeDiagnostics(stamp, merged.userData.voxelMergeDiagnostics);
+      return merged;
+    } catch (err) {
+      console.warn('[voxel-merge] Falling back to separate meshes for ' + (stamp && stamp.id || 'unknown'), err);
+      const fallback = fallbackVoxelPartMeshes(parts);
+      fallback.userData.voxelMergeDiagnostics = {
+        voxelCount: opts.voxelCount === undefined ? parts.length : opts.voxelCount,
+        previousEstimatedMeshCount: parts.length,
+        mergedMeshCount: parts.length,
+        materialGroupCount: new Set(parts.map(part => part.material && part.material.uuid)).size,
+        fallbackUsed: true,
+      };
+      logVoxelMergeDiagnostics(stamp, fallback.userData.voxelMergeDiagnostics);
+      return fallback;
+    }
+  }
+
   function makeCustomPartsStamp(stamp, opts = {}) {
     const parts = normalizeVoxelCustomParts(stamp.customParts || stamp.parts);
     if (!parts.length) return null;
@@ -9989,7 +10152,7 @@
     const centerX = (b.minX + b.maxX) / 2;
     const centerZ = (b.minZ + b.maxZ) / 2;
     const floorY = Math.min(0, b.minY);
-    const g = new THREE.Group();
+    const staticParts = [];
     for (const part of parts) {
       const role = voxelAppearanceRoleForMaterial(part.material);
       const mat = voxelAppearanceMaterial(voxelPartMaterial(part.material), role, opts.appearance);
@@ -10000,16 +10163,28 @@
       const y = (part.pos[1] - floorY) * unit;
       const z = (part.pos[2] - centerZ) * unit;
       if (part.kind === 'cylinder') {
-        vcylinder(g, Math.max(w, d) / 2, h, x, y, z, mat, part.segments || 8);
+        staticParts.push({
+          geometry: new THREE.CylinderGeometry(Math.max(w, d) / 2, Math.max(w, d) / 2, h, part.segments || 8),
+          material: mat, x, y: y || h / 2, z,
+          ownedSourceGeometry: true,
+        });
       } else if (part.kind === 'cone') {
-        const mesh = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) / 2, h, part.segments || 4), mat);
-        mesh.position.set(x, y, z);
-        g.add(mesh);
+        staticParts.push({
+          geometry: new THREE.ConeGeometry(Math.max(w, d) / 2, h, part.segments || 4),
+          material: mat, x, y, z,
+          ownedSourceGeometry: true,
+        });
       } else {
-        vbox(g, w, h, d, x, y, z, mat);
+        staticParts.push({ geometry: voxelBoxGeometryForSize(w, h, d), material: mat, x, y: y || h / 2, z });
       }
     }
+    const g = buildVoxelMeshesWithFallback(stamp, staticParts, { voxelCount: parts.length });
+    for (const part of staticParts) {
+      if (part.ownedSourceGeometry) part.geometry.dispose();
+    }
+    const diagnostics = g.userData.voxelMergeDiagnostics;
     g.userData = { kind: 'voxel-build', voxelBuildId: stamp.id, name: stamp.name, chimneyTops: [] };
+    g.userData.voxelMergeDiagnostics = diagnostics;
     castReceive(g);
     return g;
   }
@@ -10022,7 +10197,7 @@
       ? crystalMiningRigVoxelsForLevel(stamp.voxels, opts.level || 1)
       : stamp.voxels;
     if (!Array.isArray(sourceVoxels) || !sourceVoxels.length) return null;
-    const g = new THREE.Group();
+    const staticParts = [];
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
     for (const v of sourceVoxels) {
       minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
@@ -10040,13 +10215,16 @@
       const y = (v.y - minY) * unit + unit / 2;
       const z = (v.z - centerZ) * unit;
       const mat = voxelAppearanceMaterial(voxelBuildMaterial(v.color), voxelAppearanceRoleForColor(v.color), opts.appearance);
-      vbox(g, unit, unit, unit, x, y, z, mat);
+      staticParts.push({ geometry: voxelBoxGeometryForSize(unit, unit, unit), material: mat, x, y, z });
     }
+    const g = buildVoxelMeshesWithFallback(stamp, staticParts, { voxelCount: sourceVoxels.length });
     if (stamp.id === 'crystal-mining-rig') {
       addCrystalMiningRigGlassPanels(g, unit, centerX, centerZ, minY, opts.level || 1);
       addCrystalMiningRigRoofDetails(g, unit, centerX, centerZ, minY, opts.level || 1);
     }
+    const diagnostics = g.userData.voxelMergeDiagnostics;
     g.userData = { kind: 'voxel-build', voxelBuildId: stamp.id, name: stamp.name, chimneyTops: [] };
+    g.userData.voxelMergeDiagnostics = diagnostics;
     castReceive(g);
     return g;
   }
@@ -10181,11 +10359,13 @@
       g.add(makeAirCommandMainCannon(roofMetrics, AIR_COMMAND_LARGE_CANNON_SCALE));
       g.add(makeAirCommandTurrets(roofMetrics, 2));
     }
+    const diagnostics = g.userData.voxelMergeDiagnostics;
     g.userData = {
       kind: 'house',
       buildingType: 'air-command',
       level: commandLevel,
       chimneyTops: [],
+      voxelMergeDiagnostics: diagnostics,
     };
     return g;
   }
@@ -10276,13 +10456,7 @@
   }
 
   function vbox(parent, w, h, d, x, y, z, mat, opts = {}) {
-    const maxGap = Math.max(0, Math.min(w, h, d) * 0.45);
-    const gap = opts.noGap ? 0 : Math.min(maxGap, Math.max(0, Math.min(0.14, renderVoxelGap || 0)));
-    const gw = Math.max(0.006, w - gap);
-    const gh = Math.max(0.006, h - gap);
-    const gd = Math.max(0.006, d - gap);
-    const bevel = opts.noBevel ? 0 : (renderVoxelBevel || 0);
-    const geo = getVoxelBoxGeometry(gw, gh, gd, bevel);
+    const geo = voxelBoxGeometryForSize(w, h, d, opts);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x || 0, y || h / 2, z || 0);
     if (opts.ry) mesh.rotation.y = opts.ry;
@@ -10290,6 +10464,16 @@
     if (opts.rz) mesh.rotation.z = opts.rz;
     parent.add(mesh);
     return mesh;
+  }
+
+  function voxelBoxGeometryForSize(w, h, d, opts = {}) {
+    const maxGap = Math.max(0, Math.min(w, h, d) * 0.45);
+    const gap = opts.noGap ? 0 : Math.min(maxGap, Math.max(0, Math.min(0.14, renderVoxelGap || 0)));
+    const gw = Math.max(0.006, w - gap);
+    const gh = Math.max(0.006, h - gap);
+    const gd = Math.max(0.006, d - gap);
+    const bevel = opts.noBevel ? 0 : (renderVoxelBevel || 0);
+    return getVoxelBoxGeometry(gw, gh, gd, bevel);
   }
 
   function vcylinder(parent, radius, height, x, y, z, mat, segments = 12, opts = {}) {
