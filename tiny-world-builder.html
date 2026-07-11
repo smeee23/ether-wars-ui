@@ -2776,6 +2776,18 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
   }
+  .minimap-debug-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 8px;
+    margin-top: 4px;
+    color: var(--muted);
+    font: 9px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .minimap-debug-stats span:last-child {
+    grid-column: 1 / -1;
+  }
   
   .minimap-autoexpand {
     display: flex;
@@ -4197,6 +4209,12 @@
         <span id="minimap-size">20×20</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
       </div>
+      <div class="minimap-debug-stats" aria-label="Renderer diagnostics">
+        <span id="minimap-calls">Calls 0</span>
+        <span id="minimap-triangles">Triangles 0</span>
+        <span id="minimap-meshes">Meshes 0</span>
+        <span id="minimap-objects">Objects 0</span>
+      </div>
       <label class="minimap-autoexpand" for="minimap-autoexpand">
         <span>Autoexpand</span>
         <input id="minimap-autoexpand" type="checkbox" />
@@ -5340,6 +5358,7 @@
     localStorage.setItem(HOME_GRID_DEFAULT_MIGRATION_LS, '1');
   } catch (_) {}
   const TILE = 1;
+  const BUILDABLE_LAND_Y_OFFSET = -0.18;
   let currentTodMinutes = 200;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.84;
@@ -8964,7 +8983,7 @@
   function cropGreenhousePanelProfile(cell, x, z) {
     if (x < 0 || x >= GRID || z < 0 || z >= GRID) return null;
     if (!cell) return null;
-    const baseY = TOP_H + terrainRiseAt(x, z);
+    const baseY = BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(x, z);
     if (isCropGreenhouseObjectKind(cell.kind)) {
       return {
         baseY,
@@ -11332,7 +11351,7 @@
   }
 
   function vehicleRoadHeightAtCell(x, z) {
-    return TOP_H + terrainRiseAt(x, z);
+    return BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(x, z);
   }
 
   function vehicleVisualScaleForGrid(grid = GRID) {
@@ -12542,7 +12561,7 @@
   window.__getVehicleRuntimeSnapshot = getVehicleRuntimeSnapshot;
 
   function tilePos(x, z) {
-    return new THREE.Vector3(x - GRID / 2 + 0.5, 0, z - GRID / 2 + 0.5);
+    return new THREE.Vector3(x - GRID / 2 + 0.5, BUILDABLE_LAND_Y_OFFSET, z - GRID / 2 + 0.5);
   }
 
   // -------- crowd layer --------
@@ -12702,7 +12721,7 @@
   function crowdTerrainHeightAt(x, z) {
     const cellX = Math.max(0, Math.min(GRID - 1, Math.round(x)));
     const cellZ = Math.max(0, Math.min(GRID - 1, Math.round(z)));
-    return TOP_H + terrainRiseAt(cellX, cellZ) + 0.025;
+    return BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(cellX, cellZ) + 0.025;
   }
 
   function isCrowdWalkableCell(x, z) {
@@ -17028,7 +17047,7 @@ function neighborStarVector(edge, index) {
     alignGridGreenhouseShields(mesh);
     if (userScale !== 1) mesh.scale.multiplyScalar(userScale);
     mesh.userData.objectScaleBase = userScale;
-    const objectY = TOP_H + terrainRiseAt(x, z);
+    const objectY = BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(x, z);
     mesh.position.set(posX + userOffsetX, objectY, posZ + userOffsetZ);
     if (setGridUserData) {
       mesh.userData.gx = x;
@@ -17067,7 +17086,7 @@ function neighborStarVector(edge, index) {
     const cell = world[x] && world[x][z];
     if (!cell || !cell.extras || !cell.extras.length) return;
     const p = tilePos(x, z);
-    const objectY = TOP_H + terrainRiseAt(x, z);
+    const objectY = BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(x, z);
     cell.extras.forEach((ex, i) => {
       let mesh = null;
       if (ex.kind === 'tuft') mesh = makeVoxelCropKind('tuft', ex.floors || 1);
@@ -18834,7 +18853,7 @@ function neighborStarVector(edge, index) {
     if (!ghostPreview) return;
     if (!currentHover) { ghostPreview.visible = false; return; }
     ghostPreview.visible = true;
-    const baseY = TOP_H + (terrainRiseAt(currentHover.x, currentHover.z) || 0);
+    const baseY = BUILDABLE_LAND_Y_OFFSET + TOP_H + (terrainRiseAt(currentHover.x, currentHover.z) || 0);
     ghostPreview.position.set(
       currentHover.worldX + ghostOffsetX,
       baseY + 0.01,
@@ -18917,7 +18936,7 @@ function neighborStarVector(edge, index) {
       const cells = makeGhostWorld(cell.boardX, cell.boardZ);
       return TOP_H + terrainRiseForLevel(tileLevelForCell(cells[cell.x][cell.z])) + 0.02;
     }
-    return TOP_H + terrainRiseAt(cell.x, cell.z) + 0.02;
+    return BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(cell.x, cell.z) + 0.02;
   }
 
   function syncHoverVisibility() {
@@ -24291,7 +24310,7 @@ function neighborStarVector(edge, index) {
       const entry = cellMeshes[x + ',' + z];
       const objectBaseY = entry && entry.object && Number.isFinite(entry.object.userData.baseY)
         ? entry.object.userData.baseY
-        : TOP_H + terrainRiseAt(x, z);
+        : BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(x, z);
       buildings.push({ x, z, worldX: p.x, worldZ: p.z, baseY: objectBaseY });
     }
     return buildings;
@@ -29934,6 +29953,10 @@ function neighborStarVector(edge, index) {
     const canvas = document.getElementById('minimap-canvas');
     const sizeEl = document.getElementById('minimap-size');
     const fpsEl = document.getElementById('minimap-fps');
+    const callsEl = document.getElementById('minimap-calls');
+    const trianglesEl = document.getElementById('minimap-triangles');
+    const meshesEl = document.getElementById('minimap-meshes');
+    const objectsEl = document.getElementById('minimap-objects');
     const autoExpandEl = document.getElementById('minimap-autoexpand');
     if (!wrap) return;
     function paintSize() {
@@ -30088,8 +30111,9 @@ function neighborStarVector(edge, index) {
       canvas.addEventListener('pointerup', endMapPan);
       canvas.addEventListener('pointercancel', endMapPan);
     }
-    // FPS readout — own RAF sampler so it reflects real frame time
-    // regardless of whether the dev stats overlay is enabled.
+    // Renderer diagnostics — own RAF sampler so FPS reflects real frame time
+    // regardless of whether the dev stats overlay is enabled. Scene totals
+    // are sampled with the same throttled DOM update instead of every frame.
     if (fpsEl) {
       const samples = [];
       let last = 0;
@@ -30108,6 +30132,19 @@ function neighborStarVector(edge, index) {
         const avg = sum / samples.length;
         const fps = avg > 0 ? (1000 / avg) : 0;
         fpsEl.textContent = Math.round(fps) + ' fps';
+        const renderInfo = renderer.info.render;
+        if (callsEl) callsEl.textContent = 'Calls ' + renderInfo.calls.toLocaleString();
+        if (trianglesEl) trianglesEl.textContent = 'Triangles ' + renderInfo.triangles.toLocaleString();
+        if (meshesEl || objectsEl) {
+          let meshCount = 0;
+          let objectCount = 0;
+          scene.traverse(obj => {
+            objectCount++;
+            if (obj.isMesh) meshCount++;
+          });
+          if (meshesEl) meshesEl.textContent = 'Meshes ' + meshCount.toLocaleString();
+          if (objectsEl) objectsEl.textContent = 'Objects ' + objectCount.toLocaleString();
+        }
       }, 500);
     }
     // Repaint on grid-size change.
