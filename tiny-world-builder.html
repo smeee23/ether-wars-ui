@@ -113,6 +113,33 @@
     letter-spacing: 0;
     line-height: 1;
     color: var(--ink);
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    max-width: calc(100vw - 56px);
+  }
+  .brand .title .brand-separator {
+    opacity: 0.58;
+  }
+  .brand .title .active-land-brand {
+    position: relative;
+    color: #3a72c8;
+    font-size: 0.88em;
+    text-shadow:
+      0 0 8px rgba(72, 146, 255, 0.34),
+      0 0 20px rgba(72, 146, 255, 0.18);
+    isolation: isolate;
+  }
+  .brand .title .active-land-brand::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: -5px -10px;
+    border-radius: 999px;
+    background: rgba(70, 145, 255, 0.14);
+    filter: blur(9px);
+    pointer-events: none;
   }
   .brand .title em {
     font-style: normal;
@@ -468,6 +495,66 @@
     color: var(--ink);
     font: inherit;
     padding: 4px 6px;
+  }
+  .colony-toggle-block {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .colony-toggle-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .colony-toggle {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .colony-toggle button {
+    min-width: 0;
+    border: 1px solid rgba(120, 130, 150, 0.24);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.62);
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 9.5px;
+    padding: 5px 3px;
+  }
+  .colony-toggle button[aria-pressed="true"] {
+    border-color: rgba(58, 114, 200, 0.52);
+    background: rgba(58, 114, 200, 0.14);
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .colony-toggle button.inactive:not([aria-pressed="true"]) {
+    opacity: 0.56;
+  }
+  .colony-empty-state {
+    border: 1px dashed rgba(120, 130, 150, 0.28);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.34);
+    padding: 9px;
+    color: var(--muted);
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+  .colony-empty-state strong {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--ink);
+    font-size: 11px;
+  }
+  .player-colony-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  .player-colony-actions .player-expansion-claim-action {
+    grid-column: 1 / -1;
   }
   .crowd-panel h3 {
     margin: 0;
@@ -4259,6 +4346,23 @@
 
   <div class="player-stats-panel" id="player-stats-panel" aria-label="Stats and actions">
     <h3 id="player-stats-title">Land Stats (Home land)</h3>
+    <div class="colony-toggle-block">
+      <span class="colony-toggle-label">Your Colonies</span>
+      <div class="colony-toggle" id="player-colony-toggle" role="group" aria-label="Your colonies">
+        <button type="button" data-colony-index="0" aria-pressed="true">Colony 1</button>
+        <button type="button" data-colony-index="1" aria-pressed="false">Colony 2</button>
+        <button type="button" data-colony-index="2" aria-pressed="false">Colony 3</button>
+      </div>
+    </div>
+    <div class="player-colony-actions">
+      <button class="btn neighbor-load-aws-land-action" id="neighbor-load-aws-land-action" type="button">Load AWS Land</button>
+      <button class="btn player-expansion-claim-action" id="player-expansion-claim-action" type="button" hidden>Claim Expansion</button>
+    </div>
+    <div class="colony-empty-state" id="player-colony-empty" hidden>
+      <strong>Not Active</strong>
+      This colony slot has not been activated.
+    </div>
+    <div id="player-colony-stats-body">
     <div class="player-stat player-stat-numeric credit-transfer-trigger" id="credit-transfer-trigger" role="button" tabindex="0" aria-haspopup="dialog">
       <span>Credits</span>
       <span class="player-stat-value" id="player-stat-gold">0</span>
@@ -4309,20 +4413,40 @@
       <span>Round number</span>
       <strong id="player-stat-round-number">1</strong>
     </div>
-    <button class="btn player-expansion-claim-action" id="player-expansion-claim-action" type="button" hidden>Claim Expansion</button>
+    </div>
 
     <div class="neighbor-stats-panel" id="neighbor-stats-panel" aria-label="Neighbor stats">
       <div class="stats-panel-header">
         <h3 id="neighbor-stats-title">Neighbor</h3>
       </div>
-      <label class="neighbor-selector-row">View
+      <label class="neighbor-selector-row">Neighbors
         <select id="neighbor-stats-selector">
           <option value="">Select neighbor...</option>
         </select>
       </label>
+      <div class="colony-empty-state" id="neighbor-selection-empty">
+        Select a neighbor to view their colonies.
+      </div>
+      <div class="colony-toggle-block" id="neighbor-colony-toggle-block" hidden>
+        <span class="colony-toggle-label">Neighbor Colonies</span>
+        <div class="colony-toggle" id="neighbor-colony-toggle" role="group" aria-label="Selected neighbor colonies">
+          <button type="button" data-colony-index="0" aria-pressed="true">Colony 1</button>
+          <button type="button" data-colony-index="1" aria-pressed="false">Colony 2</button>
+          <button type="button" data-colony-index="2" aria-pressed="false">Colony 3</button>
+        </div>
+      </div>
+      <div class="colony-empty-state" id="neighbor-colony-empty" hidden>
+        <strong>Not Active</strong>
+        This neighbor has not activated this colony slot.
+      </div>
+      <div id="neighbor-colony-stats-body">
       <div class="player-stat player-stat-numeric">
         <span>Credits</span>
         <span class="player-stat-value" id="neighbor-stat-gold">0</span>
+      </div>
+      <div class="player-stat player-stat-numeric">
+        <span>Population</span>
+        <span class="player-stat-value" id="neighbor-stat-population">0</span>
       </div>
       <div class="player-stat colony-status-row">
         <span class="colony-status-name">FLEET</span>
@@ -4358,9 +4482,8 @@
         <span>Last action</span>
         <strong id="neighbor-stat-neighbor">-</strong>
       </div>
+      </div>
       <button class="btn neighbor-claim-action" id="neighbor-claim-action" type="button" hidden>Claim</button>
-      <button class="btn neighbor-open-land-action" id="neighbor-open-land-action" type="button" hidden>Open Land</button>
-      <button class="btn neighbor-load-aws-land-action" id="neighbor-load-aws-land-action" type="button" hidden>Load AWS Land</button>
       <div class="neighbor-action-panel" aria-label="Round action controls">
         <label class="neighbor-action-row">Action
           <select id="neighbor-round-action">
@@ -4400,7 +4523,11 @@
   <div class="neighbor-slot-buttons" id="neighbor-slot-buttons" aria-label="Neighbor slots"></div>
 
   <div class="brand">
-    <div class="title">EtherWars</div>
+    <div class="title">
+      <span>EtherWars</span>
+      <span class="brand-separator" aria-hidden="true">-</span>
+      <span class="active-land-brand" id="active-land-brand">Nova Prime</span>
+    </div>
     <div class="sub">Tap to place · drag to orbit · pinch or scroll to zoom</div>
     <!-- Kept for JS to relocate into the toolbar's world-slot. -->
     <button type="button" class="brand-title-btn" id="world-menu-btn" aria-haspopup="menu" aria-expanded="false">
@@ -13641,16 +13768,7 @@
   // -------- surrounding land --------
   // Visual-only perimeter land. These slots deliberately do not write to
   // world[][] or cellMeshes and do not carry gx/gz raycast metadata.
-  const SURROUNDING_NEIGHBOR_SLOTS = [
-    { id: 'north-0', edge: 'north', index: 0, occupied: true,  color: '#4f8fd9', label: 'Northwest neighbor', stats: { army: 54, food: 72, trade: 28, landConquered: 17, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'north-1', edge: 'north', index: 1, occupied: false, color: '#aebaa5', label: 'Northeast open land', stats: { army: 0, food: 12, trade: 4, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'east-0',  edge: 'east',  index: 0, occupied: true,  color: '#d47a4c', label: 'East upper neighbor', stats: { army: 38, food: 46, trade: 62, landConquered: 12, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'east-1',  edge: 'east',  index: 1, occupied: false, color: '#aebaa5', label: 'East lower open land', stats: { army: 0, food: 9, trade: 7, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'south-0', edge: 'south', index: 0, occupied: false, color: '#aebaa5', label: 'Southwest open land', stats: { army: 0, food: 15, trade: 5, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'south-1', edge: 'south', index: 1, occupied: true,  color: '#c9a23e', label: 'Southeast neighbor', stats: { army: 61, food: 35, trade: 31, landConquered: 20, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'west-0',  edge: 'west',  index: 0, occupied: true,  color: '#6ba86d', label: 'West upper neighbor', stats: { army: 27, food: 84, trade: 49, landConquered: 9, neighbor: 'Occupied', contractAddress: '0x2fe5b...67e4c' } },
-    { id: 'west-1',  edge: 'west',  index: 1, occupied: false, color: '#aebaa5', label: 'West lower open land', stats: { army: 0, food: 18, trade: 3, landConquered: 0, neighbor: 'Open land', contractAddress: '0x2fe5b...67e4c' } },
-  ];
+  const SURROUNDING_NEIGHBOR_SLOTS = [];
   const surroundingLandGroup = new THREE.Group();
   surroundingLandGroup.name = 'surroundingLand';
   surroundingLandGroup.renderOrder = -8;
@@ -13987,6 +14105,7 @@ function neighborStarVector(edge, index) {
   const creditTransferSendEl = document.getElementById('credit-transfer-send');
   const creditTransferStatusEl = document.getElementById('credit-transfer-status');
   const neighborCommitActionEl = document.getElementById('neighbor-commit-action');
+  const neighborRevealActionEl = document.getElementById('neighbor-reveal-action');
   const neighborCommitPreviewEl = document.getElementById('neighbor-commit-preview');
   const neighborCommitPreviewHashEl = document.getElementById('neighbor-commit-preview-hash');
   const neighborCommitPreviewNoteEl = document.getElementById('neighbor-commit-preview-note');
@@ -13999,6 +14118,12 @@ function neighborStarVector(edge, index) {
   let lastCommitPreviewHash = '';
   let neighborNames = [];
   let expansionAvailable = false;
+  const colonyNavigationState = {
+    selectedPlayerColonyIndex: 0,
+    selectedNeighborPlayerId: null,
+    selectedNeighborColonyIndex: 0,
+  };
+  let playerPublicColonies = [null, null, null];
   // Temporary frontend-only round action state.
   // TODO(contract/indexer): hydrate this from indexed round state later.
   // TODO(commit/reveal): submit the selected action through commit/reveal once
@@ -14009,12 +14134,57 @@ function neighborStarVector(edge, index) {
     wagerAmount: 0,
   };
   const HOME_CONTROLLED_LAND_ID = 'home';
-  const HOME_NEIGHBOR_SELECTOR_ID = '__home-land';
   const controlledLandState = {
     activeLandId: HOME_CONTROLLED_LAND_ID,
     lands: new Map(),
   };
   let landTransitionOverlayEl = null;
+  const playerColonyToggleEl = document.getElementById('player-colony-toggle');
+  const playerColonyEmptyEl = document.getElementById('player-colony-empty');
+  const playerColonyStatsBodyEl = document.getElementById('player-colony-stats-body');
+  const neighborColonyToggleBlockEl = document.getElementById('neighbor-colony-toggle-block');
+  const neighborSelectionEmptyEl = document.getElementById('neighbor-selection-empty');
+  const neighborColonyToggleEl = document.getElementById('neighbor-colony-toggle');
+  const neighborColonyEmptyEl = document.getElementById('neighbor-colony-empty');
+  const neighborColonyStatsBodyEl = document.getElementById('neighbor-colony-stats-body');
+
+  function normalizedPublicColonies(record) {
+    const source = record && Array.isArray(record.colonies) ? record.colonies : [];
+    const slots = [null, null, null];
+    source.slice(0, 3).forEach((colony, index) => {
+      if (!colony || colony.active === false || colony.status === 'inactive') return;
+      const worldState = colony.world && Array.isArray(colony.world.cells)
+        ? Object.assign({}, colony.world, { v: colony.world.v || colony.world.schemaVersion || STORAGE_VERSION })
+        : null;
+      slots[index] = {
+        colonyId: colony.colonyId === undefined ? 'colony-' + (index + 1) : String(colony.colonyId),
+        index,
+        active: true,
+        resources: {
+          gold: coerceNonNegativeStat(colony.credits) || 0,
+          food: coerceNonNegativeStat(colony.food) || 0,
+          water: coerceNonNegativeStat(colony.water) || 0,
+          oxygen: coerceNonNegativeStat(colony.oxygen) || 0,
+          shelter: coerceNonNegativeStat(colony.shelter) || 0,
+          army: coerceNonNegativeStat(colony.fleet) || 0,
+        },
+        population: coerceNonNegativeStat(colony.population) || 0,
+        buildingLevels: colony.buildingLevels || {},
+        worldState,
+        raw: colony,
+      };
+    });
+    return slots;
+  }
+
+  function firstActiveColonyIndex(colonies) {
+    const index = (colonies || []).findIndex(colony => colony && colony.active);
+    return index >= 0 ? index : 0;
+  }
+
+  function playerColonyLandId(index) {
+    return index === 0 ? HOME_CONTROLLED_LAND_ID : 'player-colony-' + (index + 1);
+  }
 
   function currentPlayerStarName() {
     const auth = authoritativeGameState || awsGameState;
@@ -14030,37 +14200,8 @@ function neighborStarVector(edge, index) {
     return !!slot && !!slot.occupied;
   }
 
-  function isHomeNeighborSlot(slot) {
-    return !!slot && slot.id === HOME_NEIGHBOR_SELECTOR_ID;
-  }
-
-  function homeNeighborSlot() {
-    return {
-      id: HOME_NEIGHBOR_SELECTOR_ID,
-      label: currentPlayerColonyLabel(1),
-      occupied: false,
-      claimedByCurrentUser: true,
-      controlledLandId: HOME_CONTROLLED_LAND_ID,
-      stats: {
-        gold: resources.gold || 0,
-        army: resources.army || 0,
-        food: resources.food || 0,
-        water: resources.water || 0,
-        oxygen: resources.oxygen || 0,
-        shelter: resources.shelter || 0,
-        population: collectPlayerStats().population || 0,
-        neighbor: activeControlledLandId() === HOME_CONTROLLED_LAND_ID ? 'Current land' : 'Claimed',
-      },
-    };
-  }
-
   function controlledLandIdForNeighbor(neighborId) {
     return 'neighbor:' + String(neighborId || '');
-  }
-
-  function controlledLandIdForPanelSlot(slot) {
-    if (isHomeNeighborSlot(slot)) return HOME_CONTROLLED_LAND_ID;
-    return slot && slot.id ? controlledLandIdForNeighbor(slot.id) : '';
   }
 
   function activeControlledLandId() {
@@ -14076,6 +14217,12 @@ function neighborStarVector(edge, index) {
     }
     const land = controlledLandState.lands.get(id);
     return land && land.label ? land.label : currentPlayerColonyLabel(1);
+  }
+
+  function updateActiveLandBrand() {
+    const el = document.getElementById('active-land-brand');
+    if (!el) return;
+    el.textContent = currentPlayerStarName();
   }
 
   function isActiveControlledNeighborSlot(slot) {
@@ -14230,6 +14377,7 @@ function neighborStarVector(edge, index) {
     if (!land || !land.worldState) return false;
     if (opts.saveCurrent !== false) saveActiveControlledLandSnapshot();
     controlledLandState.activeLandId = id;
+    updateActiveLandBrand();
     applyResourceSnapshot(land.resources);
     applyRoundActionSnapshot(land.allocations && land.allocations.roundAction);
     const ok = applyState(land.worldState, { keepCamera: !!opts.keepCamera });
@@ -14310,6 +14458,7 @@ function neighborStarVector(edge, index) {
     }
     controlledLandState.activeLandId = saved && saved.activeLandId || HOME_CONTROLLED_LAND_ID;
     ensureHomeControlledLand();
+    updateActiveLandBrand();
   }
 
   function landCreditBalance(land) {
@@ -14468,7 +14617,6 @@ function neighborStarVector(edge, index) {
   }
 
   function statsForNeighborSlot(slot) {
-    if (isHomeNeighborSlot(slot)) return Object.assign(defaultNeighborStats(slot), slot.stats || {});
     const stats = Object.assign(defaultNeighborStats(slot), (slot && slot.stats) || {});
     if (isNeighborClaimedByCurrentUser(slot)) stats.neighbor = 'Claimed';
     return stats;
@@ -14476,10 +14624,6 @@ function neighborStarVector(edge, index) {
 
   function activeNeighborSlots() {
     return SURROUNDING_NEIGHBOR_SLOTS.filter(slot => isClickableNeighborSlot(slot));
-  }
-
-  function defaultSelectedNeighborSlot() {
-    return activeNeighborSlots()[0] || SURROUNDING_NEIGHBOR_SLOTS.find(Boolean) || null;
   }
 
   function getNeighborNameFromPlayerId(playerId, fallbackLabel) {
@@ -14530,6 +14674,7 @@ function neighborStarVector(edge, index) {
       const text = await response.text();
       neighborNames = text.split(',').map(name => name.trim()).filter(Boolean);
       refreshNeighborDisplayLabels();
+      schedulePlayerStatsUpdate();
     } catch (err) {
       neighborNames = [];
       console.warn('[neighbor-names] failed to load; using directional labels:', err.message || err);
@@ -14544,27 +14689,20 @@ function neighborStarVector(edge, index) {
     placeholder.value = '';
     placeholder.textContent = 'Select neighbor...';
     neighborStatsSelectorEl.appendChild(placeholder);
-    const homeOpt = document.createElement('option');
-    homeOpt.value = HOME_NEIGHBOR_SELECTOR_ID;
-    const homeLabel = currentPlayerColonyLabel(1);
-    homeOpt.textContent = activeControlledLandId() === HOME_CONTROLLED_LAND_ID ? homeLabel + ' (current)' : homeLabel;
-    neighborStatsSelectorEl.appendChild(homeOpt);
     for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
-      if (!slot || !slot.id) continue;
+      if (!slot || !slot.id || !slot.occupied || slot.claimedByCurrentUser) continue;
       const opt = document.createElement('option');
       opt.value = slot.id;
       opt.textContent = neighborDisplayLabel(slot);
-      if (isNeighborClaimedByCurrentUser(slot)) opt.textContent += ' (claimed)';
-      else if (isNeighborClaimable(slot)) opt.textContent += ' (open)';
       neighborStatsSelectorEl.appendChild(opt);
     }
-    neighborStatsSelectorEl.disabled = SURROUNDING_NEIGHBOR_SLOTS.length === 0;
-    neighborStatsSelectorEl.value = current === HOME_NEIGHBOR_SELECTOR_ID || neighborSlotById.has(current) ? current : '';
+    neighborStatsSelectorEl.disabled = activeNeighborSlots().length === 0;
+    neighborStatsSelectorEl.value = neighborSlotById.has(current) ? current : '';
   }
 
   function syncNeighborSelector() {
     if (!neighborStatsSelectorEl) return;
-    neighborStatsSelectorEl.value = activeNeighborSlotId === HOME_NEIGHBOR_SELECTOR_ID || (activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId)) ? activeNeighborSlotId : '';
+    neighborStatsSelectorEl.value = activeNeighborSlotId && neighborSlotById.has(activeNeighborSlotId) ? activeNeighborSlotId : '';
   }
 
   function currentGoldAmount() {
@@ -14657,86 +14795,93 @@ function neighborStarVector(edge, index) {
       neighborClaimActionEl.hidden = true;
       neighborClaimActionEl.disabled = true;
     }
-    if (neighborOpenLandActionEl) {
-      const openable = isNeighborClaimedByCurrentUser(slot);
-      const landId = controlledLandIdForPanelSlot(slot);
-      neighborOpenLandActionEl.hidden = !openable;
-      neighborOpenLandActionEl.disabled = !openable || activeControlledLandId() === landId;
-      neighborOpenLandActionEl.textContent = activeControlledLandId() === landId ? 'Current Land' : 'Open Land';
-    }
-    if (neighborLoadAwsLandActionEl) {
-      const loadable = isHomeNeighborSlot(slot) || isNeighborClaimedByCurrentUser(slot);
-      neighborLoadAwsLandActionEl.hidden = !loadable;
-      neighborLoadAwsLandActionEl.disabled = !loadable;
-    }
   }
 
   function syncPlayerExpansionClaimAction() {
     if (!playerExpansionClaimActionEl) return;
-    const canClaim = expansionAvailable === true && nextExpansionColonyNumber() <= 3;
+    const canClaim = expansionAvailable === true && playerPublicColonies.some(colony => !colony);
     playerExpansionClaimActionEl.hidden = !canClaim;
     playerExpansionClaimActionEl.disabled = !canClaim;
   }
 
-  function nextExpansionColonyNumber() {
-    let highest = 1;
-    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
-      if (!slot || !slot.playerColonyNumber || !isNeighborClaimedByCurrentUser(slot)) continue;
-      highest = Math.max(highest, Math.round(Number(slot.playerColonyNumber) || 1));
+  function syncPlayerColonyControls() {
+    const index = colonyNavigationState.selectedPlayerColonyIndex;
+    const colony = playerPublicColonies[index];
+    const landId = playerColonyLandId(index);
+    const active = !!(colony && colony.active);
+    if (neighborOpenLandActionEl) {
+      neighborOpenLandActionEl.hidden = false;
+      neighborOpenLandActionEl.disabled = !active || activeControlledLandId() === landId;
+      neighborOpenLandActionEl.textContent = activeControlledLandId() === landId ? 'Current Land' : 'Open Land';
     }
-    return highest + 1;
+    if (neighborLoadAwsLandActionEl) {
+      neighborLoadAwsLandActionEl.hidden = false;
+      neighborLoadAwsLandActionEl.disabled = !active;
+    }
+    if (creditTransferTriggerEl) {
+      creditTransferTriggerEl.setAttribute('aria-disabled', active ? 'false' : 'true');
+      creditTransferTriggerEl.tabIndex = active ? 0 : -1;
+    }
+    if (neighborRoundActionEl) neighborRoundActionEl.disabled = !active;
+    if (neighborCommitActionEl) neighborCommitActionEl.disabled = !active;
+    if (neighborRevealActionEl) neighborRevealActionEl.disabled = !active;
+    if (neighborSaveAwsDraftEl) neighborSaveAwsDraftEl.disabled = !active;
+    syncPlayerExpansionClaimAction();
   }
 
-  function firstUnoccupiedNeighborSlot() {
-    return SURROUNDING_NEIGHBOR_SLOTS.find(slot => slot && isNeighborClaimable(slot)) || null;
+  function renderPlayerColonyToggle() {
+    if (!playerColonyToggleEl) return;
+    const selected = colonyNavigationState.selectedPlayerColonyIndex;
+    playerColonyToggleEl.querySelectorAll('button[data-colony-index]').forEach(button => {
+      const index = Number(button.getAttribute('data-colony-index'));
+      const active = !!playerPublicColonies[index];
+      button.classList.toggle('inactive', !active);
+      button.setAttribute('aria-pressed', index === selected ? 'true' : 'false');
+      button.setAttribute('aria-label', 'Colony ' + (index + 1) + (active ? '' : ', not active'));
+    });
   }
 
-  function createExpansionNeighborSlot() {
-    const colonyNumber = nextExpansionColonyNumber();
-    if (colonyNumber > 3) return null;
-    const edges = ['north', 'east', 'south', 'west'];
-    let edge = edges[0];
-    let index = 0;
-    for (const candidateEdge of edges) {
-      const used = SURROUNDING_NEIGHBOR_SLOTS
-        .filter(slot => slot && slot.edge === candidateEdge)
-        .map(slot => Math.max(0, Math.round(Number(slot.index) || 0)));
-      const maxIndex = used.length ? Math.max(...used) : -1;
-      edge = candidateEdge;
-      index = maxIndex + 1;
-      if (index <= 1) break;
+  function selectPlayerColony(index, opts = {}) {
+    const next = Math.max(0, Math.min(2, Math.round(Number(index) || 0)));
+    colonyNavigationState.selectedPlayerColonyIndex = next;
+    const colony = playerPublicColonies[next];
+    renderPlayerColonyToggle();
+    if (playerColonyEmptyEl) playerColonyEmptyEl.hidden = !!colony;
+    if (playerColonyStatsBodyEl) playerColonyStatsBodyEl.hidden = !colony;
+    syncPlayerColonyControls();
+    if (!colony) {
+      schedulePlayerStatsUpdate();
+      return false;
     }
-    const id = 'player-colony-' + colonyNumber;
-    const slot = {
-      id,
-      edge,
-      index,
-      occupied: false,
-      color: '#aebaa5',
-      label: currentPlayerColonyLabel(colonyNumber),
-      playerColonyNumber: colonyNumber,
-      stats: {
-        army: 0,
-        food: 0,
-        trade: 0,
-        landConquered: 0,
-        neighbor: currentPlayerColonyLabel(colonyNumber),
-        contractAddress: '0x2fe5b...67e4c',
-      },
-    };
-    SURROUNDING_NEIGHBOR_SLOTS.push(slot);
-    buildSurroundingLand();
-    renderNeighborSelector();
-    rebuildNeighborSlotButtons();
-    return slot;
+    const landId = playerColonyLandId(next);
+    if (opts.load !== false && controlledLandState.lands.has(landId)) {
+      loadControlledLand(landId, { keepCamera: true });
+    } else {
+      schedulePlayerStatsUpdate();
+    }
+    return true;
   }
 
   function claimNextExpansionLand() {
     if (expansionAvailable !== true) return false;
-    const slot = firstUnoccupiedNeighborSlot() || createExpansionNeighborSlot();
-    if (!slot || !claimNeighborLand(slot.id)) return false;
+    const index = playerPublicColonies.findIndex(colony => !colony);
+    if (index < 0) return false;
+    const landId = playerColonyLandId(index);
+    const land = createBlankControlledLand(landId, currentPlayerColonyLabel(index + 1), null);
+    controlledLandState.lands.set(landId, land);
+    playerPublicColonies[index] = {
+      colonyId: 'local-colony-' + (index + 1),
+      index,
+      active: true,
+      resources: zeroResourceSnapshot(),
+      population: 0,
+      buildingLevels: {},
+      worldState: land.worldState,
+      raw: null,
+    };
     expansionAvailable = false;
-    syncPlayerExpansionClaimAction();
+    selectPlayerColony(index);
+    saveLocalGameState();
     return true;
   }
 
@@ -14780,24 +14925,8 @@ function neighborStarVector(edge, index) {
 
   function applyNeighborClaimState(claims) {
     if (!Array.isArray(claims)) return;
-    let addedSlot = false;
     for (const claim of claims) {
-      if (!claim || !claim.id || neighborSlotById.has(String(claim.id)) || !claim.playerColonyNumber) continue;
-      SURROUNDING_NEIGHBOR_SLOTS.push({
-        id: String(claim.id),
-        edge: ['north', 'east', 'south', 'west'].includes(claim.edge) ? claim.edge : 'west',
-        index: Math.max(0, Math.round(Number(claim.index) || 0)),
-        occupied: false,
-        color: '#aebaa5',
-        label: claim.label || currentPlayerColonyLabel(claim.playerColonyNumber),
-        playerColonyNumber: Math.max(2, Math.min(3, Math.round(Number(claim.playerColonyNumber) || 2))),
-        stats: { neighbor: 'Claimed' },
-      });
-      addedSlot = true;
-    }
-    if (addedSlot) buildSurroundingLand();
-    for (const claim of claims) {
-      if (!claim || !claim.id) continue;
+      if (!claim || !claim.id || claim.playerColonyNumber) continue;
       const slot = neighborSlotById.get(String(claim.id));
       if (!slot || slot.occupied) continue;
       slot.claimedByCurrentUser = true;
@@ -14818,8 +14947,7 @@ function neighborStarVector(edge, index) {
   }
 
   function selectedPanelControlledLandId() {
-    if (activeNeighborSlotId === HOME_NEIGHBOR_SELECTOR_ID) return HOME_CONTROLLED_LAND_ID;
-    return activeNeighborSlotId ? controlledLandIdForNeighbor(activeNeighborSlotId) : '';
+    return playerColonyLandId(colonyNavigationState.selectedPlayerColonyIndex);
   }
 
   async function loadSelectedPanelLandFromAws() {
@@ -14835,15 +14963,6 @@ function neighborStarVector(edge, index) {
       }
       if (activeControlledLandId() !== record.id) saveActiveControlledLandSnapshot();
       controlledLandState.lands.set(record.id, normalizeControlledLandRecord(record));
-      if (record.sourceNeighborId) {
-        const slot = neighborSlotById.get(record.sourceNeighborId);
-        if (slot && !slot.occupied) {
-          slot.claimedByCurrentUser = true;
-          slot.owner = 'current-user';
-          slot.stats = Object.assign({}, slot.stats || {}, { neighbor: 'Claimed' });
-          setNeighborClaimGlow(slot, false);
-        }
-      }
       const ok = loadControlledLand(record.id, { saveCurrent: false });
       if (!ok) throw new Error('AWS land could not be applied.');
       setAwsDraftStatus('Loaded AWS land: ' + (record.label || record.id), 'success');
@@ -14853,7 +14972,7 @@ function neighborStarVector(edge, index) {
       setAwsDraftStatus('Load AWS land failed: ' + (err.message || err), 'error');
       return false;
     } finally {
-      if (neighborLoadAwsLandActionEl) neighborLoadAwsLandActionEl.disabled = false;
+      syncPlayerColonyControls();
       window.setTimeout(() => setLandTransitionVisible(false), 220);
     }
   }
@@ -14930,53 +15049,81 @@ function neighborStarVector(edge, index) {
   }
 
   function openNeighborStats(slot) {
-    if (!slot || !neighborStatsPanelEl) return;
-    const stats = statsForNeighborSlot(slot);
+    if (!slot || !neighborStatsPanelEl) return false;
+    const playerChanged = colonyNavigationState.selectedNeighborPlayerId !== neighborPlayerId(slot);
     activeNeighborSlotId = slot.id;
+    colonyNavigationState.selectedNeighborPlayerId = neighborPlayerId(slot);
+    const colonies = normalizedPublicColonies(slot.publicRecord);
+    if (playerChanged) colonyNavigationState.selectedNeighborColonyIndex = firstActiveColonyIndex(colonies);
     if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = neighborDisplayLabel(slot);
-    const population = Math.max(0, Math.round(Number(stats.population) || 0));
-    setNeighborStat('gold', stats.gold, 0);
-    setNeighborStat('population', population, 0);
-    for (const key of COLONY_STATUS_KEYS) {
-      setScopedColonyStatusRow('neighbor-stat', key, stats[key] || 0, population);
-    }
-    const neighborEl = document.getElementById('neighbor-stat-neighbor');
-    if (neighborEl) neighborEl.textContent = stats.neighbor || neighborOwnershipLabel(slot) || '-';
+    if (neighborSelectionEmptyEl) neighborSelectionEmptyEl.hidden = true;
+    if (neighborColonyToggleBlockEl) neighborColonyToggleBlockEl.hidden = false;
+    selectNeighborColony(colonyNavigationState.selectedNeighborColonyIndex);
     syncNeighborClaimAction(slot);
     syncRoundActionControls(true);
     updateNeighborSlotActiveButtons();
+    return true;
+  }
+
+  function selectNeighborColony(index) {
+    const next = Math.max(0, Math.min(2, Math.round(Number(index) || 0)));
+    colonyNavigationState.selectedNeighborColonyIndex = next;
+    const slot = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
+    const colonies = normalizedPublicColonies(slot && slot.publicRecord);
+    const colony = colonies[next];
+    if (neighborColonyToggleEl) {
+      neighborColonyToggleEl.querySelectorAll('button[data-colony-index]').forEach(button => {
+        const buttonIndex = Number(button.getAttribute('data-colony-index'));
+        const active = !!colonies[buttonIndex];
+        button.classList.toggle('inactive', !active);
+        button.setAttribute('aria-pressed', buttonIndex === next ? 'true' : 'false');
+        button.setAttribute('aria-label', 'Neighbor Colony ' + (buttonIndex + 1) + (active ? '' : ', not active'));
+      });
+    }
+    if (neighborColonyEmptyEl) neighborColonyEmptyEl.hidden = !!colony;
+    if (neighborColonyStatsBodyEl) neighborColonyStatsBodyEl.hidden = !colony;
+    if (!colony) return false;
+    const population = colony.population;
+    setNeighborStat('gold', colony.resources.gold, 0);
+    setNeighborStat('population', population, 0);
+    for (const key of COLONY_STATUS_KEYS) {
+      setScopedColonyStatusRow('neighbor-stat', key, colony.resources[key] || 0, population);
+    }
+    const neighborEl = document.getElementById('neighbor-stat-neighbor');
+    if (neighborEl) neighborEl.textContent = slot && slot.publicRecord && slot.publicRecord.status || 'Active';
+    return true;
   }
 
   function setActiveNeighborById(neighborId, source = 'dropdown', opts = {}) {
     const id = String(neighborId || '');
-    if (id === HOME_NEIGHBOR_SELECTOR_ID) {
-      const activeSlot = activeControlledNeighborSlot();
-      openNeighborStats(homeNeighborSlot());
-      if (source === 'dropdown') setHoveredNeighborSlot(null);
-      if (activeSlot && opts.focus !== false) pivotCameraTowardNeighbor(activeSlot, source);
-      return true;
-    }
     const slot = id ? neighborSlotById.get(id) : null;
     if (!slot) {
       activeNeighborSlotId = null;
+      colonyNavigationState.selectedNeighborPlayerId = null;
+      if (neighborStatsTitleEl) neighborStatsTitleEl.textContent = 'Neighbor';
+      if (neighborSelectionEmptyEl) {
+        neighborSelectionEmptyEl.hidden = false;
+        neighborSelectionEmptyEl.textContent = activeNeighborSlots().length
+          ? 'Select a neighbor to view their colonies.'
+          : 'No assigned neighbors are available.';
+      }
+      if (neighborColonyToggleBlockEl) neighborColonyToggleBlockEl.hidden = true;
+      if (neighborColonyEmptyEl) neighborColonyEmptyEl.hidden = true;
+      if (neighborColonyStatsBodyEl) neighborColonyStatsBodyEl.hidden = true;
       updateNeighborSlotActiveButtons();
       return false;
     }
-    if (isActiveControlledNeighborSlot(slot)) {
-      openNeighborStats(homeNeighborSlot());
-      if (source === 'dropdown' || source === 'scene') setHoveredNeighborSlot(null);
-      if (opts.focus !== false) pivotCameraTowardNeighbor(slot, source);
-      return true;
-    }
+    const changed = activeNeighborSlotId !== slot.id;
     openNeighborStats(slot);
     if (source === 'dropdown') setHoveredNeighborSlot(slot);
-    if (opts.focus !== false) pivotCameraTowardNeighbor(slot, source);
+    if (changed && opts.focus !== false) pivotCameraTowardNeighbor(slot, source);
     return true;
   }
 
   function ensureSelectedNeighborStats() {
     const current = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
-    openNeighborStats(current || defaultSelectedNeighborSlot());
+    if (current) openNeighborStats(current);
+    else setActiveNeighborById('', 'init', { focus: false });
   }
 
   function rebuildNeighborSlotButtons() {
@@ -14997,6 +15144,20 @@ function neighborStarVector(edge, index) {
     neighborStatsSelectorEl.addEventListener('change', () => {
       console.log('[neighbor-focus] Neighbor selected from menu');
       setActiveNeighborById(neighborStatsSelectorEl.value, 'dropdown');
+    });
+  }
+  if (playerColonyToggleEl) {
+    playerColonyToggleEl.addEventListener('click', e => {
+      const button = e.target.closest('button[data-colony-index]');
+      if (!button) return;
+      selectPlayerColony(Number(button.getAttribute('data-colony-index')));
+    });
+  }
+  if (neighborColonyToggleEl) {
+    neighborColonyToggleEl.addEventListener('click', e => {
+      const button = e.target.closest('button[data-colony-index]');
+      if (!button) return;
+      selectNeighborColony(Number(button.getAttribute('data-colony-index')));
     });
   }
   if (neighborAttackTargetEl) {
@@ -15026,12 +15187,10 @@ function neighborStarVector(edge, index) {
   }
   if (neighborOpenLandActionEl) {
     neighborOpenLandActionEl.addEventListener('click', () => {
-      if (activeNeighborSlotId === HOME_NEIGHBOR_SELECTOR_ID) {
-        transitionToControlledLand(HOME_CONTROLLED_LAND_ID, 'Loading home land');
-        return;
-      }
-      const slot = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
-      if (slot) openNeighborControlledLand(slot);
+      const index = colonyNavigationState.selectedPlayerColonyIndex;
+      const colony = playerPublicColonies[index];
+      if (!colony) return;
+      transitionToControlledLand(playerColonyLandId(index), 'Loading ' + currentPlayerColonyLabel(index + 1), { keepCamera: true });
     });
   }
   if (neighborLoadAwsLandActionEl) {
@@ -15040,9 +15199,13 @@ function neighborStarVector(edge, index) {
     });
   }
   if (creditTransferTriggerEl) {
-    creditTransferTriggerEl.addEventListener('click', openCreditTransferMenu);
+    creditTransferTriggerEl.addEventListener('click', () => {
+      if (!playerPublicColonies[colonyNavigationState.selectedPlayerColonyIndex]) return;
+      openCreditTransferMenu();
+    });
     creditTransferTriggerEl.addEventListener('keydown', e => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
+      if (!playerPublicColonies[colonyNavigationState.selectedPlayerColonyIndex]) return;
       e.preventDefault();
       openCreditTransferMenu();
     });
@@ -15138,7 +15301,7 @@ function neighborStarVector(edge, index) {
         console.warn('[aws-inter-round-state] save failed:', err.message || err);
         setAwsDraftStatus('AWS draft save failed: ' + (err.message || err), 'error');
       } finally {
-        neighborSaveAwsDraftEl.disabled = false;
+        syncPlayerColonyControls();
       }
     });
   }
@@ -17536,6 +17699,7 @@ function neighborStarVector(edge, index) {
       },
       tournament: data.tournament || null,
       neighborPublicStates: data.neighborPublicStates || {},
+      playerPublicState: data.playerPublicState || null,
     };
   }
 
@@ -17571,6 +17735,7 @@ function neighborStarVector(edge, index) {
         label: String(id),
         publicTableAssignment: true,
         publicStateUnavailable: !available,
+        publicRecord: record || null,
         stats: {
           gold: available ? coerceNonNegativeStat(colony.credits) || 0 : 0,
           army: available ? coerceNonNegativeStat(colony.fleet) || 0 : 0,
@@ -17585,6 +17750,59 @@ function neighborStarVector(edge, index) {
     });
   }
 
+  function syncPlayerColoniesFromPublic(record, preserveLocal) {
+    const normalized = normalizedPublicColonies(record);
+    ensureHomeControlledLand();
+    for (let index = 0; index < 3; index++) {
+      const landId = playerColonyLandId(index);
+      const legacyLandId = index > 0 ? 'neighbor:player-colony-' + (index + 1) : null;
+      if (legacyLandId && !controlledLandState.lands.has(landId) && controlledLandState.lands.has(legacyLandId)) {
+        const legacy = controlledLandState.lands.get(legacyLandId);
+        controlledLandState.lands.delete(legacyLandId);
+        legacy.id = landId;
+        legacy.sourceNeighborId = null;
+        controlledLandState.lands.set(landId, legacy);
+        if (controlledLandState.activeLandId === legacyLandId) controlledLandState.activeLandId = landId;
+      }
+      const existing = controlledLandState.lands.get(landId);
+      const colony = normalized[index];
+      if (!colony) {
+        if (existing && landId !== HOME_CONTROLLED_LAND_ID) {
+          normalized[index] = {
+            colonyId: 'local-colony-' + (index + 1),
+            index,
+            active: true,
+            resources: existing.resources || zeroResourceSnapshot(),
+            population: 0,
+            buildingLevels: {},
+            worldState: existing.worldState || blankControlledWorldState(),
+            raw: null,
+          };
+        }
+        continue;
+      }
+      if (preserveLocal && existing) {
+        existing.label = currentPlayerColonyLabel(index + 1);
+        continue;
+      }
+      controlledLandState.lands.set(landId, normalizeControlledLandRecord({
+        id: landId,
+        label: currentPlayerColonyLabel(index + 1),
+        claimedByCurrentUser: true,
+        worldState: colony.worldState || blankControlledWorldState(),
+        resources: colony.resources,
+        allocations: { roundAction: zeroRoundActionSnapshot() },
+        validation: { status: 'aws-public-baseline' },
+        updatedAt: Date.now(),
+      }));
+    }
+    playerPublicColonies = normalized;
+    updateActiveLandBrand();
+    let selected = colonyNavigationState.selectedPlayerColonyIndex;
+    if (!playerPublicColonies[selected]) selected = firstActiveColonyIndex(playerPublicColonies);
+    selectPlayerColony(selected);
+  }
+
   function applyAwsMockStats(data, opts = {}) {
     const validated = validateAwsMockStats(data);
     if (!validated) return false;
@@ -17594,17 +17812,28 @@ function neighborStarVector(edge, index) {
     window.__tinyworldAuthoritativeGameState = validated;
     window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, validated.gameState);
     expansionAvailable = !!validated.expansionAvailable;
-    syncPlayerExpansionClaimAction();
-    setSurroundingNeighborSlots(publicMockNeighborSlots(validated));
-    if (loadedLocalDraftForAwsReconciliation && Array.isArray(loadedLocalDraftForAwsReconciliation.neighborClaims)) {
-      applyNeighborClaimState(loadedLocalDraftForAwsReconciliation.neighborClaims);
-    }
-    if (typeof refreshNeighborDisplayLabels === 'function') refreshNeighborDisplayLabels();
     if (!opts.preserveLocalResources) {
       for (const key of RESOURCE_KEYS) {
         resources[key] = validated.resources[key];
       }
     }
+    syncPlayerColoniesFromPublic(validated.playerPublicState, !!opts.preserveLocalResources);
+    const requestedNeighborPlayerId = colonyNavigationState.selectedNeighborPlayerId;
+    const requestedNeighborColonyIndex = colonyNavigationState.selectedNeighborColonyIndex;
+    setSurroundingNeighborSlots(publicMockNeighborSlots(validated));
+    if (requestedNeighborPlayerId) {
+      const selectedNeighbor = SURROUNDING_NEIGHBOR_SLOTS.find(slot => neighborPlayerId(slot) === requestedNeighborPlayerId);
+      if (selectedNeighbor) {
+        colonyNavigationState.selectedNeighborPlayerId = requestedNeighborPlayerId;
+        colonyNavigationState.selectedNeighborColonyIndex = requestedNeighborColonyIndex;
+        activeNeighborSlotId = selectedNeighbor.id;
+        openNeighborStats(selectedNeighbor);
+      }
+    }
+    if (loadedLocalDraftForAwsReconciliation && Array.isArray(loadedLocalDraftForAwsReconciliation.neighborClaims)) {
+      applyNeighborClaimState(loadedLocalDraftForAwsReconciliation.neighborClaims);
+    }
+    if (typeof refreshNeighborDisplayLabels === 'function') refreshNeighborDisplayLabels();
     schedulePlayerStatsUpdate();
     if (typeof renderLobbyTournamentConfig === 'function') {
       renderLobbyTournamentConfig(document.getElementById('welcome-modal'));
@@ -18332,6 +18561,7 @@ function neighborStarVector(edge, index) {
         expansionAvailable: player.expansionAvailable === true,
         tournament,
         neighborPublicStates: payload.neighbors || {},
+        playerPublicState: player,
         lastRevealState: {
           playerId: String(player.landlordId),
           tableId: String(table.tableId),
@@ -18834,16 +19064,23 @@ function neighborStarVector(edge, index) {
     const panel = document.getElementById('player-stats-panel');
     if (!panel) return;
     const titleEl = document.getElementById('player-stats-title');
-    if (titleEl) titleEl.textContent = 'Land Stats (' + activeControlledLandLabel() + ')';
+    const colonyIndex = colonyNavigationState.selectedPlayerColonyIndex;
+    const colony = playerPublicColonies[colonyIndex];
+    if (titleEl) titleEl.textContent = currentPlayerColonyLabel(colonyIndex + 1);
+    if (playerColonyEmptyEl) playerColonyEmptyEl.hidden = !!colony;
+    if (playerColonyStatsBodyEl) playerColonyStatsBodyEl.hidden = !colony;
+    renderPlayerColonyToggle();
+    syncPlayerColonyControls();
+    if (!colony) return;
     const stats = collectPlayerStats();
     setPlayerStat('gold', resources.gold || 0, 0);
     for (const key of COLONY_STATUS_KEYS) {
-      setColonyStatusRow(key, resources[key] || 0, stats.population || 0);
+      setColonyStatusRow(key, resources[key] || 0, colony.population || stats.population || 0);
     }
     const roundEl = document.getElementById('player-stat-round-number');
     const populationEl = document.getElementById('player-stat-population');
     if (roundEl) roundEl.textContent = String(stats.roundNumber);
-    if (populationEl) populationEl.textContent = String(Math.round(stats.population || 0));
+    if (populationEl) populationEl.textContent = String(Math.round(colony.population || 0));
     updateRoundPhaseDisplay();
     if (typeof syncRoundActionControls === 'function') syncRoundActionControls(false);
   }
@@ -28337,6 +28574,11 @@ function neighborStarVector(edge, index) {
         activeLandId: activeControlledLandId(),
         lands: serializeControlledLands(),
       },
+      navigation: {
+        selectedPlayerColonyIndex: colonyNavigationState.selectedPlayerColonyIndex,
+        selectedNeighborPlayerId: colonyNavigationState.selectedNeighborPlayerId,
+        selectedNeighborColonyIndex: colonyNavigationState.selectedNeighborColonyIndex,
+      },
       playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
       selection: Array.from(selectedCells),
       camera: {
@@ -28406,6 +28648,13 @@ function neighborStarVector(edge, index) {
       return false;
     }
     applyControlledLandsState(state.controlledLands);
+    if (state.navigation && typeof state.navigation === 'object') {
+      colonyNavigationState.selectedPlayerColonyIndex = Math.max(0, Math.min(2, Math.round(Number(state.navigation.selectedPlayerColonyIndex) || 0)));
+      colonyNavigationState.selectedNeighborPlayerId = state.navigation.selectedNeighborPlayerId
+        ? String(state.navigation.selectedNeighborPlayerId)
+        : null;
+      colonyNavigationState.selectedNeighborColonyIndex = Math.max(0, Math.min(2, Math.round(Number(state.navigation.selectedNeighborColonyIndex) || 0)));
+    }
     const activeLand = controlledLandState.lands.get(activeControlledLandId());
     const resourceState = (activeLand && activeLand.resources) || state.resources || {};
     for (const key of RESOURCE_KEYS) {

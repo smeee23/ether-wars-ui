@@ -45,6 +45,15 @@ requireIncludes('function refreshVehiclesForWorldObstacleChange(', 'vehicle rero
 requireIncludes('__getVehicleRuntimeSnapshot', 'vehicle runtime debug snapshot');
 requireIncludes('function makeCloud(', 'voxel cloud factory');
 requireIncludes('function openTinyModal(', 'modal focus helper');
+requireIncludes('const colonyNavigationState = {', 'independent colony navigation state');
+requireIncludes('function normalizedPublicColonies(', 'public colony normalization');
+requireIncludes('function selectPlayerColony(', 'player colony selection');
+requireIncludes('function selectNeighborColony(', 'neighbor colony selection');
+requireIncludes('function setActiveNeighborById(', 'neighbor player selection');
+requireIncludes('id="player-colony-toggle"', 'player colony toggle');
+requireIncludes('id="neighbor-colony-toggle"', 'neighbor colony toggle');
+requireIncludes('id="active-land-brand"', 'active land brand label');
+requireIncludes('function updateActiveLandBrand(', 'active land brand updater');
 requireIncludes('customDepthMaterial', 'cloud shadow depth material');
 requireIncludes('vendor/three/three.r128.min.js', 'self-hosted Three.js');
 requireIncludes('vendor/three/GLTFLoader.r128.js', 'self-hosted GLTFLoader');
@@ -69,6 +78,8 @@ requireNotIncludes('postProcessingEnabled', 'post-processing mode flag');
 requireNotIncludes('render-smoothing', 'dead post smoothing control');
 requireNotIncludes('<script type="module" src="cluso/cluso-embed.js"></script>', 'production-visible Cluso script tag');
 requireNotIncludes('<link rel="stylesheet" href="cluso/cluso-embed.css">', 'production-visible Cluso stylesheet tag');
+requireNotIncludes("const HOME_NEIGHBOR_SELECTOR_ID", 'combined Home/neighbor selector state');
+requireNotIncludes("label: 'Open land'", 'placeholder open-land distant slot');
 
 for (const asset of [
   'vendor/three/three.r128.min.js',

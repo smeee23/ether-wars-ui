@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "tournamentId": "tournament-1",
   "landlordId": "player-1",
+  "contractAddress": "0x...",
   "tableId": "table-1",
   "status": "active",
   "lastRevealedRound": 1,
