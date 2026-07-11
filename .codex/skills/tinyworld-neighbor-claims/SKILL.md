@@ -23,6 +23,12 @@ Use these helpers for the UI-only claim flow:
   `claimNextExpansionLand()`, which claims the first unoccupied neighbor slot
   in existing slot order or appends a visual-only open slot before claiming.
   Do not show per-neighbor open-land Claim buttons.
+- Player-controlled land labels use the current player's deterministic star
+  name: the synthetic Home entry is `<Star Name> Colony 1`; claimed expansion
+  slots are `<Star Name> Colony 2` and `<Star Name> Colony 3`. Expansion slots
+  are created only when claimed, capped at Colony 3, and the Claim Expansion
+  button is visible only when the loaded public record contains the literal
+  boolean `expansionAvailable: true`.
 - `controlledLandState` stores the currently active player-controlled land and
   a map of saved land records. `home` is the original land; claimed neighbors
   use `neighbor:{slotId}`.

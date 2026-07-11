@@ -5359,7 +5359,7 @@
   } catch (_) {}
   const TILE = 1;
   const BUILDABLE_LAND_Y_OFFSET = -0.18;
-  let currentTodMinutes = 200;
+  let currentTodMinutes = 0;
   const TOP_H = 0.18;     // grass slab thickness
   const WEATHER_SURFACE_PAD = 0.84;
   const WEATHER_DECAL_LIFT = 0.09;
@@ -5612,7 +5612,7 @@
   });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, BASE_DPR_CAP) * renderResolutionScale);
   applyStageSize();
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = false;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.NoToneMapping;
@@ -6021,8 +6021,8 @@
   // -------- cameras (orthographic + perspective) --------
   const DEFAULT_VIEW_SIZE = 8.2;
   const DEFAULT_CAMERA_MODE = 'perspective';
-  const DEFAULT_AZIMUTH = Math.PI * 0.32;
-  const DEFAULT_POLAR = Math.PI * 0.30;
+  const DEFAULT_AZIMUTH = Math.PI * 0.25;
+  const DEFAULT_POLAR = Math.PI * 0.25;
   const DEFAULT_TARGET = new THREE.Vector3(0.35, 0, 0.15);
   const MIN_VIEW_SIZE = 1.55;
   const MAX_VIEW_SIZE_BASE = 64;
@@ -13762,7 +13762,7 @@ function neighborStarVector(edge, index) {
 
   function neighborSlotWorldPosition(slot) {
     if (!slot) return null;
-    const pos = neighborStarPosition(slot.edge, slot.index === 1 ? 1 : 0);
+    const pos = neighborStarPosition(slot.edge, Math.max(0, Math.round(Number(slot.index) || 0)));
     return new THREE.Vector3(pos.landX, pos.landY, pos.landZ);
   }
 
@@ -13879,7 +13879,7 @@ function neighborStarVector(edge, index) {
   }
 
   function makeNeighborHitSlot(slot) {
-    const index = slot.index === 1 ? 1 : 0;
+    const index = Math.max(0, Math.round(Number(slot.index) || 0));
     const pos = neighborSlotWorldPosition(slot);
     const group = new THREE.Group();
     group.name = 'neighbor-hit-' + slot.id;
@@ -14016,6 +14016,16 @@ function neighborStarVector(edge, index) {
   };
   let landTransitionOverlayEl = null;
 
+  function currentPlayerStarName() {
+    const auth = authoritativeGameState || awsGameState;
+    const playerId = auth && auth.playerId ? String(auth.playerId) : 'player-1';
+    return getNeighborNameFromPlayerId(playerId, 'Nova Prime');
+  }
+
+  function currentPlayerColonyLabel(colonyNumber) {
+    return currentPlayerStarName() + ' Colony ' + Math.max(1, Math.round(Number(colonyNumber) || 1));
+  }
+
   function isClickableNeighborSlot(slot) {
     return !!slot && !!slot.occupied;
   }
@@ -14027,7 +14037,7 @@ function neighborStarVector(edge, index) {
   function homeNeighborSlot() {
     return {
       id: HOME_NEIGHBOR_SELECTOR_ID,
-      label: 'Home land',
+      label: currentPlayerColonyLabel(1),
       occupied: false,
       claimedByCurrentUser: true,
       controlledLandId: HOME_CONTROLLED_LAND_ID,
@@ -14059,13 +14069,13 @@ function neighborStarVector(edge, index) {
 
   function activeControlledLandLabel() {
     const id = activeControlledLandId();
-    if (id === HOME_CONTROLLED_LAND_ID) return 'Home land';
+    if (id === HOME_CONTROLLED_LAND_ID) return currentPlayerColonyLabel(1);
     if (id && id.startsWith('neighbor:')) {
       const slot = neighborSlotById.get(id.slice('neighbor:'.length));
       if (slot) return neighborDisplayLabel(slot);
     }
     const land = controlledLandState.lands.get(id);
-    return land && land.label ? land.label : 'Home land';
+    return land && land.label ? land.label : currentPlayerColonyLabel(1);
   }
 
   function isActiveControlledNeighborSlot(slot) {
@@ -14174,7 +14184,7 @@ function neighborStarVector(edge, index) {
     const sourceSlot = id.startsWith('neighbor:')
       ? neighborSlotById.get(id.slice('neighbor:'.length))
       : null;
-    const label = sourceSlot ? neighborDisplayLabel(sourceSlot) : 'Home land';
+    const label = sourceSlot ? neighborDisplayLabel(sourceSlot) : currentPlayerColonyLabel(1);
     const record = snapshotCurrentControlledLand(id, {
       label,
       sourceNeighborId: sourceSlot ? sourceSlot.id : null,
@@ -14186,7 +14196,7 @@ function neighborStarVector(edge, index) {
   function ensureHomeControlledLand() {
     if (!controlledLandState.lands.has(HOME_CONTROLLED_LAND_ID)) {
       controlledLandState.lands.set(HOME_CONTROLLED_LAND_ID, snapshotCurrentControlledLand(HOME_CONTROLLED_LAND_ID, {
-        label: 'Home land',
+        label: currentPlayerColonyLabel(1),
         sourceNeighborId: null,
       }));
     }
@@ -14444,15 +14454,16 @@ function neighborStarVector(edge, index) {
 
   function defaultNeighborStats(slot) {
     const claimed = isNeighborClaimedByCurrentUser(slot);
+    const unavailable = !!(slot && slot.publicStateUnavailable);
     return {
-      gold: slot && slot.occupied ? 10 : 0,
-      army: slot && slot.occupied ? 10 : 0,
-      food: slot && slot.occupied ? 10 : 0,
-      water: slot && slot.occupied ? 10 : 0,
+      gold: unavailable ? 0 : (slot && slot.occupied ? 10 : 0),
+      army: unavailable ? 0 : (slot && slot.occupied ? 10 : 0),
+      food: unavailable ? 0 : (slot && slot.occupied ? 10 : 0),
+      water: unavailable ? 0 : (slot && slot.occupied ? 10 : 0),
       oxygen: 0,
-      shelter: slot && slot.occupied ? 10 : 0,
-      population: slot && slot.occupied ? 10 : 0,
-      neighbor: claimed ? 'Claimed' : (slot && slot.occupied ? 'Occupied' : 'Open land'),
+      shelter: unavailable ? 0 : (slot && slot.occupied ? 10 : 0),
+      population: unavailable ? 0 : (slot && slot.occupied ? 10 : 0),
+      neighbor: unavailable ? 'Public state unavailable' : (claimed ? 'Claimed' : (slot && slot.occupied ? 'Occupied' : 'Open land')),
     };
   }
 
@@ -14535,7 +14546,8 @@ function neighborStarVector(edge, index) {
     neighborStatsSelectorEl.appendChild(placeholder);
     const homeOpt = document.createElement('option');
     homeOpt.value = HOME_NEIGHBOR_SELECTOR_ID;
-    homeOpt.textContent = activeControlledLandId() === HOME_CONTROLLED_LAND_ID ? 'Home land (current)' : 'Home land';
+    const homeLabel = currentPlayerColonyLabel(1);
+    homeOpt.textContent = activeControlledLandId() === HOME_CONTROLLED_LAND_ID ? homeLabel + ' (current)' : homeLabel;
     neighborStatsSelectorEl.appendChild(homeOpt);
     for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
       if (!slot || !slot.id) continue;
@@ -14661,8 +14673,18 @@ function neighborStarVector(edge, index) {
 
   function syncPlayerExpansionClaimAction() {
     if (!playerExpansionClaimActionEl) return;
-    playerExpansionClaimActionEl.hidden = !expansionAvailable;
-    playerExpansionClaimActionEl.disabled = !expansionAvailable;
+    const canClaim = expansionAvailable === true && nextExpansionColonyNumber() <= 3;
+    playerExpansionClaimActionEl.hidden = !canClaim;
+    playerExpansionClaimActionEl.disabled = !canClaim;
+  }
+
+  function nextExpansionColonyNumber() {
+    let highest = 1;
+    for (const slot of SURROUNDING_NEIGHBOR_SLOTS) {
+      if (!slot || !slot.playerColonyNumber || !isNeighborClaimedByCurrentUser(slot)) continue;
+      highest = Math.max(highest, Math.round(Number(slot.playerColonyNumber) || 1));
+    }
+    return highest + 1;
   }
 
   function firstUnoccupiedNeighborSlot() {
@@ -14670,6 +14692,8 @@ function neighborStarVector(edge, index) {
   }
 
   function createExpansionNeighborSlot() {
+    const colonyNumber = nextExpansionColonyNumber();
+    if (colonyNumber > 3) return null;
     const edges = ['north', 'east', 'south', 'west'];
     let edge = edges[0];
     let index = 0;
@@ -14682,20 +14706,21 @@ function neighborStarVector(edge, index) {
       index = maxIndex + 1;
       if (index <= 1) break;
     }
-    const id = edge + '-' + index;
+    const id = 'player-colony-' + colonyNumber;
     const slot = {
       id,
       edge,
       index,
       occupied: false,
       color: '#aebaa5',
-      label: 'Open land',
+      label: currentPlayerColonyLabel(colonyNumber),
+      playerColonyNumber: colonyNumber,
       stats: {
         army: 0,
         food: 0,
         trade: 0,
         landConquered: 0,
-        neighbor: 'Open land',
+        neighbor: currentPlayerColonyLabel(colonyNumber),
         contractAddress: '0x2fe5b...67e4c',
       },
     };
@@ -14707,7 +14732,7 @@ function neighborStarVector(edge, index) {
   }
 
   function claimNextExpansionLand() {
-    if (!expansionAvailable) return false;
+    if (expansionAvailable !== true) return false;
     const slot = firstUnoccupiedNeighborSlot() || createExpansionNeighborSlot();
     if (!slot || !claimNeighborLand(slot.id)) return false;
     expansionAvailable = false;
@@ -14746,11 +14771,31 @@ function neighborStarVector(edge, index) {
         id: slot.id,
         owner: slot.owner || 'current-user',
         claimedAt: slot.claimedAt || null,
+        edge: slot.edge || null,
+        index: Math.max(0, Math.round(Number(slot.index) || 0)),
+        label: slot.label || null,
+        playerColonyNumber: slot.playerColonyNumber || null,
       }));
   }
 
   function applyNeighborClaimState(claims) {
     if (!Array.isArray(claims)) return;
+    let addedSlot = false;
+    for (const claim of claims) {
+      if (!claim || !claim.id || neighborSlotById.has(String(claim.id)) || !claim.playerColonyNumber) continue;
+      SURROUNDING_NEIGHBOR_SLOTS.push({
+        id: String(claim.id),
+        edge: ['north', 'east', 'south', 'west'].includes(claim.edge) ? claim.edge : 'west',
+        index: Math.max(0, Math.round(Number(claim.index) || 0)),
+        occupied: false,
+        color: '#aebaa5',
+        label: claim.label || currentPlayerColonyLabel(claim.playerColonyNumber),
+        playerColonyNumber: Math.max(2, Math.min(3, Math.round(Number(claim.playerColonyNumber) || 2))),
+        stats: { neighbor: 'Claimed' },
+      });
+      addedSlot = true;
+    }
+    if (addedSlot) buildSurroundingLand();
     for (const claim of claims) {
       if (!claim || !claim.id) continue;
       const slot = neighborSlotById.get(String(claim.id));
@@ -14769,6 +14814,7 @@ function neighborStarVector(edge, index) {
       ensureSelectedNeighborStats();
     }
     syncRoundActionControls(false);
+    syncPlayerExpansionClaimAction();
   }
 
   function selectedPanelControlledLandId() {
@@ -17438,9 +17484,7 @@ function neighborStarVector(edge, index) {
     const value = data && data.expansionAvailable !== undefined
       ? data.expansionAvailable
       : lastRevealState && lastRevealState.expansionAvailable;
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') return value.trim().toLowerCase() === 'true';
-    return !!value;
+    return value === true;
   }
 
   function validateAwsMockStats(data) {
@@ -17487,9 +17531,58 @@ function neighborStarVector(edge, index) {
         roundNumber: Math.max(1, roundNumber === null ? 1 : roundNumber),
         entriesRemaining: Math.max(0, entriesRemaining === null ? PLAYER_GAME_STATE_MOCK.entriesRemaining : entriesRemaining),
         maxEntries: Math.max(0, maxEntries === null ? PLAYER_GAME_STATE_MOCK.maxEntries : maxEntries),
+        population: Math.max(0, coerceNonNegativeStat(lastRevealState.population) || 0),
         playerStatus: lastRevealState.playerStatus || null,
       },
+      tournament: data.tournament || null,
+      neighborPublicStates: data.neighborPublicStates || {},
     };
+  }
+
+  const PUBLIC_MOCK_NEIGHBOR_POSITIONS = [
+    { edge: 'north', index: 1 },
+    { edge: 'east', index: 0 },
+    { edge: 'south', index: 1 },
+    { edge: 'south', index: 0 },
+    { edge: 'west', index: 1 },
+    { edge: 'north', index: 0 },
+    { edge: 'north', index: 2 },
+    { edge: 'south', index: 2 },
+  ];
+
+  function publicMockNeighborSlots(validated) {
+    const playerId = String(validated && validated.playerId || '');
+    const ids = validated && Array.isArray(validated.tablePlayerIds)
+      ? validated.tablePlayerIds.filter(id => String(id) !== playerId)
+      : [];
+    const colors = ['#4f8fd9', '#d47a4c', '#c9a23e', '#9b6ec7', '#6ba86d', '#4aa8a0', '#d76a8a', '#87a84f'];
+    return ids.slice(0, PUBLIC_MOCK_NEIGHBOR_POSITIONS.length).map((id, index) => {
+      const position = PUBLIC_MOCK_NEIGHBOR_POSITIONS[index];
+      const record = validated.neighborPublicStates && validated.neighborPublicStates[id];
+      const colony = record && Array.isArray(record.colonies) ? record.colonies[0] : record;
+      const available = !!(colony && typeof colony === 'object');
+      return {
+        id: 'table-player-' + String(id),
+        playerId: String(id),
+        edge: position.edge,
+        index: position.index,
+        occupied: true,
+        color: colors[index % colors.length],
+        label: String(id),
+        publicTableAssignment: true,
+        publicStateUnavailable: !available,
+        stats: {
+          gold: available ? coerceNonNegativeStat(colony.credits) || 0 : 0,
+          army: available ? coerceNonNegativeStat(colony.fleet) || 0 : 0,
+          food: available ? coerceNonNegativeStat(colony.food) || 0 : 0,
+          water: available ? coerceNonNegativeStat(colony.water) || 0 : 0,
+          oxygen: available ? coerceNonNegativeStat(colony.oxygen) || 0 : 0,
+          shelter: available ? coerceNonNegativeStat(colony.shelter) || 0 : 0,
+          population: available ? coerceNonNegativeStat(colony.population) || 0 : 0,
+          neighbor: available ? (record.status || 'Active') : 'Public state unavailable',
+        },
+      };
+    });
   }
 
   function applyAwsMockStats(data, opts = {}) {
@@ -17502,6 +17595,10 @@ function neighborStarVector(edge, index) {
     window.__tinyworldPlayerGameState = Object.assign({}, PLAYER_GAME_STATE_MOCK, validated.gameState);
     expansionAvailable = !!validated.expansionAvailable;
     syncPlayerExpansionClaimAction();
+    setSurroundingNeighborSlots(publicMockNeighborSlots(validated));
+    if (loadedLocalDraftForAwsReconciliation && Array.isArray(loadedLocalDraftForAwsReconciliation.neighborClaims)) {
+      applyNeighborClaimState(loadedLocalDraftForAwsReconciliation.neighborClaims);
+    }
     if (typeof refreshNeighborDisplayLabels === 'function') refreshNeighborDisplayLabels();
     if (!opts.preserveLocalResources) {
       for (const key of RESOURCE_KEYS) {
@@ -17509,6 +17606,9 @@ function neighborStarVector(edge, index) {
       }
     }
     schedulePlayerStatsUpdate();
+    if (typeof renderLobbyTournamentConfig === 'function') {
+      renderLobbyTournamentConfig(document.getElementById('welcome-modal'));
+    }
     return true;
   }
 
@@ -18208,21 +18308,88 @@ function neighborStarVector(edge, index) {
   window.validateLocalDraftAgainstLastRevealState = validateLocalDraftAgainstLastRevealState;
   window.validateCurrentDraftAgainstAuthoritativeState = validateCurrentDraftAgainstAuthoritativeState;
 
+  function aggregatePublicMockRecords(payload) {
+      const tournament = payload && payload.tournament;
+      const table = payload && payload.table;
+      const player = payload && payload.player;
+      const colony = player && Array.isArray(player.colonies) ? player.colonies[0] : null;
+      if (!tournament || !table || !player || !colony) throw new Error('Split mock public records are incomplete.');
+      if (String(table.tournamentId) !== String(tournament.tournamentId)
+          || String(player.tournamentId) !== String(tournament.tournamentId)) {
+        throw new Error('Split mock tournament IDs do not agree.');
+      }
+      if (String(player.tableId) !== String(table.tableId)) throw new Error('Split mock table IDs do not agree.');
+      if (!Array.isArray(table.landlordIds) || !table.landlordIds.map(String).includes(String(player.landlordId))) {
+        throw new Error('Current player is not assigned to the mock table.');
+      }
+      if (Number(table.roundNumber) !== Number(tournament.roundNumber)) throw new Error('Split mock round numbers do not agree.');
+      return {
+        source: tournament.source || 'etherwars-public-mock',
+        phase: tournament.phase,
+        playerId: String(player.landlordId),
+        tableId: String(table.tableId),
+        tablePlayerIds: table.landlordIds.map(String),
+        expansionAvailable: player.expansionAvailable === true,
+        tournament,
+        neighborPublicStates: payload.neighbors || {},
+        lastRevealState: {
+          playerId: String(player.landlordId),
+          tableId: String(table.tableId),
+          tablePlayerIds: table.landlordIds.map(String),
+          credits: colony.credits,
+          food: colony.food,
+          water: colony.water,
+          oxygen: colony.oxygen,
+          shelter: colony.shelter,
+          fleet: colony.fleet,
+          population: colony.population,
+          roundNumber: table.roundNumber,
+          entriesRemaining: tournament.entriesRemaining,
+          maxEntries: tournament.maxEntries,
+          playerStatus: player.status,
+          previousWorld: colony.world,
+          stateVersion: Math.max(Number(tournament.schemaVersion) || 0, Number(player.schemaVersion) || 0),
+        },
+      };
+  }
+
+  async function fetchPublicMockFixturePayload() {
+    const fixturePaths = [
+      'assets/mock_tournament_stats.json',
+      'assets/mock_table_stats.json',
+      'assets/mock_player_stats.json',
+    ];
+    const records = await Promise.all(fixturePaths.map(async path => {
+      const response = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+      if (!response.ok) throw new Error(path + ' HTTP ' + response.status);
+      return response.json();
+    }));
+    return { tournament: records[0], table: records[1], player: records[2], neighbors: {} };
+  }
+
   async function fetchAwsMockStats(opts = {}) {
     try {
-      const response = await fetch('/api/mockstats', {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const data = await response.json();
+      let payload;
+      let source = 'AWS';
+      try {
+        const response = await fetch('/api/public-mock-game-state', {
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        payload = await response.json();
+      } catch (awsErr) {
+        console.warn('[public-mockstats] AWS read failed; using static public fixtures:', awsErr.message || awsErr);
+        payload = await fetchPublicMockFixturePayload();
+        source = 'static fixtures';
+      }
+      const data = aggregatePublicMockRecords(payload);
       if (!applyAwsMockStats(data, opts)) throw new Error('Unexpected mock stats shape');
       if (opts.reconcileLocalDraft) reconcileLoadedLocalDraftWithAws();
-      console.info('[aws-mockstats] hydrated authoritative game state.');
+      console.info('[public-mockstats] hydrated tournament, table, player, and neighbor state from ' + source + '.');
       return awsGameState;
     } catch (err) {
-      console.warn('[aws-mockstats] hydrate failed; using local mock resources:', err.message || err);
+      console.warn('[public-mockstats] hydrate failed; using local mock resources:', err.message || err);
       return null;
     }
   }
@@ -18518,9 +18685,21 @@ function neighborStarVector(edge, index) {
     const phaseEl = document.getElementById('player-stat-round-phase');
     const nextLabelEl = document.getElementById('player-stat-next-phase-label');
     const countdownEl = document.getElementById('player-stat-next-phase-countdown');
-    if (phaseEl) phaseEl.textContent = (authoritativeGameState && authoritativeGameState.phase) || info.phase;
-    if (nextLabelEl) nextLabelEl.textContent = 'Next ' + info.nextPhase;
-    if (countdownEl) countdownEl.textContent = info.formattedCountdown;
+    const auth = authoritativeGameState;
+    const tournament = auth && auth.tournament;
+    const phase = auth && auth.phase || info.phase;
+    const phaseKey = String(phase || '').toLowerCase();
+    const nextPhase = phaseKey === 'commit' ? 'Reveal' : (phaseKey === 'reveal' ? 'Commit' : info.nextPhase);
+    const deadlineText = phaseKey === 'commit'
+      ? tournament && tournament.commitEndsAt
+      : tournament && tournament.revealEndsAt;
+    const deadline = deadlineText ? Date.parse(deadlineText) : NaN;
+    const countdown = Number.isFinite(deadline)
+      ? formatRoundCountdown(Math.max(0, deadline - Date.now()))
+      : info.formattedCountdown;
+    if (phaseEl) phaseEl.textContent = phase;
+    if (nextLabelEl) nextLabelEl.textContent = 'Next ' + nextPhase;
+    if (countdownEl) countdownEl.textContent = countdown;
   }
 
   function startRoundPhaseTimer() {
@@ -18590,6 +18769,8 @@ function neighborStarVector(edge, index) {
     }
 
     const gameState = getPlayerGameState();
+    const publicPopulation = coerceNonNegativeStat(gameState.population);
+    if (publicPopulation !== null) population = publicPopulation;
     return {
       army,
       food,
@@ -23336,7 +23517,7 @@ function neighborStarVector(edge, index) {
   })();
 
   // -------- chimney smoke --------
-  const MAX_SMOKE_PARTICLES = 70;
+  const MAX_SMOKE_PARTICLES = 0;
   const smokeMat = new THREE.MeshBasicMaterial({ color: 0xd4cfc2, transparent: true, opacity: 0.65, depthWrite: false });
   const smokeGeo = new THREE.SphereGeometry(0.06, 6, 6);
   const smokeParticles = [];
@@ -29203,14 +29384,15 @@ function neighborStarVector(edge, index) {
       ? window.__tinyworldTournamentConfig
       : {};
     const gameState = (typeof getPlayerGameState === 'function' && getPlayerGameState()) || {};
+    const tournament = authoritativeGameState && authoritativeGameState.tournament || {};
     return {
-      entrants: external.entrants ?? gameState.tournamentEntrants ?? fallback.entrants,
-      maxEntrants: external.maxEntrants ?? gameState.tournamentMaxEntrants ?? fallback.maxEntrants,
-      entryCostEth: external.entryCostEth ?? gameState.tournamentEntryCostEth ?? fallback.entryCostEth,
+      entrants: external.entrants ?? tournament.actualEntries ?? gameState.tournamentEntrants ?? fallback.entrants,
+      maxEntrants: external.maxEntrants ?? tournament.maxEntries ?? gameState.tournamentMaxEntrants ?? fallback.maxEntrants,
+      entryCostEth: external.entryCostEth ?? tournament.entryCost ?? gameState.tournamentEntryCostEth ?? fallback.entryCostEth,
       commitDurationHours: external.commitDurationHours ?? gameState.commitDurationHours ?? fallback.commitDurationHours,
       revealDurationHours: external.revealDurationHours ?? gameState.revealDurationHours ?? fallback.revealDurationHours,
-      tournamentId: external.tournamentId ?? gameState.tournamentId ?? fallback.tournamentId,
-      tournamentAddress: external.tournamentAddress ?? external.contractAddress ?? gameState.tournamentAddress ?? fallback.tournamentAddress,
+      tournamentId: external.tournamentId ?? tournament.tournamentId ?? gameState.tournamentId ?? fallback.tournamentId,
+      tournamentAddress: external.tournamentAddress ?? external.contractAddress ?? tournament.contractAddress ?? gameState.tournamentAddress ?? fallback.tournamentAddress,
       dailyStartHour: external.dailyStartHour ?? gameState.dailyStartHour ?? fallback.dailyStartHour,
     };
   }

@@ -29,6 +29,31 @@ try {
   fail('world.schema.json is not valid JSON: ' + err.message);
 }
 
+function readJson(relativePath) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
+  } catch (err) {
+    fail(relativePath + ' is not valid JSON: ' + err.message);
+  }
+}
+
+const mockTournament = readJson('assets/mock_tournament_stats.json');
+const mockTable = readJson('assets/mock_table_stats.json');
+const mockPlayer = readJson('assets/mock_player_stats.json');
+if (String(mockTable.tournamentId) !== String(mockTournament.tournamentId)
+    || String(mockPlayer.tournamentId) !== String(mockTournament.tournamentId)) {
+  fail('public mock tournament IDs must agree');
+}
+if (String(mockPlayer.tableId) !== String(mockTable.tableId)) {
+  fail('public mock table IDs must agree');
+}
+if (!Array.isArray(mockTable.landlordIds) || !mockTable.landlordIds.map(String).includes(String(mockPlayer.landlordId))) {
+  fail('public mock player must be assigned to the mock table');
+}
+if (Number(mockTable.roundNumber) !== Number(mockTournament.roundNumber)) {
+  fail('public mock round numbers must agree');
+}
+
 const schemaStart = html.indexOf('  const WORLD_SCHEMA = ');
 const schemaEnd = html.indexOf('\n\n  // -------- AI generation --------', schemaStart);
 if (schemaStart < 0 || schemaEnd < 0) fail('embedded WORLD_SCHEMA block missing');

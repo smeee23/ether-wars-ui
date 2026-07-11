@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "tournamentId": "tournament-1",
+  "tableId": "table-1",
+  "roundNumber": 1,
+  "landlordIds": [
+    "player-1",
+    "player-2",
+    "player-3",
+    "player-4"
+  ],
+  "updatedAt": "2026-07-11T12:00:00.000Z"
+}

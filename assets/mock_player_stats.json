@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "tournamentId": "tournament-1",
+  "landlordId": "player-1",
+  "tableId": "table-1",
+  "status": "active",
+  "lastRevealedRound": 1,
+  "colonies": [
+    {
+      "colonyId": "player-1-colony-1",
+      "colonyIndex": 0,
+      "credits": 500,
+      "food": 40,
+      "water": 40,
+      "oxygen": 40,
+      "shelter": 40,
+      "fleet": 40,
+      "population": 24,
+      "world": {
+        "schemaVersion": 4,
+        "gridSize": 20,
+        "cells": []
+      }
+    }
+  ],
+  "expansionAvailable": true,
+  "updatedAt": "2026-07-11T12:00:00.000Z"
+}

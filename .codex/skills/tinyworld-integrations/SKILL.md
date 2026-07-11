@@ -26,6 +26,16 @@ The app has browser-local integration points, not a backend API:
 
 Future AWS/indexer round-state architecture:
 
+- The current public-data mock loads through bounded
+  `GET /api/public-mock-game-state`, using the three public `.env` keys for the
+  tournament, table, and current player. The server derives table-assigned
+  neighbor `public.json` keys from the configured public-player path and never
+  reads `ETHERWARS_MOCK_PRIVATE_PLAYER_KEY`. Static files under `assets/` are
+  the deployment/dev fallback. IDs remain strings such as `mock_player-1`,
+  round identity is `roundNumber`, and table player order determines neighbor
+  display order. Missing neighbor records show an explicit unavailable state;
+  never synthesize resource values for them.
+
 - `S3ReadWrite.py` is the repo-local Ether Wars S3 utility. It must load local
   `.env` values without printing them, prefer standard `AWS_*` credential
   environment variables, only support explicit object read/write operations, and

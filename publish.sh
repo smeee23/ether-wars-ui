@@ -56,6 +56,12 @@ cp world.schema.json "$DIST/world.schema.json"
 cp README.md "$DIST/README.md"
 cp LICENSE "$DIST/LICENSE"
 
+# Public mock game-state fixtures used by the current static frontend.
+cp assets/mock_tournament_stats.json "$DIST/assets/mock_tournament_stats.json"
+cp assets/mock_table_stats.json "$DIST/assets/mock_table_stats.json"
+cp assets/mock_player_stats.json "$DIST/assets/mock_player_stats.json"
+cp assets/neighbor_names.csv "$DIST/assets/neighbor_names.csv"
+
 for img in tinyworld-*.png plane-*.jpg perf-after.jpg; do
   [[ -e "$img" ]] || continue
   cp "$img" "$DIST/assets/$img"

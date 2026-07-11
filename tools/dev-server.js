@@ -189,6 +189,65 @@ function readAwsMockStats() {
   return readAwsJson('justcausepools', 'etherwars/mockstats.json');
 }
 
+function requiredPublicMockKey(name) {
+  const value = String(process.env[name] || '').trim();
+  if (!value || !value.startsWith('etherwars/tournaments/') || !value.endsWith('.json') || value.includes('..')) {
+    throw new Error(name + ' is missing or unsafe');
+  }
+  return value;
+}
+
+function publicMockPlayerIds(table) {
+  const source = table && (table.landlordIds || table.playerIds || table.tablePlayerIds) || [];
+  return Array.isArray(source) ? Array.from(new Set(source.map(id => String(id || '').trim()).filter(Boolean))) : [];
+}
+
+function publicMockPlayerId(player) {
+  return String(player && (player.landlordId || player.playerId) || '').trim();
+}
+
+function publicMockNeighborKey(publicPlayerKey, currentPlayerId, playerId) {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(playerId)) throw new Error('Unsafe public player ID');
+  const match = publicPlayerKey.match(/\/landlords\/([^/]+)\/public\.json$/);
+  if (!match) throw new Error('Unable to derive public neighbor key');
+  const currentStorageId = match[1];
+  const storagePrefix = currentPlayerId && currentStorageId.endsWith(currentPlayerId)
+    ? currentStorageId.slice(0, -currentPlayerId.length)
+    : '';
+  const storageId = storagePrefix + playerId;
+  const key = publicPlayerKey.replace(/\/landlords\/[^/]+\/public\.json$/, '/landlords/' + storageId + '/public.json');
+  if (key === publicPlayerKey && !publicPlayerKey.includes('/landlords/' + playerId + '/')) {
+    throw new Error('Unable to derive public neighbor key');
+  }
+  return key;
+}
+
+async function readPublicMockGameState() {
+  const bucket = 'justcausepools';
+  const tournamentKey = requiredPublicMockKey('ETHERWARS_MOCK_TOURNAMENT_KEY');
+  const tableKey = requiredPublicMockKey('ETHERWARS_MOCK_TABLE_KEY');
+  const publicPlayerKey = requiredPublicMockKey('ETHERWARS_MOCK_PUBLIC_PLAYER_KEY');
+  const [tournament, table, player] = await Promise.all([
+    readAwsJson(bucket, tournamentKey),
+    readAwsJson(bucket, tableKey),
+    readAwsJson(bucket, publicPlayerKey),
+  ]);
+  const currentPlayerId = publicMockPlayerId(player);
+  const neighborIds = publicMockPlayerIds(table).filter(id => id !== currentPlayerId);
+  const settled = await Promise.allSettled(neighborIds.map(async playerId => ({
+    playerId,
+    state: await readAwsJson(bucket, publicMockNeighborKey(publicPlayerKey, currentPlayerId, playerId)),
+  })));
+  const neighbors = {};
+  const neighborErrors = {};
+  settled.forEach((result, index) => {
+    const playerId = neighborIds[index];
+    if (result.status === 'fulfilled') neighbors[playerId] = result.value.state;
+    else neighborErrors[playerId] = 'Public state unavailable';
+  });
+  return { tournament, table, player, neighbors, neighborErrors };
+}
+
 function readAwsJson(bucket, key) {
   return new Promise((resolve, reject) => {
     const args = [
@@ -761,6 +820,27 @@ async function handleMockStats(req, res) {
   }
 }
 
+async function handlePublicMockGameState(req, res) {
+  if (req.method !== 'GET') {
+    send(res, 405, 'Method Not Allowed', { Allow: 'GET' });
+    return;
+  }
+  try {
+    const data = await readPublicMockGameState();
+    send(res, 200, JSON.stringify(sanitizeForPublicJson(data)), {
+      'Content-Type': 'application/json; charset=utf-8',
+    });
+  } catch (err) {
+    console.warn('[public-mock-game-state] failed:', err.message || String(err));
+    send(res, 502, JSON.stringify({
+      ok: false,
+      error: 'Unable to read Ether Wars public mock game state from S3',
+    }), {
+      'Content-Type': 'application/json; charset=utf-8',
+    });
+  }
+}
+
 async function handleInterRoundState(req, res) {
   const reqUrl = new URL(req.url, 'http://localhost');
   if (req.method === 'GET') {
@@ -1292,6 +1372,10 @@ const server = http.createServer((req, res) => {
   }
   if (parsedUrl.pathname === '/api/mockstats') {
     handleMockStats(req, res);
+    return;
+  }
+  if (parsedUrl.pathname === '/api/public-mock-game-state') {
+    handlePublicMockGameState(req, res);
     return;
   }
   if (parsedUrl.pathname === '/api/inter-round-state') {

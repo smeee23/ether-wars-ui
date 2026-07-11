@@ -127,3 +127,483 @@ or you will desync intent from rendering.
 - [ ] Placing/erasing a fence updates its neighbors' geometry.
 - [ ] Clusters of houses still render as L/T/+/square where appropriate.
 - [ ] Smoke spawns from house chimneys after they finish landing.
+
+## Ether Wars State Storage and Commit-Reveal Architecture
+
+### Overview
+
+Ether Wars uses separate storage systems for public finalized game state, private pending reveal data, and authoritative on-chain state.
+
+The frontend must not treat AWS public state as the source of authority for commitments, reveals, ownership, or settlement. The blockchain remains authoritative. AWS contains indexed public state optimized for frontend reads.
+
+```text
+PLAYER DEVICE
+├── editable local workspace
+├── pending action
+├── reveal salt
+├── commitment hash
+├── EIP-712 reveal authorization
+└── confirmed commitment metadata
+
+PRIVATE BACKEND
+├── encrypted reveal packages
+├── commitment verification
+├── reveal scheduling
+├── batch reveal submission
+└── reveal transaction tracking
+
+BLOCKCHAIN
+├── commitment hash
+├── reveal authorization verification
+├── revealed action
+├── settlement
+└── authoritative tournament state
+
+INDEXER
+├── reads finalized contract events and state
+├── derives frontend-friendly public state
+└── writes public state to AWS
+
+AWS PUBLIC DATA
+└── frontend-readable finalized state
+```
+
+### Public AWS File Structure
+
+Public tournament state is stored using the following structure:
+
+```text
+tournaments/
+└── {tournamentId}/
+    ├── tournament.json
+    ├── tables/
+    │   └── {tableId}.json
+    └── landlords/
+        └── {playerId}/
+            └── public.json
+```
+
+The frontend should access these files through a centralized data-access layer. Raw AWS paths and direct `fetch()` calls should not be scattered throughout rendering code.
+
+### `tournament.json`
+
+`tournament.json` contains tournament-wide public state.
+
+Typical fields include:
+
+```text
+schemaVersion
+chainId
+contractAddress
+tournamentId
+currentRoundId
+currentPhase
+commitStartTime
+commitEndTime
+revealStartTime
+revealEndTime
+tournamentStatus
+entrantCount
+maximumEntrants
+entryCost
+lastFinalizedBlock
+lastIndexedTransaction
+stateVersion
+updatedAt
+```
+
+The exact schema may evolve. Consumers must validate `schemaVersion` before using the record.
+
+### `tables/{tableId}.json`
+
+A table record contains public player grouping and neighbor information for one tournament table.
+
+Typical fields include:
+
+```text
+schemaVersion
+tournamentId
+roundId
+tableId
+playerIds
+neighborAssignments
+slotAssignments
+tableStatus
+lastFinalizedBlock
+stateVersion
+updatedAt
+```
+
+Neighbor and slot assignments must be deterministic.
+
+The frontend must not assign visual slots based on:
+
+* HTTP response order
+* Promise completion order
+* JavaScript object iteration order
+* Nondeterministic local state
+
+Prefer explicit slot assignments from the table record. If the table record does not contain slots, sort actual neighbor player IDs numerically and assign them using a fixed slot order.
+
+The frontend must render only actual assigned neighbors. It must not create placeholder neighbors for unused slots.
+
+### `landlords/{playerId}/public.json`
+
+A landlord public record contains frontend-readable public state for one player.
+
+Typical fields include:
+
+```text
+schemaVersion
+chainId
+contractAddress
+tournamentId
+roundId
+tableId
+playerId
+walletAddress
+neighborPlayerIds
+credits
+food
+water
+oxygen
+shelter
+fleet
+population
+buildingLevels
+eliminated
+hasCommitted
+hasRevealed
+lastFinalizedAction
+lastFinalizedBlock
+stateVersion
+updatedAt
+```
+
+The public record must only contain information that is safe to reveal at its current stage of the round.
+
+### Information Prohibited from Public AWS State
+
+The following values must never be written to `tournament.json`, table records, landlord public records, frontend logs, analytics payloads, public object metadata, URLs, or public object names:
+
+```text
+Pending action payload
+Reveal salt
+Plaintext unrevealed move
+EIP-712 reveal signature
+Pending reveal authorization
+Private reveal-package identifier
+Private encryption metadata
+Backend credentials
+KMS plaintext data keys
+```
+
+### Private Reveal Store
+
+Automatic reveal requires the backend to receive the complete reveal package during the Commit phase.
+
+Private reveal packages are stored separately from public AWS state.
+
+Conceptual structure:
+
+```text
+PRIVATE REVEAL STORE
+└── reveal-packages/
+    └── {chainId}/
+        └── {contractAddress}/
+            └── {tournamentId}/
+                └── {roundId}/
+                    └── {playerAddress}.encrypted
+```
+
+This store must not be frontend-readable.
+
+Private reveal data should be protected using:
+
+```text
+Backend-only IAM access
+No public access
+TLS in transit
+Encryption at rest
+AWS KMS envelope encryption
+Restricted object-prefix permissions
+Short post-reveal retention
+Audit logging for reads and writes
+No request-body logging
+```
+
+### Commit Phase Flow
+
+During the Commit phase, the player device:
+
+```text
+1. Builds the exact action payload.
+2. Generates a cryptographically secure random salt.
+3. Calculates the commitment hash using the contract's exact encoding.
+4. Builds an EIP-712 RevealAuthorization.
+5. Signs the RevealAuthorization.
+6. Uploads the full reveal package to the private backend.
+7. Waits for a durable-storage receipt.
+8. Submits the commitment hash on-chain.
+9. Provides the commit transaction hash or allows the backend to detect it.
+```
+
+The preferred ordering is store first, then commit.
+
+This avoids the unrecoverable case where the commitment succeeds on-chain but the browser closes before the reveal package reaches the backend.
+
+The consequence is that the backend learns the pending move during the Commit phase. This is an accepted trust assumption of the automatic-reveal design.
+
+### Reveal Authorization
+
+The player should sign EIP-712 typed data.
+
+A conceptual authorization structure is:
+
+```solidity
+struct RevealAuthorization {
+    address player;
+    uint256 tournamentId;
+    uint256 roundId;
+    bytes32 commitmentHash;
+    address relayer;
+    uint256 nonce;
+    uint256 deadline;
+}
+```
+
+The signature must be bound to:
+
+```text
+Player wallet
+Chain ID
+Verifying contract
+Tournament ID
+Round ID
+Commitment hash
+Authorized relayer
+Unique nonce
+Expiration deadline
+```
+
+Do not authorize a reveal by signing only the action or only the commitment hash.
+
+Contract-side signature verification should support both externally owned accounts and ERC-1271 smart-contract wallets. OpenZeppelin `SignatureChecker` is the preferred compatibility layer unless the contract architecture requires another implementation.
+
+### Reveal Phase Flow
+
+During the Reveal phase, the backend:
+
+```text
+1. Loads pending reveal packages for the tournament and round.
+2. Confirms the player's commitment exists on-chain.
+3. Recalculates the commitment hash from the stored action and salt.
+4. Confirms the calculated hash matches the on-chain commitment.
+5. Verifies the EIP-712 authorization.
+6. Checks chain, contract, tournament, round, player, relayer, nonce, and deadline.
+7. Rejects duplicate, expired, mismatched, or already-consumed authorizations.
+8. Submits valid reveals through revealFor or batchRevealFor.
+9. Waits for transaction confirmation.
+10. Marks a package revealed only after confirmation.
+```
+
+The backend must not mark a package successfully revealed merely because a transaction was submitted.
+
+### Contract Reveal Interface
+
+The contract must allow an authorized relayer to reveal for a player.
+
+Conceptually:
+
+```solidity
+function revealFor(
+    address player,
+    Action calldata action,
+    bytes32 salt,
+    RevealAuthorization calldata authorization,
+    bytes calldata signature
+) external;
+```
+
+The contract must:
+
+```text
+Rebuild the commitment hash
+Match it against the stored player commitment
+Verify the typed-data signature
+Verify the player
+Verify chain and contract domain separation
+Verify tournament and round
+Verify the relayer
+Verify the nonce
+Verify the deadline
+Consume the nonce or authorization
+Reject duplicate reveals
+Mark the player revealed
+Avoid treating msg.sender as the player
+```
+
+Batch reveal may use:
+
+```solidity
+function batchRevealFor(
+    RevealRequest[] calldata requests
+) external;
+```
+
+The implementation must explicitly decide whether one invalid reveal reverts the complete batch or whether each reveal is processed independently.
+
+Independent processing is operationally safer but requires:
+
+```text
+Per-item validation
+Per-item success or failure events
+Careful gas limits
+Protection against excessive batch sizes
+Clear retry behavior
+```
+
+### Public Frontend Load Flow
+
+The frontend should load public state in this order:
+
+```text
+1. Determine the active tournamentId.
+2. Fetch tournaments/{tournamentId}/tournament.json.
+3. Determine the connected playerId.
+4. Fetch tournaments/{tournamentId}/landlords/{playerId}/public.json.
+5. Read the player's tableId and neighborPlayerIds.
+6. Fetch tournaments/{tournamentId}/tables/{tableId}.json.
+7. Validate player and neighbor assignments across the records.
+8. Fetch public.json for each actual neighbor.
+9. Normalize raw AWS records into internal frontend state.
+10. Render the player and only the actual neighbors.
+```
+
+The rendering layer should not need to know the AWS directory structure.
+
+### Frontend Layer Separation
+
+Use a separation similar to:
+
+```text
+Transport layer
+    Builds AWS paths and fetches JSON.
+
+Validation layer
+    Verifies required fields, identifiers, versions, and relationships.
+
+Normalization layer
+    Converts AWS schemas into frontend state objects.
+
+State layer
+    Stores tournament, table, player, and neighbor state.
+
+Rendering layer
+    Renders normalized state.
+```
+
+Do not allow UI components to directly mutate raw AWS records.
+
+### Cross-File Validation
+
+Before accepting loaded public state, validate at minimum:
+
+```text
+Supported schema version
+Matching chain ID
+Matching contract address
+Matching tournament ID
+Compatible round ID
+Matching player ID
+Matching table ID
+Player exists in the table
+Neighbor IDs agree with the table assignment
+No duplicate player IDs
+No duplicate slot assignments
+State is not older than the currently loaded version
+```
+
+The frontend should prefer the newest state using a monotonic field such as:
+
+```text
+lastFinalizedBlock
+stateVersion
+```
+
+Do not rely only on client timestamps to determine which response is newer.
+
+### Partial Failure Behavior
+
+A missing tournament record is fatal for loading that tournament.
+
+A missing current-player record is fatal for loading the player's game view.
+
+A missing table record prevents reliable neighbor assignment and should produce a visible loading error.
+
+A missing individual neighbor record should not necessarily prevent the current player's own board from loading. The UI may show that specific assigned neighbor as temporarily unavailable, but it must not substitute mock data or a different player.
+
+### Public State Updates
+
+Public AWS state should be written by the indexer only after the relevant blockchain state is sufficiently finalized according to the application's finality policy.
+
+The expected direction of data flow is:
+
+```text
+Blockchain
+    ↓
+Indexer
+    ↓
+AWS public state
+    ↓
+Frontend
+```
+
+The frontend must not write authoritative tournament state back to the public state bucket.
+
+### Trust Boundary
+
+This automatic-reveal design is not trust-minimized.
+
+The backend can technically inspect pending player actions because it holds the plaintext action and salt before Reveal.
+
+Security controls reduce operational risk but do not remove this trust assumption.
+
+The design must therefore treat the private reveal service as a high-trust component and isolate it from:
+
+```text
+Public S3 access
+Frontend credentials
+Public APIs that return stored packages
+Analytics systems
+General application logs
+Unnecessary employee access
+```
+
+### Implementation Rule for Agents
+
+When modifying this system:
+
+```text
+Do not place private reveal data in public AWS schemas.
+Do not make public state authoritative over the blockchain.
+Do not introduce direct AWS fetches throughout UI components.
+Do not create fake neighbors when public records are unavailable.
+Do not base neighbor placement on asynchronous fetch order.
+Do not log actions, salts, or signatures.
+Do not change commitment encoding without updating every producer,
+verifier, test vector, backend validator, and contract implementation.
+```
+
+Any change to the commitment payload or EIP-712 authorization must be treated as a cross-system protocol change affecting:
+
+```text
+Solidity contracts
+Frontend commitment generation
+Frontend typed-data signing
+Backend package validation
+Backend reveal submission
+Indexer interpretation
+Tests and fixtures
+Documentation
+```
