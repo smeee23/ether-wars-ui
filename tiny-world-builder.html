@@ -498,18 +498,23 @@
     gap: 5px;
   }
   .colony-contract-address {
-    display: grid;
-    gap: 3px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     margin-top: 6px;
     color: var(--muted);
-    font-size: 10px;
-    letter-spacing: 0.04em;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
   .colony-contract-address code {
+    flex: 1 1 auto;
+    min-width: 0;
     color: var(--ink);
-    font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
-    letter-spacing: 0;
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 0.02em;
     text-transform: none;
     overflow-wrap: anywhere;
   }
@@ -2825,6 +2830,34 @@
   body.showcase .showcase-exit { display: inline-flex; }
   .showcase-exit:hover { background: rgba(42,39,34,0.88); }
 
+  .flight-mode-hint {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    z-index: 120;
+    transform: translateX(-50%);
+    padding: 9px 13px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 12px;
+    background: rgba(24, 34, 48, 0.76);
+    color: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(14px);
+    pointer-events: none;
+    text-align: center;
+  }
+  .flight-mode-hint strong {
+    display: block;
+    margin-bottom: 3px;
+    font: 700 10px/1 var(--brand-font);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .flight-mode-hint span {
+    font: 10px/1.35 var(--ui-font);
+    white-space: nowrap;
+  }
+
   /* --- Minimap --- */
   .lower-left-ui {
     position: fixed;
@@ -4355,6 +4388,10 @@
   <div id="root" style="position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;"></div>
   <div id="cloud-layer"></div>
   <div id="tod-tint" aria-hidden="true"></div>
+  <div class="flight-mode-hint" id="flight-mode-hint" role="status" hidden>
+    <strong>Flight Mode</strong>
+    <span>Mouse: pitch / turn · A/D: roll · W/S: throttle · Q/E: yaw · Shift: boost · Space: level · Esc: exit</span>
+  </div>
 
   <!-- Lower-left controls, minimap, activity vehicles, and project link -->
   <div class="lower-left-ui" id="lower-left-ui">
@@ -4433,6 +4470,7 @@
     </div>
     <div class="player-colony-actions">
       <button class="btn neighbor-load-aws-land-action" id="neighbor-load-aws-land-action" type="button">Load AWS Land</button>
+      <button class="btn" id="neighbor-save-aws-draft" type="button">Save AWS Draft</button>
       <button class="btn player-expansion-claim-action" id="player-expansion-claim-action" type="button" hidden>Claim Expansion</button>
     </div>
     <div class="colony-empty-state" id="player-colony-empty" hidden>
@@ -4586,7 +4624,6 @@
         <div class="neighbor-action-buttons">
           <button class="btn" id="neighbor-commit-action" type="button">Commit</button>
           <button class="btn" id="neighbor-reveal-action" type="button">Reveal</button>
-          <button class="btn" id="neighbor-save-aws-draft" type="button">Save AWS Draft</button>
         </div>
         <div class="commit-preview" id="neighbor-commit-preview" hidden>
           <div class="commit-preview-head">
@@ -4643,6 +4680,12 @@
         <svg viewBox="0 0 32 28" width="36" height="32"><circle cx="16" cy="13" r="3" fill="#cdb98a"/><path d="M14 17h4l-2 8z" fill="#a08454"/><path d="M10 22l6-4 6 4" stroke="#8a6f44" stroke-width="1.5" fill="none"/></svg>
       </span>
       <span class="view-body"><strong>Walk (first-person)</strong><em>WASD · mouse · space jumps · esc exits</em></span>
+    </button>
+    <button class="view-option" data-view="flight" role="menuitem">
+      <span class="view-thumb" aria-hidden="true">
+        <svg viewBox="0 0 32 28" width="36" height="32"><path d="M16 4l3 8 9 4-9 2-3 7-3-7-9-2 9-4z" fill="#8aaed8"/><path d="M16 4v21" stroke="#55789f" stroke-width="1.2"/></svg>
+      </span>
+      <span class="view-body"><strong>Flight (first-person)</strong><em>mouse · A/D roll · W/S throttle · esc exits</em></span>
     </button>
   </div>
 
@@ -6233,7 +6276,12 @@
   const MAX_VIEW_SIZE_BASE = 64;
   const CAMERA_FAR = 1100;
   let viewSize = DEFAULT_VIEW_SIZE;
-  let cameraMode = DEFAULT_CAMERA_MODE; // 'ortho' | 'perspective'
+  let cameraMode = DEFAULT_CAMERA_MODE; // 'ortho' | 'perspective' | 'fp' | 'flight'
+
+  function serializableCameraMode() {
+    if (cameraMode === 'flight') return flight.restore && flight.restore.mode || 'perspective';
+    return cameraMode;
+  }
 
   const aspect0 = window.innerWidth / window.innerHeight;
   const orthoCam = new THREE.OrthographicCamera(
@@ -6261,6 +6309,9 @@
   }
 
   function updateCamera() {
+    // First-person modes own the perspective camera transform directly.
+    // Resize and unrelated orbit refreshes must not overwrite it.
+    if (cameraMode === 'fp' || cameraMode === 'flight') return;
     const r = cameraMode === 'ortho' ? 14 : viewSize * 4.2;
     const isTopdown = cameraMode === 'ortho' && polar < 0.05;
     if (isTopdown) {
@@ -18552,7 +18603,7 @@ function neighborStarVector(edge, index) {
       gridSize: GRID,
       cells: snapshotCells(),
       toolId: selectedTool && selectedTool.id,
-      cameraMode,
+      cameraMode: serializableCameraMode(),
     };
 
     const draft = {
@@ -21662,7 +21713,7 @@ function neighborStarVector(edge, index) {
         }
       }
     }
-    const data = { v: STORAGE_VERSION, gridSize: GRID, cells, cameraMode, toolId: selectedTool && selectedTool.id };
+    const data = { v: STORAGE_VERSION, gridSize: GRID, cells, cameraMode: serializableCameraMode(), toolId: selectedTool && selectedTool.id };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const ts   = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -21725,8 +21776,14 @@ function neighborStarVector(edge, index) {
   let polarBeforeTopdown = null;
   function setCameraMode(mode) {
     const requested = mode === 'soft' ? 'perspective' : mode;
-    const effective = ['ortho', 'topdown', 'perspective', 'fp'].includes(requested) ? requested : 'ortho';
-    if (effective !== 'fp' && fp.active) exitFP();
+    const effective = ['ortho', 'topdown', 'perspective', 'fp', 'flight'].includes(requested) ? requested : 'ortho';
+    const switchingFirstPersonMode = effective === 'fp' || effective === 'flight';
+    if (effective === 'flight' && !flight.active) captureFlightCameraState();
+    if (effective !== 'fp' && fp.active) exitFP({ releasePointerLock: !switchingFirstPersonMode });
+    if (effective !== 'flight' && flight.active) exitFlightMode({
+      releasePointerLock: !switchingFirstPersonMode,
+      restoreCamera: false,
+    });
     // 'topdown' is orthoCam with polar snapped to ~0 (straight down).
     // Internally we still store cameraMode='ortho' for everything that
     // branches on it (renderer, ghost-board code, persistence) — the
@@ -21754,9 +21811,11 @@ function neighborStarVector(edge, index) {
     perspBtn.setAttribute('data-tooltip',
       isTopdown              ? 'Top-down (bird\'s eye)' :
       cameraMode === 'ortho' ? 'Isometric' :
-      cameraMode === 'fp'    ? 'Walk (esc to exit)' : 'Perspective');
+      cameraMode === 'fp'    ? 'Walk (esc to exit)' :
+      cameraMode === 'flight' ? 'Flight (esc to exit)' : 'Perspective');
     if (effective === 'fp') enterFP();
-    if (typeof updateCamera === 'function') updateCamera();
+    if (effective === 'flight') enterFlightMode();
+    if (effective !== 'fp' && effective !== 'flight' && typeof updateCamera === 'function') updateCamera();
     onResize();
   }
 
@@ -21819,7 +21878,7 @@ function neighborStarVector(edge, index) {
       try { renderer.domElement.requestPointerLock(); } catch (_) {}
     }
   }
-  function exitFP() {
+  function exitFP(opts = {}) {
     if (!fp.active) return;
     fp.active = false;
     fpKeys.clear();
@@ -21827,7 +21886,7 @@ function neighborStarVector(edge, index) {
     persCam.near = PERS_NEAR_DEFAULT;
     persCam.updateProjectionMatrix();
     document.body.classList.remove('fp-active');
-    if (document.pointerLockElement === renderer.domElement && document.exitPointerLock) {
+    if (opts.releasePointerLock !== false && document.pointerLockElement === renderer.domElement && document.exitPointerLock) {
       try { document.exitPointerLock(); } catch (_) {}
     }
   }
@@ -21836,13 +21895,19 @@ function neighborStarVector(edge, index) {
       // User hit esc / clicked away — drop back to ortho.
       exitFP();
       setCameraMode('ortho');
+    } else if (!document.pointerLockElement && flight.active) {
+      exitFlightMode();
     }
   });
   document.addEventListener('mousemove', e => {
-    if (!fp.active || document.pointerLockElement !== renderer.domElement) return;
-    markCameraMoving();
-    fp.yaw -= e.movementX * 0.0022;
-    fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - e.movementY * 0.0022));
+    if (document.pointerLockElement !== renderer.domElement) return;
+    if (fp.active) {
+      markCameraMoving();
+      fp.yaw -= e.movementX * 0.0022;
+      fp.pitch = Math.max(-1.4, Math.min(1.4, fp.pitch - e.movementY * 0.0022));
+    } else if (flight.active) {
+      applyFlightMouseLook(e.movementX, e.movementY);
+    }
   });
   window.addEventListener('keydown', e => {
     if (!fp.active) return;
@@ -21904,6 +21969,247 @@ function neighborStarVector(edge, index) {
     const lookZ = fp.pos.z - Math.cos(fp.yaw) * Math.cos(fp.pitch);
     persCam.lookAt(lookX, lookY, lookZ);
   }
+
+  // ---------- first-person flight ----------
+  const FLIGHT_MIN_SPEED = 1.2;
+  const FLIGHT_MAX_SPEED = 12;
+  const FLIGHT_INITIAL_SPEED = 4.2;
+  const FLIGHT_ACCELERATION = 3.2;
+  const FLIGHT_MOUSE_PITCH_SENSITIVITY = 0.0017;
+  const FLIGHT_MOUSE_YAW_SENSITIVITY = 0.0019;
+  const FLIGHT_KEY_YAW_SPEED = 0.9;
+  const FLIGHT_ROLL_SPEED = 1.45;
+  const FLIGHT_LEVEL_SPEED = 2.6;
+  const FLIGHT_MAX_PITCH = 1.25;
+  const FLIGHT_MIN_TERRAIN_CLEARANCE = 0.72;
+  const FLIGHT_FALLBACK_ALTITUDE = 7;
+  const FLIGHT_FALLBACK_EDGE_OFFSET = 7;
+  const FLIGHT_MAX_DISTANCE_FROM_LAND = 38;
+  const FLIGHT_BOOST_MULTIPLIER = 1.65;
+  const FLIGHT_FOV = 62;
+  const FLIGHT_NEAR = 0.03;
+  const flight = {
+    active: false,
+    speed: FLIGHT_INITIAL_SPEED,
+    orientation: new THREE.Quaternion(),
+    restore: null,
+  };
+  const flightKeys = new Set();
+  const flightForward = new THREE.Vector3();
+  const flightMove = new THREE.Vector3();
+  const flightAxisX = new THREE.Vector3(1, 0, 0);
+  const flightAxisY = new THREE.Vector3(0, 1, 0);
+  const flightAxisZ = new THREE.Vector3(0, 0, 1);
+  const flightTurn = new THREE.Quaternion();
+  const flightEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+  const flightBoundaryMatrix = new THREE.Matrix4();
+  const flightBoundaryQuaternion = new THREE.Quaternion();
+  const flightBoundaryTarget = new THREE.Vector3();
+  const flightLandCenter = new THREE.Vector3(0, 0, 0);
+  const flightModeHintEl = document.getElementById('flight-mode-hint');
+
+  function captureFlightCameraState() {
+    if (flight.restore) return;
+    flight.restore = {
+      mode: cameraMode === 'fp' || cameraMode === 'flight' ? 'ortho' : cameraMode,
+      target: target.clone(),
+      viewSize,
+      azimuth,
+      polar,
+      position: camera.position.clone(),
+      quaternion: camera.quaternion.clone(),
+    };
+  }
+
+  function flightTerrainMinY(worldX, worldZ) {
+    return fpGroundYAt(worldX, worldZ) - FP_EYE_H + FLIGHT_MIN_TERRAIN_CLEARANCE;
+  }
+
+  function sortedAirCommandCells() {
+    const selectedIndex = colonyNavigationState.selectedPlayerColonyIndex;
+    const hasPublicColonyState = playerPublicColonies.some(Boolean);
+    if (hasPublicColonyState && (!playerPublicColonies[selectedIndex]
+      || activeControlledLandId() !== playerColonyLandId(selectedIndex))) return [];
+    return Array.from(airCommandPositions)
+      .map(key => {
+        const [x, z] = key.split(',').map(Number);
+        return { x, z, key };
+      })
+      .filter(cell => Number.isFinite(cell.x) && Number.isFinite(cell.z) && isAirCommandCell(world[cell.x] && world[cell.x][cell.z]))
+      .sort((a, b) => a.x - b.x || a.z - b.z);
+  }
+
+  function findFlightSpawnPosition() {
+    const commands = sortedAirCommandCells();
+    if (commands.length) {
+      const command = commands[0];
+      const position = tilePos(command.x, command.z);
+      const outward = new THREE.Vector3(position.x, 0, position.z);
+      if (outward.lengthSq() < 0.001) outward.set(0, 0, 1);
+      else outward.normalize();
+      const entry = cellMeshes[command.key];
+      const objectBaseY = entry && entry.object && Number.isFinite(entry.object.userData.baseY)
+        ? entry.object.userData.baseY
+        : BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(command.x, command.z);
+      // Match the exact terrain-relative level used when the ambient
+      // spacecraft pauses inside Air Command during its low pass.
+      position.y = airCommandFlightHoldY({ baseY: objectBaseY });
+      return {
+        position,
+        lookAt: position.clone().addScaledVector(outward, 12),
+        source: 'air-command',
+      };
+    }
+    const landEdge = GRID / 2;
+    const position = new THREE.Vector3(
+      0,
+      TOP_H + FLIGHT_FALLBACK_ALTITUDE,
+      landEdge + FLIGHT_FALLBACK_EDGE_OFFSET,
+    );
+    return {
+      position,
+      lookAt: new THREE.Vector3(0, TOP_H + FLIGHT_FALLBACK_ALTITUDE * 0.55, 0),
+      source: 'fallback',
+    };
+  }
+
+  function clampFlightPitch() {
+    flightEuler.setFromQuaternion(flight.orientation, 'YXZ');
+    flightEuler.x = Math.max(-FLIGHT_MAX_PITCH, Math.min(FLIGHT_MAX_PITCH, flightEuler.x));
+    flight.orientation.setFromEuler(flightEuler).normalize();
+  }
+
+  function applyFlightMouseLook(dx, dy) {
+    if (!flight.active) return;
+    markCameraMoving();
+    flightTurn.setFromAxisAngle(flightAxisY, -dx * FLIGHT_MOUSE_YAW_SENSITIVITY);
+    flight.orientation.multiply(flightTurn);
+    flightTurn.setFromAxisAngle(flightAxisX, -dy * FLIGHT_MOUSE_PITCH_SENSITIVITY);
+    flight.orientation.multiply(flightTurn);
+    clampFlightPitch();
+  }
+
+  function enterFlightMode() {
+    if (flight.active) return;
+    captureFlightCameraState();
+    const spawn = findFlightSpawnPosition();
+    flight.active = true;
+    flight.speed = FLIGHT_INITIAL_SPEED;
+    flightKeys.clear();
+    persCam.fov = FLIGHT_FOV;
+    persCam.near = FLIGHT_NEAR;
+    persCam.position.copy(spawn.position);
+    persCam.up.set(0, 1, 0);
+    persCam.lookAt(spawn.lookAt);
+    flight.orientation.copy(persCam.quaternion);
+    persCam.updateProjectionMatrix();
+    document.body.classList.add('flight-active');
+    if (flightModeHintEl) flightModeHintEl.hidden = false;
+    if (renderer.domElement.requestPointerLock && document.pointerLockElement !== renderer.domElement) {
+      try { renderer.domElement.requestPointerLock(); } catch (_) {}
+    }
+  }
+
+  function exitFlightMode(opts = {}) {
+    if (!flight.active) return;
+    const restore = flight.restore;
+    flight.active = false;
+    flight.restore = null;
+    flightKeys.clear();
+    persCam.fov = PERS_FOV_DEFAULT;
+    persCam.near = PERS_NEAR_DEFAULT;
+    persCam.up.set(0, 1, 0);
+    persCam.updateProjectionMatrix();
+    document.body.classList.remove('flight-active');
+    if (flightModeHintEl) flightModeHintEl.hidden = true;
+    if (opts.releasePointerLock !== false && document.pointerLockElement === renderer.domElement && document.exitPointerLock) {
+      try { document.exitPointerLock(); } catch (_) {}
+    }
+    if (opts.restoreCamera === false || !restore) return;
+    viewSize = restore.viewSize;
+    azimuth = restore.azimuth;
+    polar = restore.polar;
+    target.copy(restore.target);
+    cameraMode = restore.mode;
+    camera = cameraMode === 'ortho' ? orthoCam : persCam;
+    setCameraMode(restore.mode);
+  }
+
+  function tickFlightMode(dt) {
+    if (!flight.active || dt <= 0) return;
+    const throttle = (flightKeys.has('w') ? 1 : 0) - (flightKeys.has('s') ? 1 : 0);
+    flight.speed = Math.max(FLIGHT_MIN_SPEED, Math.min(FLIGHT_MAX_SPEED,
+      flight.speed + throttle * FLIGHT_ACCELERATION * dt));
+
+    const rollInput = (flightKeys.has('a') ? 1 : 0) - (flightKeys.has('d') ? 1 : 0);
+    if (rollInput) {
+      flightTurn.setFromAxisAngle(flightAxisZ, rollInput * FLIGHT_ROLL_SPEED * dt);
+      flight.orientation.multiply(flightTurn).normalize();
+    }
+    const yawInput = (flightKeys.has('q') ? 1 : 0) - (flightKeys.has('e') ? 1 : 0);
+    if (yawInput) {
+      flightTurn.setFromAxisAngle(flightAxisY, yawInput * FLIGHT_KEY_YAW_SPEED * dt);
+      flight.orientation.multiply(flightTurn).normalize();
+    }
+    if (flightKeys.has(' ')) {
+      flightEuler.setFromQuaternion(flight.orientation, 'YXZ');
+      flightEuler.z *= Math.exp(-FLIGHT_LEVEL_SPEED * dt);
+      flight.orientation.setFromEuler(flightEuler).normalize();
+    }
+    clampFlightPitch();
+
+    flightForward.set(0, 0, -1).applyQuaternion(flight.orientation).normalize();
+    const boost = flightKeys.has('shift') ? FLIGHT_BOOST_MULTIPLIER : 1;
+    flightMove.copy(flightForward).multiplyScalar(flight.speed * boost * dt);
+    const nextX = persCam.position.x + flightMove.x;
+    const nextZ = persCam.position.z + flightMove.z;
+    const nextRadius = Math.hypot(nextX - flightLandCenter.x, nextZ - flightLandCenter.z);
+    if (nextRadius > FLIGHT_MAX_DISTANCE_FROM_LAND) {
+      const outwardX = (persCam.position.x - flightLandCenter.x) / Math.max(0.001, nextRadius);
+      const outwardZ = (persCam.position.z - flightLandCenter.z) / Math.max(0.001, nextRadius);
+      const outwardMotion = flightMove.x * outwardX + flightMove.z * outwardZ;
+      if (outwardMotion > 0) {
+        flightMove.x -= outwardX * outwardMotion;
+        flightMove.z -= outwardZ * outwardMotion;
+      }
+      flightBoundaryMatrix.lookAt(
+        persCam.position,
+        flightBoundaryTarget.set(flightLandCenter.x, persCam.position.y, flightLandCenter.z),
+        flightAxisY,
+      );
+      flightBoundaryQuaternion.setFromRotationMatrix(flightBoundaryMatrix);
+      flight.orientation.slerp(flightBoundaryQuaternion, 1 - Math.exp(-0.7 * dt));
+    }
+    persCam.position.add(flightMove);
+    persCam.position.y = Math.max(persCam.position.y, flightTerrainMinY(persCam.position.x, persCam.position.z));
+    persCam.quaternion.copy(flight.orientation);
+    markCameraMoving();
+    if (typeof updateSpaceBackground === 'function') updateSpaceBackground();
+    applyDistanceMistSettings();
+  }
+
+  window.addEventListener('keydown', e => {
+    if (!flight.active) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      exitFlightMode();
+      return;
+    }
+    const key = e.key.toLowerCase();
+    if (!['w', 's', 'a', 'd', 'q', 'e', 'shift', ' '].includes(key)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    flightKeys.add(key);
+  }, true);
+  window.addEventListener('keyup', e => {
+    if (!flight.active) return;
+    const key = e.key.toLowerCase();
+    if (!['w', 's', 'a', 'd', 'q', 'e', 'shift', ' '].includes(key)) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    flightKeys.delete(key);
+  }, true);
 
   function resetCameraDefaults() {
     // Scale the default view to the current home board so the whole
@@ -24721,6 +25027,13 @@ function neighborStarVector(edge, index) {
   const _flightTan = new THREE.Vector3();
   const _flightAhead = new THREE.Vector3();
 
+  function airCommandFlightHoldY(targetBuilding) {
+    const baseY = targetBuilding && Number.isFinite(targetBuilding.baseY)
+      ? targetBuilding.baseY
+      : BUILDABLE_LAND_Y_OFFSET + TOP_H;
+    return baseY + FLIGHT_DUST_ALT;
+  }
+
   // -------- banner streamer --------
   // Long thin streamer that attaches to the plane's tail and trails along
   // the direction of travel, flapping like a flag in the slipstream. White
@@ -25029,7 +25342,7 @@ function neighborStarVector(edge, index) {
     const targetBuilding = getAirCommandFlightTarget();
     if (!targetBuilding) return null;
     cropDusterState.airCommandTarget = targetBuilding;
-    const dustY = targetBuilding.baseY + FLIGHT_DUST_ALT;
+    const dustY = airCommandFlightHoldY(targetBuilding);
     cropDusterState.flightDustY = dustY;
     cropDusterState.flightGroundSlowY = dustY + 0.72;
     const cruiseY = Math.max(renderCloudHeight + 0.4, FLIGHT_CRUISE_ALT, dustY + 1.2);
@@ -25467,6 +25780,7 @@ function neighborStarVector(edge, index) {
     tickSquashAnims(dt);
     if (rippleAnims.length) tickRippleAnims(dt);
     if (fp.active) tickFP(dt);
+    if (flight.active) tickFlightMode(dt);
     if (typeof window.__showcaseTick === 'function') window.__showcaseTick(dt);
     tickWeather(dt);
     updateClouds(dt);
@@ -28639,7 +28953,7 @@ function neighborStarVector(edge, index) {
       v: STORAGE_VERSION,
       gridSize: GRID,
       cells,
-      cameraMode,
+      cameraMode: serializableCameraMode(),
       toolId: selectedTool && selectedTool.id,
     };
   }
@@ -28677,7 +28991,7 @@ function neighborStarVector(edge, index) {
       playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
       selection: Array.from(selectedCells),
       camera: {
-        mode: cameraMode,
+        mode: serializableCameraMode(),
         target: { x: target.x, y: target.y, z: target.z },
         viewSize,
         azimuth,
@@ -28811,7 +29125,7 @@ function neighborStarVector(edge, index) {
       v: [1, 2, 3, 4].includes(state.v) ? state.v : STORAGE_VERSION,
       gridSize: HOME_GRID_DEFAULT,
       cells: state.cells,
-      cameraMode: state.cameraMode || cameraMode,
+      cameraMode: state.cameraMode || serializableCameraMode(),
       toolId: state.toolId || (selectedTool && selectedTool.id),
     });
     return out;
@@ -28844,7 +29158,7 @@ function neighborStarVector(edge, index) {
       playerGameState: Object.assign({}, PLAYER_GAME_STATE_MOCK, playerState || {}),
       selection: [],
       camera: {
-        mode: cameraMode,
+        mode: serializableCameraMode(),
         target: { x: target.x, y: target.y, z: target.z },
         viewSize,
         azimuth,
@@ -30067,7 +30381,7 @@ function neighborStarVector(edge, index) {
       if (!userProfile) { alert('Please save your profile first.'); showTab('profile'); return; }
       const name = saveName.value.trim() || ('Build ' + new Date().toLocaleDateString());
       const cells = snapshotCells();
-      const data = { v: STORAGE_VERSION, gridSize: GRID, cells, cameraMode, toolId: selectedTool && selectedTool.id };
+      const data = { v: STORAGE_VERSION, gridSize: GRID, cells, cameraMode: serializableCameraMode(), toolId: selectedTool && selectedTool.id };
       await apiCall('/api/builds', 'POST', { name, data });
       saveName.value = '';
       loadBuilds();
