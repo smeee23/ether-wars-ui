@@ -101,6 +101,9 @@ Use this together with:
   landing/dust Y from the selected building's stable `userData.baseY` /
   terrain base and then add `FLIGHT_DUST_ALT`, rather than treating
   `FLIGHT_DUST_ALT` as an absolute world height.
+- First-person flight should reuse that same target-relative Air Command hold
+  altitude and the building's tile center when spawning inside the tower; do
+  not independently derive the spawn from roof bounds.
 - For first-pass vehicle conversions, prefer additive primitives attached after GLB load over editing/replacing the GLB. Keep the existing flight root, path state, speed, scale, and update loop intact; hide obsolete named nodes such as propellers only when the GLB hierarchy can remain in place.
 - Particle effects should be capped and use cheap cloned `MeshBasicMaterial`; dispose particle materials when particles die.
 

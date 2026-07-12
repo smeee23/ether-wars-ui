@@ -17,6 +17,10 @@ Checks:
 - The lower-left UI keeps the controls above a shared minimap/activity row and the GitHub link below it; moving the minimap chrome moves that group without separating the row.
 - Minimap colours should track live scene materials plus time/weather theme tint, not a stale fixed palette.
 - Orbit still works with normal left-drag.
+- The Camera View popup enters first-person flight. Flight continuously
+  advances, mouse pitch/yaw and A/D roll remain stable, W/S throttle is
+  frame-rate independent, and Escape restores the prior orbit camera without
+  breaking the walking mode.
 - Ghost boards do not become editable.
 - The opacity torch is smooth and does not reveal square board seams.
 - Tilt-shift overlays have `pointer-events: none`, stay below UI controls, and remain visible during pan/orbit/zoom movement.

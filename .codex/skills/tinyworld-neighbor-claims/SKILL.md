@@ -40,18 +40,20 @@ Use these helpers for the UI-only claim flow:
   `selectedNeighborColonyIndex` chooses one of that player's three normalized
   public colony records without moving the camera.
 - Landlord public records are expected to expose a public `contractAddress`.
-  Show it below the player and selected-neighbor colony toggles, preferring a
-  colony-level override when present and otherwise using the record-level
-  address. A displayed address is informational and not ownership authority.
+  Show it in a compact label-and-value row below the player and
+  selected-neighbor colony toggles, preferring a colony-level override when
+  present and otherwise using the record-level address. A displayed address is
+  informational and not ownership authority.
 - `loadSelectedPanelLandFromAws()` fetches the bounded AWS inter-round draft and
   replaces only the selected controlled land from `interRoundState.lands`
   (falling back to legacy top-level home draft fields for Home).
 - The Credits row opens the controlled-land credit transfer modal. Transfers
   move `resources.gold` between controlled land records, confirm before
   applying, persist local state, and then explicitly call `saveInterRoundStateToAws()`.
-- Current/Open Land and Load AWS Land controls live beside the player colony
-  toggle and resolve their context through `selectedPanelControlledLandId()`.
-  Do not move them back into the neighbor selector.
+- Current/Open Land, Load AWS Land, and Save AWS Draft controls live beside the
+  player colony toggle and resolve their context through
+  `selectedPanelControlledLandId()`. Do not move them back into the neighbor
+  selector.
 - The upper-left brand identifies the current player as
   `EtherWars - <Star Name>`. Update it through
   `updateActiveLandBrand()` when `loadControlledLand()` changes the active
