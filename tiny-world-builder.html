@@ -6838,6 +6838,8 @@
 
     // New terrains (stone / lava / sand / snow).
     stone:     new THREE.MeshLambertMaterial({ color: 0x8f8a82, side: THREE.FrontSide }),
+    stoneHi:   new THREE.MeshLambertMaterial({ color: 0x9b968e, side: THREE.FrontSide }),
+    stoneSoft: new THREE.MeshLambertMaterial({ color: 0x827d76, side: THREE.FrontSide }),
     stoneDk:   new THREE.MeshLambertMaterial({ color: 0x5e5a52 }),
     lava:      new THREE.MeshLambertMaterial({ color: 0xe7592b, emissive: 0xb02410, emissiveIntensity: 0.8 }),
     lavaCrust: new THREE.MeshLambertMaterial({ color: 0x3a201a }),
@@ -16296,13 +16298,16 @@ function neighborStarVector(edge, index) {
     homeTileGeomWater.translate(0, TOP_H / 2, 0);
   }
 
-  function getHomeTileBucket(terrain) {
-    let b = homeTileBuckets.get(terrain);
+  function getHomeTileBucket(terrain, variant = 0) {
+    const bucketKey = terrain + '|' + variant;
+    let b = homeTileBuckets.get(bucketKey);
     if (b) return b;
 
     ensureHomeTileGeoms();
 
-    const topMat = (terrain === 'path')  ? M.path :
+    const topMat = (terrain === 'stone' && variant === 1) ? M.stoneHi :
+                   (terrain === 'stone' && variant === 2) ? M.stoneSoft :
+                   (terrain === 'path')  ? M.path :
                    (terrain === 'water') ? M.water :
                    (terrain === 'dirt')  ? M.dirtRich :
                    (terrain === 'stone') ? M.stone :
@@ -16310,7 +16315,9 @@ function neighborStarVector(edge, index) {
                    (terrain === 'sand')  ? M.sand :
                    (terrain === 'snow')  ? M.snow : M.grass;
 
-    const riserMat = (terrain === 'path')  ? M.pathTrim :
+    const riserMat = (terrain === 'stone' && variant === 1) ? M.stoneHi :
+                     (terrain === 'stone' && variant === 2) ? M.stoneSoft :
+                     (terrain === 'path')  ? M.pathTrim :
                      (terrain === 'water') ? M.waterDk :
                      (terrain === 'dirt')  ? M.dirtRich :
                      (terrain === 'stone') ? M.stone :
@@ -16326,7 +16333,7 @@ function neighborStarVector(edge, index) {
       m.receiveShadow = true;
       m.count = 0;
       m.frustumCulled = false; // ortho camera usually sees the whole home board
-      m.userData = { isHomeTileInstance: true, terrain, keyAt: [] };
+      m.userData = { isHomeTileInstance: true, terrain, variant, keyAt: [] };
     }
     topMesh.userData.keyAt = dirtMesh.userData.keyAt;
 
@@ -16335,13 +16342,14 @@ function neighborStarVector(edge, index) {
 
     b = {
       terrain,
+      variant,
       dirtMesh,
       topMesh,
       slots: new Map(), // 'x,z' → idx
       keyAt: dirtMesh.userData.keyAt,
       count: 0
     };
-    homeTileBuckets.set(terrain, b);
+    homeTileBuckets.set(bucketKey, b);
     return b;
   }
 
@@ -16361,13 +16369,13 @@ function neighborStarVector(edge, index) {
     b.topMesh.setMatrixAt(idx, DUMMY.matrix);
   }
 
-  function setHomeTileInstance(x, z, terrain, posX, posZ, rise = 0) {
+  function setHomeTileInstance(x, z, terrain, posX, posZ, rise = 0, variant = 0) {
     const key = x + ',' + z;
     const existing = findHomeTileBucketFor(key);
 
-    if (existing && existing.terrain !== terrain) {
+    if (existing && (existing.terrain !== terrain || existing.variant !== variant)) {
       _removeFromHomeTileBucket(existing, key);
-    } else if (existing && existing.terrain === terrain) {
+    } else if (existing && existing.terrain === terrain && existing.variant === variant) {
       const idx = existing.slots.get(key);
       _writeHomeTileInstance(existing, idx, posX, posZ, rise);
       _flushHomeTileBucket(existing);
@@ -16376,7 +16384,7 @@ function neighborStarVector(edge, index) {
 
     if (!terrain) return;
 
-    const b = getHomeTileBucket(terrain);
+    const b = getHomeTileBucket(terrain, variant);
     const idx = b.count;
 
     _writeHomeTileInstance(b, idx, posX, posZ, rise);
@@ -16455,7 +16463,7 @@ function neighborStarVector(edge, index) {
       for (const [key, idx] of b.slots) {
         const [x, z] = key.split(',').map(Number);
         const rise = elevAtHome ? elevAtHome.get(key) || 0 : 0; // we'll add elevAtHome later if needed
-        currentState.push({ x, z, terrain: b.terrain, rise });
+        currentState.push({ x, z, terrain: b.terrain, variant: b.variant, rise });
       }
     }
 
@@ -16469,10 +16477,11 @@ function neighborStarVector(edge, index) {
     homeTileGeomTop = null;
 
     // Re-create all instances with new geometry LOD
-    for (const { x, z, terrain, rise } of currentState) {
-      const posX = x * TILE;
-      const posZ = z * TILE;
-      setHomeTileInstance(x, z, terrain, posX, posZ, rise);
+    for (const { x, z, terrain, variant, rise } of currentState) {
+      const p = tilePos(x, z);
+      const posX = p.x;
+      const posZ = p.z;
+      setHomeTileInstance(x, z, terrain, posX, posZ, rise, variant);
     }
   }
 
@@ -17500,7 +17509,9 @@ function neighborStarVector(edge, index) {
     if (useBatchedTerrain) {
       if (homeTileCapacity !== GRID * GRID) initHomeTileInstancing(GRID);
       const instancePos = tilePos(x, z);
-      setHomeTileInstance(x, z, cell.terrain, instancePos.x, instancePos.z, terrainRiseAt(x, z));
+      const shadeRoll = cellRand(x, z, 4107);
+      const shadeVariant = shadeRoll < 0.18 ? 1 : (shadeRoll > 0.82 ? 2 : 0);
+      setHomeTileInstance(x, z, cell.terrain, instancePos.x, instancePos.z, terrainRiseAt(x, z), shadeVariant);
       tile.userData.batchedHomeTerrain = true;
     } else if (insideHome) {
       clearHomeTileInstance(x, z);
