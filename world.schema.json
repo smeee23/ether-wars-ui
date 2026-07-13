@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tinyworld.local/world.schema.json",
   "title": "EtherWars",
-  "description": "Scene description for EtherWars. The renderer supports home grids from 8x8 to 50x50, plus sparse user-edited ghost-board cells outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
+  "description": "Scene description for EtherWars. The playable home grid is 25x25; legacy/import metadata may describe grids from 8x8 to 50x50, and sparse user-edited cells may exist outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
   "type": "object",
   "additionalProperties": false,
   "required": ["v", "cells"],

@@ -4405,7 +4405,7 @@
     <div class="minimap-card">
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
-        <span id="minimap-size">20×20</span>
+        <span id="minimap-size">25×25</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
       </div>
       <div class="minimap-debug-stats" aria-label="Renderer diagnostics">
@@ -5460,7 +5460,7 @@
 
   // -------- constants --------
   // GRID is the fixed home board edge length. The playable board is always
-  // 20x20. Ghost preview boards are retained for future modes but disabled
+  // 25x25. Ghost preview boards are retained for future modes but disabled
   // for the current EtherWars gameplay.
   // Temporary mock Resources struct for frontend-only playtesting.
   // TODO(contract/indexer): replace these values with contract, indexer, or S3
@@ -5477,7 +5477,7 @@
   let authoritativeGameState = null;
   let lastSavedInterRoundStateKey = null;
   const COLONY_STATUS_KEYS = ['army', 'food', 'water', 'oxygen', 'shelter'];
-  const HOME_GRID_DEFAULT = 20;
+  const HOME_GRID_DEFAULT = 25;
   const HOME_GRID_MIN = HOME_GRID_DEFAULT;
   // Storage/preview coordinate cap only; it does not resize the playable board.
   const HOME_GRID_MAX = 50;
@@ -5485,7 +5485,7 @@
   const HOME_GRID_VIEW_BASE = 15;
   const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
-  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-20.v1';
+  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-25.v1';
   const ENABLE_GHOST_BOARDS = false;
   const BASE_TERRAIN = 'stone';
   let GRID = HOME_GRID_DEFAULT;
@@ -6215,6 +6215,32 @@
     if (statsOverlay && statsOverlay.parentNode) statsOverlay.parentNode.removeChild(statsOverlay);
     statsOverlay = null;
   }
+  function estimateObjectDrawCalls(root) {
+    let calls = 0;
+    if (!root || !root.visible) return calls;
+    root.traverse(o => {
+      if (!o || !o.isMesh || !o.visible || !o.material) return;
+      calls += Array.isArray(o.material) ? Math.max(1, o.material.length) : 1;
+    });
+    return calls;
+  }
+  function sampleBuildingDrawCalls() {
+    const counts = new Map();
+    for (const key in cellMeshes) {
+      const entry = cellMeshes[key];
+      if (!entry || !entry.object || !entry.object.visible) continue;
+      const parts = key.split(',');
+      const x = parseInt(parts[0], 10);
+      const z = parseInt(parts[1], 10);
+      const cell = Number.isFinite(x) && Number.isFinite(z) ? getWorldCell(x, z) : null;
+      if (!cell || !cell.kind) continue;
+      let label = cell.kind;
+      if (cell.kind === 'house') label += ':' + (normalizeBuildingType(cell.buildingType) || 'tower');
+      else if (entry.object.userData && entry.object.userData.voxelBuildId) label += ':' + entry.object.userData.voxelBuildId;
+      counts.set(label, (counts.get(label) || 0) + estimateObjectDrawCalls(entry.object));
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }
   function sampleStats() {
     const now = performance.now();
     if (statsLastSample) statsFrameTimes.push(now - statsLastSample);
@@ -6229,6 +6255,7 @@
     const m = renderer.info.memory;
     const programs = (renderer.info.programs && renderer.info.programs.length) || 0;
     const ghostQueue = (typeof pendingGhostBoards !== 'undefined') ? pendingGhostBoards.length : 0;
+    const buildingDraws = sampleBuildingDrawCalls();
     let sceneObjects = 0;
     let sceneMeshes = 0;
     if (scene && typeof scene.traverse === 'function') {
@@ -6252,7 +6279,8 @@
       'ghosts  ' + (typeof ghostBoards !== 'undefined' ? ghostBoards.size : 0) +
         (ghostQueue ? ' (+' + ghostQueue + ')' : '') + '\n' +
       'crops   ' + (typeof cropPositions !== 'undefined' ? cropPositions.size : 0) + '\n' +
-      'maxPump ' + (typeof maxPumpkinPositions !== 'undefined' ? maxPumpkinPositions.size : 0);
+      'maxPump ' + (typeof maxPumpkinPositions !== 'undefined' ? maxPumpkinPositions.size : 0) +
+      (buildingDraws.length ? '\n\nobject draw estimate\n' + buildingDraws.map(item => item[0] + ' ' + item[1]).join('\n') : '');
   }
   function toggleStatsOverlay() {
     if (statsOverlay) removeStatsOverlay();
@@ -6281,6 +6309,10 @@
   const CAMERA_FAR = 1100;
   let viewSize = DEFAULT_VIEW_SIZE;
   let cameraMode = DEFAULT_CAMERA_MODE; // 'ortho' | 'perspective' | 'fp' | 'flight'
+
+  function defaultHomeViewSize() {
+    return DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE);
+  }
 
   function serializableCameraMode() {
     if (cameraMode === 'flight') return flight.restore && flight.restore.mode || 'perspective';
@@ -13588,6 +13620,10 @@
   function disposeCellMeshEntry(key) {
     const entry = cellMeshes[key];
     if (!entry) return;
+    const coords = key.split(',').map(Number);
+    if (coords.length === 2 && coords[0] >= 0 && coords[0] < GRID && coords[1] >= 0 && coords[1] < GRID) {
+      clearHomeTileInstance(coords[0], coords[1]);
+    }
     if (entry.tile)   { worldGroup.remove(entry.tile);   disposeGroup(entry.tile); }
     if (entry.object) { worldGroup.remove(entry.object); disposeGroup(entry.object); }
     if (entry.extras) for (const m of entry.extras) { worldGroup.remove(m); disposeGroup(m); }
@@ -13596,6 +13632,7 @@
 
   function disposeAllCellMeshes() {
     for (const key of Object.keys(cellMeshes)) disposeCellMeshEntry(key);
+    initHomeTileInstancing(GRID);
     homeRenderQueue = [];
     homeRenderQueueCursor = 0;
     homeRenderQueued.clear();
@@ -16314,12 +16351,12 @@ function neighborStarVector(edge, index) {
     const sy = dirtHeight / DIRT_H;
 
     DUMMY.scale.set(1, sy, 1);
-    DUMMY.position.set(posX, -DIRT_H, posZ);
+    DUMMY.position.set(posX, BUILDABLE_LAND_Y_OFFSET - DIRT_H, posZ);
     DUMMY.updateMatrix();
     b.dirtMesh.setMatrixAt(idx, DUMMY.matrix);
 
     DUMMY.scale.set(1, 1, 1);
-    DUMMY.position.set(posX, rise, posZ);
+    DUMMY.position.set(posX, BUILDABLE_LAND_Y_OFFSET + rise, posZ);
     DUMMY.updateMatrix();
     b.topMesh.setMatrixAt(idx, DUMMY.matrix);
   }
@@ -16399,6 +16436,9 @@ function neighborStarVector(edge, index) {
       worldGroup.remove(b.topMesh);
     }
     homeTileBuckets.clear();
+    safeDisposeGeometry(homeTileGeomDirt);
+    safeDisposeGeometry(homeTileGeomTop);
+    safeDisposeGeometry(homeTileGeomWater);
     homeTileGeomDirt = null;
     homeTileGeomTop = null;
     homeTileGeomWater = null;
@@ -17443,11 +17483,28 @@ function neighborStarVector(edge, index) {
     }
 
     const cell = getWorldCell(x, z);
-    const tile = makeTile(cell.terrain, {
+    const neighbors = {
       path: getPathNeighbors(x, z),
       terrain: getTerrainNeighbors(x, z),
       levels: getLevelNeighbors(x, z),
-    }, x, z, tileLevelForCell(cell), { showBorder: true });
+    };
+    const insideHome = !isOutsideHomeGrid(x, z);
+    const useBatchedTerrain = insideHome
+      && cell.terrain === BASE_TERRAIN
+      && tileLevelForCell(cell) === 1;
+    const tile = makeTile(cell.terrain, neighbors, x, z, tileLevelForCell(cell), {
+      showBorder: true,
+      skipTerrain: useBatchedTerrain,
+    });
+
+    if (useBatchedTerrain) {
+      if (homeTileCapacity !== GRID * GRID) initHomeTileInstancing(GRID);
+      const instancePos = tilePos(x, z);
+      setHomeTileInstance(x, z, cell.terrain, instancePos.x, instancePos.z, terrainRiseAt(x, z));
+      tile.userData.batchedHomeTerrain = true;
+    } else if (insideHome) {
+      clearHomeTileInstance(x, z);
+    }
 
     if (isTerraformTerrain(cell.terrain) && !cellHasCropGreenhouseObjectDome(cell)) {
       addTerraformGreenhouseBox(tile, terrainRiseAt(x, z) + TOP_H, 1, getCropGreenhouseVisibleSides(x, z));
@@ -19441,6 +19498,7 @@ function neighborStarVector(edge, index) {
       if (e.extras) for (const m of e.extras) { worldGroup.remove(m); disposeGroup(m); }
     }
     for (const k of Object.keys(cellMeshes)) delete cellMeshes[k];
+    initHomeTileInstancing(GRID);
     homeRenderQueue = [];
     homeRenderQueueCursor = 0;
     homeRenderQueued.clear();
@@ -19633,6 +19691,18 @@ function neighborStarVector(edge, index) {
     raycaster.setFromCamera(ndc, camera);
     const hits = raycaster.intersectObjects(worldGroup.children, true);
     for (const h of hits) {
+      if (h.object && h.object.userData && h.object.userData.isHomeTileInstance && Number.isInteger(h.instanceId)) {
+        const key = h.object.userData.keyAt && h.object.userData.keyAt[h.instanceId];
+        if (key) {
+          const coords = key.split(',').map(Number);
+          const p = tilePos(coords[0], coords[1]);
+          return {
+            x: coords[0], z: coords[1], boardX: 0, boardZ: 0,
+            worldX: p.x, worldZ: p.z,
+            localX: h.point.x - p.x, localZ: h.point.z - p.z,
+          };
+        }
+      }
       let n = h.object;
       while (n && (n.userData.gx === undefined)) n = n.parent;
       if (n && n.userData.gx !== undefined) {
@@ -19813,6 +19883,20 @@ function neighborStarVector(edge, index) {
     raycaster.ray.copy(xrControllerRay);
     const hits = raycaster.intersectObjects(worldGroup.children, true);
     for (const h of hits) {
+      if (h.object && h.object.userData && h.object.userData.isHomeTileInstance && Number.isInteger(h.instanceId)) {
+        const key = h.object.userData.keyAt && h.object.userData.keyAt[h.instanceId];
+        if (key) {
+          const coords = key.split(',').map(Number);
+          const p = tilePos(coords[0], coords[1]);
+          xrLocalPoint.copy(h.point);
+          xrWorldRoot.worldToLocal(xrLocalPoint);
+          return {
+            x: coords[0], z: coords[1], boardX: 0, boardZ: 0,
+            worldX: p.x, worldZ: p.z,
+            localX: xrLocalPoint.x - p.x, localZ: xrLocalPoint.z - p.z,
+          };
+        }
+      }
       let n = h.object;
       while (n && n.userData.gx === undefined) n = n.parent;
       if (!n || n.userData.gx === undefined || !n.visible) continue;
@@ -21988,7 +22072,7 @@ function neighborStarVector(edge, index) {
   const FLIGHT_MIN_TERRAIN_CLEARANCE = 0.72;
   const FLIGHT_FALLBACK_ALTITUDE = 7;
   const FLIGHT_FALLBACK_EDGE_OFFSET = 7;
-  const FLIGHT_MAX_DISTANCE_FROM_LAND = 38;
+  const FLIGHT_MAX_DISTANCE_FROM_LAND = Math.max(38, HOME_GRID_DEFAULT * 1.5);
   const FLIGHT_BOOST_MULTIPLIER = 1.65;
   const FLIGHT_FOV = 62;
   const FLIGHT_NEAR = 0.03;
@@ -22218,7 +22302,7 @@ function neighborStarVector(edge, index) {
   function resetCameraDefaults() {
     // Scale the default view to the current home board so the whole
     // grid sits inside the frame regardless of size.
-    viewSize = DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE);
+    viewSize = defaultHomeViewSize();
     azimuth = DEFAULT_AZIMUTH;
     polar = DEFAULT_POLAR;
     neighborPivotTween = null;
@@ -22227,7 +22311,7 @@ function neighborStarVector(edge, index) {
   }
 
   // Compatibility no-op for older UI/import/demo paths. The playable home
-  // board is intentionally fixed at 20x20; surrounding ghost boards provide
+  // board is intentionally fixed at HOME_GRID_DEFAULT; surrounding ghost boards provide
   // the visually large world beyond the playable area.
   // TODO: remove this shim after callers no longer expose/restore grid sizes.
   function setHomeGridSize(_n, _opts) {
@@ -22257,7 +22341,7 @@ function neighborStarVector(edge, index) {
       az: azimuth, po: polar,
     };
     const end = {
-      tx: DEFAULT_TARGET.x, tz: DEFAULT_TARGET.z, view: DEFAULT_VIEW_SIZE * (GRID / HOME_GRID_VIEW_BASE),
+      tx: DEFAULT_TARGET.x, tz: DEFAULT_TARGET.z, view: defaultHomeViewSize(),
       az: DEFAULT_AZIMUTH, po: DEFAULT_POLAR,
     };
     homeTween = { start, end, t: 0, dur: 0.55 };
@@ -22807,7 +22891,7 @@ function neighborStarVector(edge, index) {
     }
     // Home grid size — a separate listener because it triggers a full
     // re-render rather than uniforms/material tweaks. Currently fixed at
-    // 20x20, so the disabled select is display-only.
+    // HOME_GRID_DEFAULT, so the disabled select is display-only.
     if (homeGridEl) {
       homeGridEl.disabled = true;
     }
@@ -25883,7 +25967,7 @@ function neighborStarVector(edge, index) {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://tinyworld.local/world.schema.json",
     "title": "EtherWars",
-    "description": "Scene description for EtherWars. The renderer supports home grids from 8x8 to 50x50, plus sparse user-edited ghost-board cells outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
+    "description": "Scene description for EtherWars. The playable home grid is 25x25; legacy/import metadata may describe grids from 8x8 to 50x50, and sparse user-edited cells may exist outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
     "type": "object",
     "additionalProperties": false,
     "required": [
@@ -28880,19 +28964,23 @@ function neighborStarVector(edge, index) {
       if (!data || !Array.isArray(data.cells)) return 0;
       let homeCells = 0;
       let plainGrass = 0;
+      const savedGridSize = Math.max(1, Math.min(
+        HOME_GRID_DEFAULT,
+        Math.round(Number(data.gridSize)) || HOME_GRID_DEFAULT
+      ));
       for (const c of data.cells) {
         const { x, z } = cellCoords(c);
-        if (!Number.isInteger(x) || !Number.isInteger(z) || x < 0 || x >= HOME_GRID_DEFAULT || z < 0 || z >= HOME_GRID_DEFAULT) continue;
+        if (!Number.isInteger(x) || !Number.isInteger(z) || x < 0 || x >= savedGridSize || z < 0 || z >= savedGridSize) continue;
         homeCells++;
         if (isPlainEmptyGrassCell(c)) plainGrass++;
       }
-      const denseHomeSave = homeCells >= Math.floor(HOME_GRID_DEFAULT * HOME_GRID_DEFAULT * 0.8);
-      const densePlainGrass = plainGrass >= Math.floor(HOME_GRID_DEFAULT * HOME_GRID_DEFAULT * 0.35);
+      const denseHomeSave = homeCells >= Math.floor(savedGridSize * savedGridSize * 0.8);
+      const densePlainGrass = plainGrass >= Math.floor(savedGridSize * savedGridSize * 0.35);
       if (!denseHomeSave || !densePlainGrass) return 0;
       const before = data.cells.length;
       data.cells = data.cells.filter(c => {
         const { x, z } = cellCoords(c);
-        if (!Number.isInteger(x) || !Number.isInteger(z) || x < 0 || x >= HOME_GRID_DEFAULT || z < 0 || z >= HOME_GRID_DEFAULT) return true;
+        if (!Number.isInteger(x) || !Number.isInteger(z) || x < 0 || x >= savedGridSize || z < 0 || z >= savedGridSize) return true;
         return !isPlainEmptyGrassCell(c);
       });
       return before - data.cells.length;
@@ -29370,8 +29458,9 @@ function neighborStarVector(edge, index) {
     if (data.v !== 1 && data.v !== 2 && data.v !== 3 && data.v !== 4) return false;
     if (vehicleFleet.size) clearVehicleRuntime();
 
-    // Saved/imported gridSize is ignored while the playable board is fixed
-    // at 20x20. Cells outside the home grid remain non-playable/outside-home.
+    // Saved/imported gridSize is retained as metadata, while the playable
+    // board uses the current fixed default. Older smaller saves occupy their
+    // original coordinates and the added cells use the normal base terrain.
     GRID = HOME_GRID_DEFAULT;
     suppressSave = true;
     const overrides = new Map();
