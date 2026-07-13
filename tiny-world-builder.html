@@ -22083,7 +22083,7 @@ function neighborStarVector(edge, index) {
   const FLIGHT_MIN_TERRAIN_CLEARANCE = 0.72;
   const FLIGHT_FALLBACK_ALTITUDE = 7;
   const FLIGHT_FALLBACK_EDGE_OFFSET = 7;
-  const FLIGHT_MAX_DISTANCE_FROM_LAND = Math.max(38, HOME_GRID_DEFAULT * 1.5);
+  const FLIGHT_MAX_DISTANCE_FROM_LAND = 100;
   const FLIGHT_BOOST_MULTIPLIER = 1.65;
   const FLIGHT_FOV = 62;
   const FLIGHT_NEAR = 0.03;
@@ -25078,7 +25078,7 @@ function neighborStarVector(edge, index) {
   // optimised pass that visits every crop cell, exits the area, refuels
   // off-screen for a few seconds, then returns. Sometimes the return run
   // skips the dusting and trails a banner instead.
-  const FLIGHT_OFFSCREEN_DIST = 26;     // how far past the world edge the plane appears from
+  const FLIGHT_OFFSCREEN_DIST = 46;     // how far past the world edge the plane appears from
   const FLIGHT_DUST_SPEED = 5.45;       // m/s while spraying
   const FLIGHT_CRUISE_SPEED = 12.4;      // m/s while transiting / banner pass
   const FLIGHT_DUST_ALT = 3.5;          // height above the target building base
