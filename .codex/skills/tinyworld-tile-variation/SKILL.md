@@ -26,6 +26,11 @@ Expected behavior:
   at `terrainFloors: 1`, and repeat-click attempts should reject through the
   same mock resource feedback used for blocked builds.
 - Raised terrain should lift the tile top and any object on that cell via `terrainRiseAt`.
+- The complete raised-terrain shell must opt back into its base materials at
+  full visibility. This includes riser walls and opaque cap/top surfaces so
+  additive force shields behind an elevation cannot show through its edges.
+  Natural transparent materials remain transparent according to their own
+  base settings, and raised tiles still use fade buckets below full opacity.
 - Terrain height changes must rebuild the visible tile mesh immediately, even when terrain/kind did not change.
 - Object intensity changes must rebuild the object mesh, not the ground mesh.
 - Object variations should remain the same `kind` unless a schema change is explicitly requested.

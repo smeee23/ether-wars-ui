@@ -7406,6 +7406,7 @@
     for (const bucket of buckets.values()) {
       const count = bucket.positions.length / 3;
       const mesh = new THREE.InstancedMesh(bucket.geo, bucket.mat, count);
+      mesh.userData.opaqueAtFullOpacity = true;
       for (let i = 0; i < count; i++) {
         dummy.position.set(bucket.positions[i * 3], bucket.positions[i * 3 + 1], bucket.positions[i * 3 + 2]);
         dummy.rotation.set(0, 0, 0);
@@ -7484,7 +7485,7 @@
 
   function makeTile(terrain, neighbors, x = 0, z = 0, level = 1, opts = {}) {
     const g = new THREE.Group();
-    g.userData = { kind: 'tile', terrain };
+    g.userData = { kind: 'tile', terrain, raisedTerrain: level > 1 };
     const pathN = (neighbors && neighbors.path) || { n: false, s: false, e: false, w: false };
     const terrainN = (neighbors && neighbors.terrain) || { n: null, s: null, e: null, w: null };
     // Riser side-culling. A side faces a same-or-higher-level neighbour →
@@ -7548,6 +7549,7 @@
       } else {
         const riserGeo = getOpenBoxGeometry(riserSize, DIRT_H + rise, riserSize, true, true, skipE, skipW, skipS, skipN);
         const riser = new THREE.Mesh(riserGeo, riserMat);
+        riser.userData.opaqueAtFullOpacity = true;
         riser.position.y = -DIRT_H + (DIRT_H + rise) * 0.5;
         g.add(riser);
         const bottom = new THREE.Mesh(getOpenBoxGeometry(riserSize, 0.012, riserSize, false, true, true, true, true, true), riserMat);
@@ -15956,7 +15958,9 @@ function neighborStarVector(edge, index) {
       o.userData.baseMat = o.material;
       o.userData.grayMat = !!grayscale;
       o.userData.baseOpacity = o.material.opacity === undefined ? 1 : o.material.opacity;
-      o.userData.keepFadeAtOpaque = group.userData.fadeRole === 'tile';
+      o.userData.keepFadeAtOpaque = group.userData.fadeRole === 'tile'
+        && !group.userData.raisedTerrain
+        && !o.userData.opaqueAtFullOpacity;
       o.userData._fadeBucket = fadeBucketFor(displayOpacity);
       o.material = pickFadeMaterial(o.material, !!grayscale, displayOpacity, o.userData.keepFadeAtOpaque);
     });
