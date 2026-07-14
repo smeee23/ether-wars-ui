@@ -121,3 +121,5 @@ Examples live under `plugins/examples/`:
   app URL and watch it. Use the large URL explicitly for scale/perf checks.
 
 When changing command shape, update the app bridge and these examples together.
+
+Neighbor inspection consumes finalized public snapshots from `colonies[].world.cells`. Empty snapshots are unavailable, not permission to synthesize production data; populated mock neighbors must remain localhost-only. Disable local saves, named-world autosnapshots, webhooks, and AWS draft writes while a public neighbor board is active.

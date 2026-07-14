@@ -1,7 +1,7 @@
  {
   "schemaVersion": 1,
   "tournamentId": "tournament-1",
-  "landlordId": "player-1",
+  "landlordId": "player-4",
   "contractAddress": "0xadf...ab3242",
   "tableId": "table-1",
   "status": "active",
@@ -20,23 +20,64 @@
       "world": {
         "schemaVersion": 4,
         "gridSize": 20,
-        "cells": []
-      }
-    }, 
-    {
-      "colonyId": "colony-2",
-      "colonyIndex": 0,
-      "credits": 4000,
-      "food": 55,
-      "water": 40,
-      "oxygen": 40,
-      "shelter": 40,
-      "fleet": 75,
-      "population": 24,
-      "world": {
-        "schemaVersion": 4,
-        "gridSize": 20,
-        "cells": []
+        "cameraMode": "perspective",
+        "cells": [
+          [9, 9, "path", null, 1, null, 1, null],
+          [9, 10, "path", null, 1, null, 1, null],
+          [10, 9, "path", null, 1, null, 1, null],
+          [10, 10, "path", null, 1, null, 1, null],
+          [8, 9, "path", null, 1, null, 1, null],
+          [7, 9, "path", null, 1, null, 1, null],
+          [6, 9, "path", null, 1, null, 1, null],
+          [11, 10, "path", null, 1, null, 1, null],
+          [12, 10, "path", null, 1, null, 1, null],
+          [13, 10, "path", null, 1, null, 1, null],
+          [9, 8, "path", null, 1, null, 1, null],
+          [9, 7, "path", null, 1, null, 1, null],
+          [10, 11, "path", null, 1, null, 1, null],
+          [10, 12, "path", null, 1, null, 1, null],
+          [10, 13, "path", null, 1, null, 1, null],
+
+          [8, 8, "stone", "house", 4, "air-command", 1, null],
+          [7, 8, "stone", "house", 3, "habitat", 1, null],
+          [11, 9, "stone", "house", 4, "skyscraper", 1, null],
+          [12, 9, "stone", "house", 3, "tower", 1, null],
+          [8, 11, "stone", "house", 2, "habitat", 1, null],
+          [9, 11, "stone", "oxygen-plant", 3, null, 1, null],
+          [11, 11, "stone", "water-plant", 3, null, 1, null],
+
+          [6, 7, "dirt", "wheat", 3, null, 1, null],
+          [6, 8, "dirt", "corn", 2, null, 1, null],
+          [7, 7, "dirt", "carrot", 2, null, 1, null],
+          [5, 7, "dirt", "sunflower", 2, null, 1, null],
+          [5, 8, "dirt", "pumpkin", 3, null, 1, null],
+
+          [12, 12, "water", null, 1, null, 1, null],
+          [13, 12, "water", null, 1, null, 1, null],
+          [14, 12, "water", null, 1, null, 1, null],
+          [12, 13, "water", null, 1, null, 1, null],
+          [13, 13, "water", "bridge", 1, null, 1, null],
+          [14, 13, "water", null, 1, null, 1, null],
+          [13, 14, "water", null, 1, null, 1, null],
+
+          [5, 9, "stone", "fence", 2, null, 1, "center-z"],
+          [6, 6, "stone", "fence", 2, null, 1, "center-x"],
+          [7, 6, "stone", "fence", 2, null, 1, "center-x"],
+          [8, 6, "stone", "fence", 2, null, 1, "center-x"],
+          [13, 9, "stone", "fence", 2, null, 1, "center-z"],
+          [14, 10, "stone", "fence", 2, null, 1, "center-z"],
+          [10, 14, "stone", "fence", 2, null, 1, "center-x"],
+          [11, 14, "stone", "fence", 2, null, 1, "center-x"],
+
+          [3, 4, "stone", "rock", 4, null, 4, null],
+          [4, 4, "stone", "rock", 3, null, 3, null],
+          [15, 5, "stone", "rock", 5, null, 5, null],
+          [16, 5, "stone", "rock", 3, null, 3, null],
+          [16, 15, "stone", "rock", 4, null, 4, null],
+          [4, 15, "stone", "rock", 3, null, 3, null],
+          [5, 14, "stone", "pebble", 1, null, 1, null],
+          [15, 14, "stone", "tuft", 1, null, 1, null]
+        ]
       }
     }
   ],

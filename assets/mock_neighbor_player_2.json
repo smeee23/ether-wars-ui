@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "mockDevelopmentData": true,
+  "tournamentId": "tournament-1",
+  "landlordId": "player-2",
+  "contractAddress": "0x0000000000000000000000000000000000000002",
+  "tableId": "table-1",
+  "status": "active",
+  "lastRevealedRound": 1,
+  "colonies": [
+    {
+      "colonyId": "player-2-colony-1",
+      "colonyIndex": 0,
+      "credits": 360,
+      "food": 56,
+      "water": 48,
+      "oxygen": 62,
+      "shelter": 44,
+      "fleet": 28,
+      "population": 31,
+      "world": {
+        "schemaVersion": 4,
+        "gridSize": 36,
+        "cells": [
+          [17, 17, "path", null, 1, null, 1],
+          [17, 18, "path", null, 1, null, 1],
+          [18, 17, "grass", "house", 3, "air-command", 1],
+          [18, 18, "grass", "house", 2, "habitat", 1],
+          [16, 17, "grass", "tree", 2, null, 1],
+          [16, 18, "dirt", "wheat", 2, null, 1],
+          [19, 17, "water", null, 1, null, 1],
+          [19, 18, "water", "bridge", 1, null, 1],
+          [18, 16, "stone", "rock", 3, null, 3]
+        ]
+      }
+    }
+  ],
+  "updatedAt": "2026-07-14T12:00:00.000Z"
+}

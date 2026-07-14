@@ -74,3 +74,8 @@ state so the board transition feels intentional.
 
 Add `TODO(contract)` and `TODO(persistence/indexer)` comments wherever temporary
 local claim state stands in for real ownership or durable hydration.
+
+## Public colony inspection
+
+- Render a neighbor as the active board only through explicit read-only inspection. Require populated `colonies[].world.cells`, validate the loaded tournament/table/player context, and deep-clone both the live player workspace and public snapshot.
+- Use the existing flight controller. Escape and the visible return action must share one restoration path, and production must never substitute a development board for missing public state.

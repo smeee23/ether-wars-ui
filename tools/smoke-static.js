@@ -49,6 +49,12 @@ requireIncludes('const colonyNavigationState = {', 'independent colony navigatio
 requireIncludes('function normalizedPublicColonies(', 'public colony normalization');
 requireIncludes('function selectPlayerColony(', 'player colony selection');
 requireIncludes('function selectNeighborColony(', 'neighbor colony selection');
+requireIncludes('function enterNeighborInspection(', 'neighbor inspection entry');
+requireIncludes('function exitNeighborInspection(', 'neighbor inspection restoration');
+requireIncludes('function validateNeighborWorldSnapshot(', 'neighbor inspection context validation');
+requireIncludes('function canMutateActiveColony(', 'central inspection mutation guard');
+requireIncludes('id="neighbor-inspect-colony"', 'explicit neighbor inspection action');
+requireIncludes('id="neighbor-inspection-return"', 'neighbor inspection return action');
 requireIncludes('function setActiveNeighborById(', 'neighbor player selection');
 requireIncludes('id="player-colony-toggle"', 'player colony toggle');
 requireIncludes('id="neighbor-colony-toggle"', 'neighbor colony toggle');
@@ -84,6 +90,7 @@ requireNotIncludes("label: 'Open land'", 'placeholder open-land distant slot');
 for (const asset of [
   'vendor/three/three.r128.min.js',
   'vendor/three/GLTFLoader.r128.js',
+  'assets/mock_neighbor_player_2.json',
 ]) {
   if (!fs.existsSync(path.join(root, asset))) fail('missing local asset ' + asset);
 }

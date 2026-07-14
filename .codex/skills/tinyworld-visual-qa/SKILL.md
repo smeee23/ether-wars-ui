@@ -21,6 +21,11 @@ Checks:
   advances, mouse pitch/yaw and A/D roll remain stable, W/S throttle is
   frame-rate independent, and Escape restores the prior orbit camera without
   breaking the walking mode.
+- First-person walking and flight are read-only inspection modes. Entering
+  either mode must clear hover/selection state and hide the placement ghost;
+  clicks, placement/erase tools, paste, clear, and terrain-height shortcuts
+  must not mutate the board. Returning to an orbit view restores the selected
+  tool's normal ghost preview behavior.
 - Ghost boards do not become editable.
 - The opacity torch is smooth and does not reveal square board seams.
 - Tilt-shift overlays have `pointer-events: none`, stay below UI controls, and remain visible during pan/orbit/zoom movement.
@@ -40,3 +45,5 @@ pickTile(window.innerWidth / 2, window.innerHeight / 2)
 getComputedStyle(document.body, '::before').pointerEvents
 getComputedStyle(document.body, '::after').pointerEvents
 ```
+
+For neighbor inspection, verify explicit entry, automatic flight start from a clearly distant outside-board approach, the read-only/latest-finalized banner below the flight instructions, the neighbor name with a red header glow, both Escape and Return restoration, and survival of an unsaved edit across repeated enter/exit cycles.

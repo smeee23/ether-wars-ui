@@ -141,6 +141,16 @@
     filter: blur(9px);
     pointer-events: none;
   }
+  body.neighbor-inspection-active .brand .title .active-land-brand {
+    color: #e64b52;
+    text-shadow:
+      0 0 8px rgba(255, 62, 74, 0.62),
+      0 0 22px rgba(255, 42, 56, 0.38),
+      0 0 36px rgba(188, 18, 30, 0.22);
+  }
+  body.neighbor-inspection-active .brand .title .active-land-brand::before {
+    background: rgba(255, 42, 56, 0.24);
+  }
   .brand .title em {
     font-style: normal;
     font-weight: 500;
@@ -565,6 +575,23 @@
     color: var(--ink);
     font-size: 11px;
   }
+  .neighbor-inspection-action { display: flex; flex-direction: column; gap: 5px; }
+  .neighbor-inspection-status { color: var(--muted); font-size: 10px; line-height: 1.3; }
+  .neighbor-inspection-banner {
+    position: fixed; top: 82px; left: 50%; z-index: 90;
+    width: min(560px, calc(100vw - 28px)); transform: translateX(-50%);
+    border: 1px solid rgba(113, 158, 218, 0.55); border-radius: 13px;
+    background: rgba(20, 30, 48, 0.88); box-shadow: 0 14px 40px rgba(5, 12, 24, 0.34);
+    color: #f4f8ff; padding: 9px 11px; display: flex; align-items: center;
+    justify-content: space-between; gap: 12px; backdrop-filter: blur(14px);
+  }
+  .neighbor-inspection-banner[hidden] { display: none; }
+  .neighbor-inspection-copy { display: flex; flex-direction: column; gap: 2px; }
+  .neighbor-inspection-copy span { color: rgba(235, 243, 255, 0.76); font-size: 10px; }
+  body.neighbor-inspection-active .toolbar,
+  body.neighbor-inspection-active .neighbor-action-panel,
+  body.neighbor-inspection-active .player-colony-actions,
+  body.neighbor-inspection-active #neighbor-claim-action { display: none !important; }
   .player-colony-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -4606,6 +4633,10 @@
         <strong id="neighbor-stat-neighbor">-</strong>
       </div>
       </div>
+      <div class="neighbor-inspection-action" id="neighbor-inspection-action">
+        <button class="btn" id="neighbor-inspect-colony" type="button" disabled>Fly By Colony</button>
+        <div class="neighbor-inspection-status" id="neighbor-inspection-status">Colony board unavailable for the latest finalized reveal.</div>
+      </div>
       <button class="btn neighbor-claim-action" id="neighbor-claim-action" type="button" hidden>Claim</button>
       <div class="neighbor-action-panel" aria-label="Round action controls">
         <label class="neighbor-action-row">Action
@@ -4643,6 +4674,14 @@
   </div>
 
   <div class="neighbor-slot-buttons" id="neighbor-slot-buttons" aria-label="Neighbor slots"></div>
+
+  <div class="neighbor-inspection-banner" id="neighbor-inspection-banner" role="status" aria-live="polite" hidden>
+    <div class="neighbor-inspection-copy">
+      <strong id="neighbor-inspection-title">Inspecting neighbor colony</strong>
+      <span>Latest finalized reveal · Read-only · Press Esc to return to your colony</span>
+    </div>
+    <button class="btn" id="neighbor-inspection-return" type="button">Return to My Colony</button>
+  </div>
 
   <div class="brand">
     <div class="title">
@@ -14418,6 +14457,167 @@ function neighborStarVector(edge, index) {
   const neighborColonyEmptyEl = document.getElementById('neighbor-colony-empty');
   const neighborColonyStatsBodyEl = document.getElementById('neighbor-colony-stats-body');
   const neighborColonyContractAddressEl = document.getElementById('neighbor-colony-contract-address');
+  const neighborInspectColonyEl = document.getElementById('neighbor-inspect-colony');
+  const neighborInspectionStatusEl = document.getElementById('neighbor-inspection-status');
+  const neighborInspectionBannerEl = document.getElementById('neighbor-inspection-banner');
+  const neighborInspectionTitleEl = document.getElementById('neighbor-inspection-title');
+  const neighborInspectionReturnEl = document.getElementById('neighbor-inspection-return');
+  const neighborInspectionState = {
+    active: false,
+    exiting: false,
+    applying: false,
+    neighborPlayerId: null,
+    colonyId: null,
+    worldState: null,
+    previousPlayerState: null,
+    label: '',
+  };
+
+  function deepClonePublicState(value) {
+    if (typeof structuredClone === 'function') return structuredClone(value);
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function canMutateActiveColony() {
+    return !neighborInspectionState.active;
+  }
+
+  function canPersistActiveColony() {
+    return !neighborInspectionState.active;
+  }
+
+  function selectedNeighborColonyContext() {
+    const slot = activeNeighborSlotId ? neighborSlotById.get(activeNeighborSlotId) : null;
+    const colonies = normalizedPublicColonies(slot && slot.publicRecord);
+    return { slot, colony: colonies[colonyNavigationState.selectedNeighborColonyIndex] || null };
+  }
+
+  function validateNeighborWorldSnapshot(slot, colony) {
+    if (!slot || !colony || !colony.worldState || !Array.isArray(colony.worldState.cells)
+      || colony.worldState.cells.length === 0) {
+      return { ok: false, reason: 'Colony board unavailable for the latest finalized reveal.' };
+    }
+    const auth = authoritativeGameState || awsGameState;
+    const record = slot.publicRecord || {};
+    const expectedTournamentId = auth && auth.tournament && auth.tournament.tournamentId;
+    const expectedTableId = auth && (auth.tableId || auth.lastRevealState && auth.lastRevealState.tableId);
+    const expectedPlayerId = neighborPlayerId(slot);
+    const recordPlayerId = record.landlordId === undefined ? record.playerId : record.landlordId;
+    if (expectedTournamentId !== undefined && record.tournamentId !== undefined
+      && String(record.tournamentId) !== String(expectedTournamentId)) return { ok: false, reason: 'Neighbor tournament context does not match.' };
+    if (expectedTableId !== undefined && record.tableId !== undefined
+      && String(record.tableId) !== String(expectedTableId)) return { ok: false, reason: 'Neighbor table context does not match.' };
+    if (expectedPlayerId && recordPlayerId !== undefined
+      && String(recordPlayerId) !== String(expectedPlayerId)) return { ok: false, reason: 'Neighbor player context does not match.' };
+    if (auth && Array.isArray(auth.tablePlayerIds) && expectedPlayerId
+      && !auth.tablePlayerIds.map(String).includes(String(expectedPlayerId))) return { ok: false, reason: 'Neighbor is not assigned to the active table.' };
+    const finalizedRound = colony.raw && colony.raw.lastRevealedRound !== undefined
+      ? colony.raw.lastRevealedRound : record.lastRevealedRound;
+    const activeRound = auth && auth.gameState && auth.gameState.roundNumber;
+    if (finalizedRound !== undefined && activeRound !== undefined && Number(finalizedRound) > Number(activeRound)) {
+      return { ok: false, reason: 'Neighbor snapshot round is newer than the active public game context.' };
+    }
+    // Older indexer records do not expose a colony-level finalized round. In
+    // that case the snapshot is accepted only because it came from this loaded
+    // public neighbor record; production should publish an explicit round ID.
+    return { ok: true };
+  }
+
+  function syncNeighborInspectionAction() {
+    const { slot, colony } = selectedNeighborColonyContext();
+    const validation = validateNeighborWorldSnapshot(slot, colony);
+    if (neighborInspectColonyEl) neighborInspectColonyEl.disabled = !validation.ok || neighborInspectionState.active;
+    if (neighborInspectionStatusEl) {
+      neighborInspectionStatusEl.textContent = validation.ok
+        ? 'View the latest finalized public board in read-only flight mode.'
+        : validation.reason;
+    }
+  }
+
+  function clearNeighborInspectionState() {
+    Object.assign(neighborInspectionState, {
+      active: false, exiting: false, applying: false, neighborPlayerId: null, colonyId: null,
+      worldState: null, previousPlayerState: null, label: '',
+    });
+    document.body.classList.remove('neighbor-inspection-active');
+    if (neighborInspectionBannerEl) neighborInspectionBannerEl.hidden = true;
+    updateActiveLandBrand();
+    syncNeighborInspectionAction();
+  }
+
+  function enterNeighborInspection() {
+    if (neighborInspectionState.active) return false;
+    const { slot, colony } = selectedNeighborColonyContext();
+    const validation = validateNeighborWorldSnapshot(slot, colony);
+    if (!validation.ok) {
+      if (neighborInspectionStatusEl) neighborInspectionStatusEl.textContent = validation.reason;
+      return false;
+    }
+    const previousPlayerState = deepClonePublicState(getSerializableGameState());
+    const inspectionWorld = deepClonePublicState(colony.worldState);
+    const label = neighborDisplayLabel(slot);
+    Object.assign(neighborInspectionState, {
+      active: true, exiting: false, applying: true, neighborPlayerId: neighborPlayerId(slot),
+      colonyId: colony.colonyId, worldState: inspectionWorld,
+      previousPlayerState, label,
+    });
+    document.body.classList.add('neighbor-inspection-active');
+    const activeLandBrandEl = document.getElementById('active-land-brand');
+    if (activeLandBrandEl) activeLandBrandEl.textContent = label;
+    if (neighborInspectionTitleEl) neighborInspectionTitleEl.textContent = 'Inspecting: ' + label;
+    if (neighborInspectionBannerEl) neighborInspectionBannerEl.hidden = false;
+    syncNeighborInspectionAction();
+    try {
+      const ok = applyState(deepClonePublicState(inspectionWorld), {
+        keepCamera: true,
+        skipGhostBoards: true,
+        onDone: () => {
+          neighborInspectionState.applying = false;
+          setCameraMode('flight', { inspection: true });
+        },
+      });
+      if (!ok) throw new Error('Neighbor world snapshot failed schema validation.');
+      return true;
+    } catch (err) {
+      console.error('[neighbor inspection] load failed', { playerId: neighborPlayerId(slot), colonyId: colony.colonyId, error: err });
+      neighborInspectionState.applying = true;
+      applyLoadedGameState(previousPlayerState);
+      clearNeighborInspectionState();
+      if (neighborInspectionStatusEl) neighborInspectionStatusEl.textContent = 'Could not inspect this colony board.';
+      return false;
+    }
+  }
+
+  function exitNeighborInspection() {
+    if (!neighborInspectionState.active || neighborInspectionState.exiting) return false;
+    neighborInspectionState.exiting = true;
+    neighborInspectionState.applying = true;
+    const previousPlayerState = neighborInspectionState.previousPlayerState;
+    exitFlightMode({ restoreCamera: false });
+    try {
+      if (!previousPlayerState || !applyLoadedGameState(deepClonePublicState(previousPlayerState), {
+        onDone: clearNeighborInspectionState,
+      })) {
+        throw new Error('Preserved player workspace could not be restored.');
+      }
+      return true;
+    } catch (err) {
+      neighborInspectionState.exiting = false;
+      console.error('[neighbor inspection] CRITICAL: player workspace restoration failed', {
+        playerId: neighborInspectionState.neighborPlayerId,
+        colonyId: neighborInspectionState.colonyId,
+        error: err,
+      });
+      if (neighborInspectionStatusEl) neighborInspectionStatusEl.textContent = 'Return failed; preserved workspace remains in memory. See console.';
+      return false;
+    }
+  }
+
+  if (neighborInspectColonyEl) neighborInspectColonyEl.addEventListener('click', enterNeighborInspection);
+  if (neighborInspectionReturnEl) neighborInspectionReturnEl.addEventListener('click', exitNeighborInspection);
+  window.enterNeighborInspection = enterNeighborInspection;
+  window.exitNeighborInspection = exitNeighborInspection;
+  window.canMutateActiveColony = canMutateActiveColony;
 
   function normalizedPublicColonies(record) {
     const source = record && Array.isArray(record.colonies) ? record.colonies : [];
@@ -14831,6 +15031,7 @@ function neighborStarVector(edge, index) {
   }
 
   function applyCreditTransfer(fromId, toId, amount) {
+    if (!canMutateActiveColony()) return false;
     const fromLand = controlledLandState.lands.get(fromId);
     const toLand = controlledLandState.lands.get(toId);
     const n = coerceNonNegativeStat(amount) || 0;
@@ -14848,6 +15049,7 @@ function neighborStarVector(edge, index) {
   }
 
   async function sendCreditTransfer() {
+    if (!canMutateActiveColony()) return;
     const lands = ownedControlledLandsForTransfer();
     const fromLand = lands.find(land => land.id === creditTransferFromEl.value);
     const toLand = lands.find(land => land.id === creditTransferToEl.value);
@@ -15365,6 +15567,7 @@ function neighborStarVector(edge, index) {
     }
     if (neighborColonyEmptyEl) neighborColonyEmptyEl.hidden = !!colony;
     if (neighborColonyStatsBodyEl) neighborColonyStatsBodyEl.hidden = !colony;
+    syncNeighborInspectionAction();
     if (!colony) return false;
     const population = colony.population;
     setNeighborStat('gold', colony.resources.gold, 0);
@@ -18813,6 +19016,7 @@ function neighborStarVector(edge, index) {
   }
 
   async function saveInterRoundStateToAws() {
+    if (!canPersistActiveColony()) throw new Error('Saving is disabled while inspecting a neighbor colony.');
     const auth = authoritativeGameState || awsGameState;
     if (!auth || !auth.lastRevealState) throw new Error('AWS lastRevealState has not hydrated yet.');
     const validation = validateCurrentDraftAgainstAuthoritativeState('save-aws-draft');
@@ -18910,7 +19114,17 @@ function neighborStarVector(edge, index) {
       if (!response.ok) throw new Error(path + ' HTTP ' + response.status);
       return response.json();
     }));
-    return { tournament: records[0], table: records[1], player: records[2], neighbors: {} };
+    const isLocalDevelopment = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    let neighbors = {};
+    if (isLocalDevelopment) {
+      const response = await fetch('assets/mock_neighbor_player_2.json', {
+        headers: { Accept: 'application/json' }, cache: 'no-store',
+      });
+      if (response.ok) neighbors = { 'player-2': await response.json() };
+    }
+    // Deployed static builds never substitute development neighbors when the
+    // public AWS/indexer record or finalized world snapshot is unavailable.
+    return { tournament: records[0], table: records[1], player: records[2], neighbors };
   }
 
   async function fetchAwsMockStats(opts = {}) {
@@ -19409,6 +19623,7 @@ function neighborStarVector(edge, index) {
   }
 
   function setCell(x, z, opts) {
+    if (neighborInspectionState.active && !neighborInspectionState.applying) return false;
     const { terrain, terrainFloors, kind = null, floors, buildingType, fenceSide, tileDelay = 0, objectDelay = 0, animate = true, impactDust = true, forceTile = false, rotationY, offsetX, offsetZ, appearance } = opts;
     const prev = ensureWorldCell(x, z);
     const prevVehicleDrivable = isVehicleDrivableCell(prev);
@@ -19673,6 +19888,24 @@ function neighborStarVector(edge, index) {
   const GHOST_ROT_STEP = Math.PI / 2;     // 90° per arrow press — snaps to cardinal facings
   const GHOST_OFFSET_STEP = 0.06;          // ~6% of a tile per arrow press
   const GHOST_OFFSET_LIMIT = 0.32;         // clamp so the ghost stays on the tile
+  function isImmersiveReadOnlyMode() {
+    return !canMutateActiveColony() || cameraMode === 'fp' || cameraMode === 'flight';
+  }
+
+  function syncImmersiveReadOnlyState() {
+    const readOnly = isImmersiveReadOnlyMode();
+    document.body.classList.toggle('immersive-read-only', readOnly);
+    if (readOnly) {
+      hoverMesh.visible = false;
+      currentHover = null;
+      if (ghostPreview) ghostPreview.visible = false;
+      clearSelection();
+      return;
+    }
+    ensureGhostPreview();
+    updateGhostPlacement();
+  }
+
   function snapRot(r) {
     // Snap to the nearest 90°, wrap into [-PI, PI). Keeps floating-point
     // drift from accumulating across many arrow presses and guarantees the
@@ -19752,6 +19985,10 @@ function neighborStarVector(edge, index) {
   }
 
   function ensureGhostPreview() {
+    if (isImmersiveReadOnlyMode()) {
+      if (ghostPreview) ghostPreview.visible = false;
+      return;
+    }
     const sig = ghostToolSignature(selectedTool);
     if (sig === ghostPreviewKey && ghostPreview) return;
     if (ghostPreview) {
@@ -19770,6 +20007,7 @@ function neighborStarVector(edge, index) {
 
   function updateGhostPlacement() {
     if (!ghostPreview) return;
+    if (isImmersiveReadOnlyMode()) { ghostPreview.visible = false; return; }
     if (!currentHover) { ghostPreview.visible = false; return; }
     ghostPreview.visible = true;
     const baseY = BUILDABLE_LAND_Y_OFFSET + TOP_H + (terrainRiseAt(currentHover.x, currentHover.z) || 0);
@@ -21028,6 +21266,7 @@ function neighborStarVector(edge, index) {
   }
 
   function applyToolToCell(cell) {
+    if (isImmersiveReadOnlyMode()) return;
     if (cell.boardX || cell.boardZ) {
       // Skip if the currently selected tool would no-op (e.g. auto mode
       // without an API key) — otherwise we'd materialise + remove the
@@ -21127,6 +21366,7 @@ function neighborStarVector(edge, index) {
   }
 
   function applyTool(x, z) {
+    if (isImmersiveReadOnlyMode()) return;
     if (selectedTool.auto) {
       if (!getAIProviderState().key) return; // Can't auto-place without API key
       applyAutoTool(x, z);
@@ -21442,6 +21682,13 @@ function neighborStarVector(edge, index) {
   }
 
   function updateHoverAt(x, y) {
+    if (isImmersiveReadOnlyMode()) {
+      hoverMesh.visible = false;
+      currentHover = null;
+      if (ghostPreview) ghostPreview.visible = false;
+      setHoveredNeighborSlot(null);
+      return;
+    }
     const neighborSlot = pickNeighborSlot(x, y);
     if (neighborSlot) {
       setHoveredNeighborSlot(neighborSlot);
@@ -21807,6 +22054,7 @@ function neighborStarVector(edge, index) {
   // keyboard shortcuts
   window.addEventListener('keydown', e => {
     if (shortcutTargetBlocked(e.target)) return;
+    if (isImmersiveReadOnlyMode()) return;
     const comboKey = e.key.toLowerCase();
     if ((e.metaKey || e.ctrlKey) && !e.altKey && comboKey === 'c') {
       if (copyHoveredCellIntent()) e.preventDefault();
@@ -21949,6 +22197,7 @@ function neighborStarVector(edge, index) {
   // current cell under the hover indicator, clamped 1..8 to match the
   // schema's terrainFloors range.  No-op if nothing is hovered.
   function adjustHoverTerrainHeight(delta) {
+    if (isImmersiveReadOnlyMode()) return;
     if (!currentHover) return;
     const x = currentHover.x;
     const z = currentHover.z;
@@ -21971,7 +22220,7 @@ function neighborStarVector(edge, index) {
   // Stash the user's last orbital polar so toggling out of true top-down
   // can return to a sensible angled view instead of getting stuck flat.
   let polarBeforeTopdown = null;
-  function setCameraMode(mode) {
+  function setCameraMode(mode, modeOpts = {}) {
     const requested = mode === 'soft' ? 'perspective' : mode;
     const effective = ['ortho', 'topdown', 'perspective', 'fp', 'flight'].includes(requested) ? requested : 'ortho';
     const switchingFirstPersonMode = effective === 'fp' || effective === 'flight';
@@ -22011,8 +22260,9 @@ function neighborStarVector(edge, index) {
       cameraMode === 'fp'    ? 'Walk (esc to exit)' :
       cameraMode === 'flight' ? 'Flight (esc to exit)' : 'Perspective');
     if (effective === 'fp') enterFP();
-    if (effective === 'flight') enterFlightMode();
+    if (effective === 'flight') enterFlightMode(modeOpts);
     if (effective !== 'fp' && effective !== 'flight' && typeof updateCamera === 'function') updateCamera();
+    syncImmersiveReadOnlyState();
     onResize();
   }
 
@@ -22093,7 +22343,8 @@ function neighborStarVector(edge, index) {
       exitFP();
       setCameraMode('ortho');
     } else if (!document.pointerLockElement && flight.active) {
-      exitFlightMode();
+      if (neighborInspectionState.active) exitNeighborInspection();
+      else exitFlightMode();
     }
   });
   document.addEventListener('mousemove', e => {
@@ -22181,6 +22432,8 @@ function neighborStarVector(edge, index) {
   const FLIGHT_MIN_TERRAIN_CLEARANCE = 0.72;
   const FLIGHT_FALLBACK_ALTITUDE = 7;
   const FLIGHT_FALLBACK_EDGE_OFFSET = 7;
+  const NEIGHBOR_FLYBY_EDGE_OFFSET = 16;
+  const NEIGHBOR_FLYBY_ALTITUDE = 14;
   const FLIGHT_MAX_DISTANCE_FROM_LAND = 100;
   const FLIGHT_BOOST_MULTIPLIER = 1.65;
   const FLIGHT_FOV = 62;
@@ -22236,7 +22489,19 @@ function neighborStarVector(edge, index) {
       .sort((a, b) => a.x - b.x || a.z - b.z);
   }
 
-  function findFlightSpawnPosition() {
+  function findFlightSpawnPosition(opts = {}) {
+    if (opts.inspection) {
+      const landEdge = GRID / 2;
+      return {
+        position: new THREE.Vector3(
+          GRID * 0.34,
+          TOP_H + NEIGHBOR_FLYBY_ALTITUDE,
+          landEdge + NEIGHBOR_FLYBY_EDGE_OFFSET,
+        ),
+        lookAt: new THREE.Vector3(0, TOP_H + FLIGHT_FALLBACK_ALTITUDE * 0.45, 0),
+        source: 'neighbor-flyby-approach',
+      };
+    }
     const commands = sortedAirCommandCells();
     if (commands.length) {
       const command = commands[0];
@@ -22250,7 +22515,10 @@ function neighborStarVector(edge, index) {
         : BUILDABLE_LAND_Y_OFFSET + TOP_H + terrainRiseAt(command.x, command.z);
       // Match the exact terrain-relative level used when the ambient
       // spacecraft pauses inside Air Command during its low pass.
-      position.y = airCommandFlightHoldY({ baseY: objectBaseY });
+      position.y = Math.max(
+        airCommandFlightHoldY({ baseY: objectBaseY }),
+        objectBaseY,
+      );
       return {
         position,
         lookAt: position.clone().addScaledVector(outward, 12),
@@ -22286,10 +22554,10 @@ function neighborStarVector(edge, index) {
     clampFlightPitch();
   }
 
-  function enterFlightMode() {
+  function enterFlightMode(opts = {}) {
     if (flight.active) return;
     captureFlightCameraState();
-    const spawn = findFlightSpawnPosition();
+    const spawn = findFlightSpawnPosition(opts);
     flight.active = true;
     flight.speed = FLIGHT_INITIAL_SPEED;
     flightKeys.clear();
@@ -22390,7 +22658,8 @@ function neighborStarVector(edge, index) {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopImmediatePropagation();
-      exitFlightMode();
+      if (neighborInspectionState.active) exitNeighborInspection();
+      else exitFlightMode();
       return;
     }
     const key = e.key.toLowerCase();
@@ -29211,7 +29480,7 @@ function neighborStarVector(edge, index) {
   }
 
   function saveLocalGameState() {
-    if (suppressSave) return false;
+    if (suppressSave || !canPersistActiveColony()) return false;
     try {
       const state = getSerializableGameState();
       localStorage.setItem(LOCAL_GAME_STATE_KEY, JSON.stringify(state));
@@ -29252,7 +29521,7 @@ function neighborStarVector(edge, index) {
     }
   }
 
-  function applyLoadedGameState(state) {
+  function applyLoadedGameState(state, opts = {}) {
     if (!isValidLocalGameState(state)) {
       console.warn('[local save] ignoring invalid saved state', state);
       return false;
@@ -29303,7 +29572,7 @@ function neighborStarVector(edge, index) {
       if (Number.isFinite(state.camera.polar)) polar = state.camera.polar;
     }
     const effectiveWorldState = (activeLand && activeLand.worldState) || state.worldState;
-    const ok = applyState(effectiveWorldState, { keepCamera: true });
+    const ok = applyState(effectiveWorldState, { keepCamera: true, onDone: opts.onDone });
     if (!ok) return false;
     if (state.camera && state.camera.mode && ['ortho', 'topdown', 'perspective', 'fp'].includes(state.camera.mode)) {
       setCameraMode(state.camera.mode);
@@ -29422,6 +29691,7 @@ function neighborStarVector(edge, index) {
   }
 
   async function deleteAwsInterRoundStateDraft() {
+    if (!canPersistActiveColony()) throw new Error('AWS changes are disabled while inspecting a neighbor colony.');
     const target = currentInterRoundStateTarget();
     const response = await fetch(interRoundStateUrlForTarget(target), {
       method: 'DELETE',
@@ -29538,7 +29808,7 @@ function neighborStarVector(edge, index) {
   function saveState() {
     if (typeof window.__requestMinimapRepaint === 'function') window.__requestMinimapRepaint();
     if (typeof schedulePlayerStatsUpdate === 'function') schedulePlayerStatsUpdate();
-    if (suppressSave) return;
+    if (suppressSave || !canPersistActiveColony()) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       try {
@@ -29556,6 +29826,7 @@ function neighborStarVector(edge, index) {
   // was overloaded, v3 cells with separate terrainFloors, and v4 fence sides. Walks the FULL
   // grid so every cell gets a tile mesh, then layers in the saved overrides.
   function applyState(data, opts = {}) {
+    if (neighborInspectionState.active && !neighborInspectionState.applying) return false;
     if (!data || !Array.isArray(data.cells)) return false;
     normalizeWorldCells(data);
     normalizeHouseBuildingTypes(data);
@@ -29999,13 +30270,13 @@ function neighborStarVector(edge, index) {
   let webhookQueue = [];
   let webhookFlushTimer = null;
   function fireWebhook(event, payload) {
-    if (!apiConfig.webhookUrl) return;
+    if (!apiConfig.webhookUrl || !canPersistActiveColony()) return;
     webhookQueue.push({ event, payload, at: Date.now() });
     clearTimeout(webhookFlushTimer);
     webhookFlushTimer = setTimeout(flushWebhookQueue, 120);
   }
   function flushWebhookQueue() {
-    if (!apiConfig.webhookUrl || !webhookQueue.length) return;
+    if (!apiConfig.webhookUrl || !webhookQueue.length || !canPersistActiveColony()) return;
     const events = webhookQueue.splice(0, webhookQueue.length);
     const token = pickPrimaryToken();
     fetch(apiConfig.webhookUrl, {
@@ -31951,6 +32222,7 @@ function neighborStarVector(edge, index) {
 
     function updateActiveSnapshot() {
       // Keep the active slot's snapshot fresh as the world changes.
+      if (!canPersistActiveColony()) return;
       const id = getActiveWorldId();
       if (!id) return;
       const list = readWorldsMeta();
@@ -31962,6 +32234,7 @@ function neighborStarVector(edge, index) {
     }
 
     window.updateActiveWorldSlotSnapshotFromState = function updateActiveWorldSlotSnapshotFromState(state) {
+      if (!canPersistActiveColony()) return false;
       const id = getActiveWorldId();
       if (!id || !state) return false;
       const list = readWorldsMeta();

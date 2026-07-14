@@ -18,6 +18,9 @@ Guidance for AI coding agents working in this repo. Read this before touching
 
 - Local skills live in `.codex/skills/*/SKILL.md`. Read the relevant skill before
   changing the matching system.
+- Repo-local `.codex/skills` edits are pre-authorized when they are relevant to
+  the current task. Do not ask for separate confirmation before creating or
+  updating those skill files.
 - When a change creates a durable pattern, update the related skill in the
   same turn. If there is no related skill, create a new concise one.
 - Current skill routing:
