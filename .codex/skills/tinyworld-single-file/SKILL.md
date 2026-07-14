@@ -17,7 +17,7 @@ Core rules:
 - Do not touch `tiny-world-builder BACKUP.html` if present.
 - Preserve style: 2-space indent, semicolons, single-quoted strings, section comments like `// -------- tools --------`.
 - Mutate board state through `setCell(x, z, opts)`, not direct `world[x][z]` writes outside initialization.
-- The playable home board is fixed at 25x25. Do not derive `GRID` from
+- The playable home board is fixed at 36x36. Do not derive `GRID` from
   Lands Conquered, resources, player stats, saved grid-size values, or
   generated world settings. Larger surroundings should come from ghost boards,
   not from resizing the playable area.

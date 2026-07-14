@@ -4405,7 +4405,7 @@
     <div class="minimap-card">
       <canvas id="minimap-canvas" width="240" height="240"></canvas>
       <div class="minimap-foot">
-        <span id="minimap-size">25×25</span>
+        <span id="minimap-size">36×36</span>
         <span id="minimap-fps" data-tooltip="Frames per second">60 fps</span>
       </div>
       <div class="minimap-debug-stats" aria-label="Renderer diagnostics">
@@ -5460,7 +5460,7 @@
 
   // -------- constants --------
   // GRID is the fixed home board edge length. The playable board is always
-  // 25x25. Ghost preview boards are retained for future modes but disabled
+  // 36x36. Ghost preview boards are retained for future modes but disabled
   // for the current EtherWars gameplay.
   // Temporary mock Resources struct for frontend-only playtesting.
   // TODO(contract/indexer): replace these values with contract, indexer, or S3
@@ -5477,7 +5477,7 @@
   let authoritativeGameState = null;
   let lastSavedInterRoundStateKey = null;
   const COLONY_STATUS_KEYS = ['army', 'food', 'water', 'oxygen', 'shelter'];
-  const HOME_GRID_DEFAULT = 25;
+  const HOME_GRID_DEFAULT = 36;
   const HOME_GRID_MIN = HOME_GRID_DEFAULT;
   // Storage/preview coordinate cap only; it does not resize the playable board.
   const HOME_GRID_MAX = 50;
@@ -5485,7 +5485,7 @@
   const HOME_GRID_VIEW_BASE = 15;
   const HOME_GRID_OPTIONS = [HOME_GRID_DEFAULT];
   const HOME_GRID_LS = 'tinyworld:home-grid';
-  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-25.v1';
+  const HOME_GRID_DEFAULT_MIGRATION_LS = 'tinyworld:migration:home-grid-default-36.v1';
   const ENABLE_GHOST_BOARDS = false;
   const BASE_TERRAIN = 'stone';
   let GRID = HOME_GRID_DEFAULT;
@@ -25978,7 +25978,7 @@ function neighborStarVector(edge, index) {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://tinyworld.local/world.schema.json",
     "title": "EtherWars",
-    "description": "Scene description for EtherWars. The playable home grid is 25x25; legacy/import metadata may describe grids from 8x8 to 50x50, and sparse user-edited cells may exist outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
+    "description": "Scene description for EtherWars. The playable home grid is 36x36; legacy/import metadata may describe grids from 8x8 to 50x50, and sparse user-edited cells may exist outside the home grid. Each non-default cell has a terrain, optional object kind, separate object floors and terrainFloors counts, optional house buildingType, optional fenceSide, optional decorative extras, optional within-tile transform, and optional appearance overrides.",
     "type": "object",
     "additionalProperties": false,
     "required": [
