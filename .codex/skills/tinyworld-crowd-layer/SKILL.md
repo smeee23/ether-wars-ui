@@ -17,6 +17,19 @@ Use this skill when changing TinyWorld's 2.5D crowd/person sprite system.
 - Keep activity vehicles out of `world[x][z]` and `cellMeshes`; they are moving runtime entities, not terrain/object intent.
 - Prefer `syncActivityVehicles()` / reserved `activity-vehicle-*` runtime IDs
   for colony activity. Do not create a parallel vehicle model system.
+- Activity vehicles may roam across any in-bounds, dry, unobstructed terrain.
+  Keep spawning, goals, A* routing, edit rerouting, and the final movement
+  guard on the shared vehicle traversability helpers. Adjacent route cells must
+  have matching `terrainRiseAt()` values so vehicles never climb or descend
+  terrain-height steps; ordinary water and occupied cells remain blocked.
+- Ambient trips should prefer randomized, reachable approach cells beside
+  placed world objects. Avoid immediately targeting the same object when
+  another object is available, and fall back to randomized traversable cells
+  when the world has too few reachable object stops.
+- When an activity vehicle completes a trip, give that vehicle its own random
+  5–10 second dwell countdown before assigning another destination. Dwell
+  expiry should trigger independently rather than waiting for the shared idle
+  polling interval.
 - Use `tilePos(x, z)` for map placement and a terrain-height callback for feet height.
 - Preserve the original crowd demo's `P` config surface (`count`, `size`, `slices`, `bob`, `sway`, `headSway`, `leg`, `squash`, `lean`, `hipLine`, `cadence`, `speed`, etc.) when tuning animation.
 - Render movement through the original slice-wave canvas animation, then upload that canvas into a `THREE.CanvasTexture` used by a `THREE.Sprite`.

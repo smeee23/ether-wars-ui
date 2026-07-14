@@ -73,9 +73,10 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
   black) + `HemisphereLight` (warm sky/ground gradient) + the
   directional sun. All three are scaled by the lighting slider in
   `applyLightingSettings()`. Keep neutral/default lighting conservative
-  now that there is no post pass; time-of-day hemisphere scaling should
-  normalize against the day anchor (`0.90`), not the raw constructor value,
-  or midday blows out.
+  now that there is no post pass. Time of day changes the sun/hemisphere
+  colours and sky but intentionally keeps the neutral intensity baseline so
+  night remains readable and moonlit; weather may still attenuate that
+  baseline.
 - Building windows can switch to `M.windowLit` at dusk/night via per-window deterministic seeds. Keep this set-based (`buildingWindowObjects`) and update on time-of-day changes, not by scanning every cell each frame.
 - Ghost boards should participate in the shadow pass — same sun, same shadows everywhere. If Preview/ghost shadows disappear, first check that `prepareFadeable` has not forced ghost meshes to `castShadow = false`, and that any merged/batched ghost terrain explicitly preserves `receiveShadow`/`castShadow` after replacing source meshes. The factory-level `castReceive` / `groundReceiveOnly` choices should apply uniformly unless there is a deliberate, visible-quality-approved LOD exception.
 - The "cloud" system is visually styled as floating rock fragments.

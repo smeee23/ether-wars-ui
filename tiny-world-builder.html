@@ -11336,14 +11336,6 @@
     const poleX = BODY_W * 0.30;
     const poleZ = -BODY_L * 0.26;
     const poleH = 0.52;
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, poleH, 6), M_VEHICLE.pole);
-    pole.position.set(poleX, poleBaseY + poleH / 2, poleZ);
-    g.add(pole);
-
-    const antennaTip = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), M_VEHICLE.flag);
-    antennaTip.position.set(poleX, poleBaseY + poleH + 0.035, poleZ);
-    g.add(antennaTip);
-    antennaTips.push(antennaTip);
 
     const beacon = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.010, 8, 28), M_VEHICLE.beacon);
     beacon.position.set(0, BODY_Y0 + BODY_LOWER_H + 0.02, 0);
@@ -11631,7 +11623,7 @@
     for (let i = 0; i < HORIZON_SEGMENTS; i++) {
       rimInner.push(squareRimPoint(i, RIM_LIP_INSET, -DIRT_H + RIM_SEAL_OVERLAP, 510));
       rimOuter.push(squareRimPoint(i, RIM_LIP_OUTSET, -DIRT_H + RIM_LIFT * 0.72, 520));
-      rimDrop.push(squareRimPoint(i, RIM_DROP_OUTSET, -DIRT_H - RIM_SEAL_OVERLAP, 530));
+      rimDrop.push(squareRimPoint(i, RIM_DROP_OUTSET+2, -DIRT_H - RIM_SEAL_OVERLAP, 530));
     }
     const collarBucket = materialBuckets[0];
     for (let i = 0; i < HORIZON_SEGMENTS; i++) {
@@ -11793,12 +11785,21 @@
     if (cell.kind === 'bridge') return true;
     if (hasVehicleBlockingKind(cell.kind)) return false;
     if (hasVehicleBlockingExtras(cell)) return false;
-    return cell.terrain === 'path';
+    return cell.terrain !== 'water';
+  }
+
+  function isVehicleTraversableCell(x, z) {
+    if (x < 0 || x >= GRID || z < 0 || z >= GRID) return false;
+    return isVehicleDrivableCell(getWorldCell(x, z));
   }
 
   function isVehicleRoadCell(x, z) {
-    if (x < 0 || x >= GRID || z < 0 || z >= GRID) return false;
-    return isVehicleDrivableCell(getWorldCell(x, z));
+    return isVehicleTraversableCell(x, z);
+  }
+
+  function canVehicleTraverseBetweenCells(fromX, fromZ, toX, toZ) {
+    if (!isVehicleTraversableCell(fromX, fromZ) || !isVehicleTraversableCell(toX, toZ)) return false;
+    return Math.abs(terrainRiseAt(fromX, fromZ) - terrainRiseAt(toX, toZ)) < 0.001;
   }
 
   function refreshVehiclesForWorldObstacleChange(x, z) {
@@ -11942,7 +11943,7 @@
         [cur.x, cur.z - 1],
       ];
       for (const [nx, nz] of candidates) {
-        if (!isVehicleRoadCell(nx, nz)) continue;
+        if (!canVehicleTraverseBetweenCells(cur.x, cur.z, nx, nz)) continue;
         const nk = pathKey(nx, nz);
         if (blockedCells && blockedCells.has(nk) && nk !== goalKey) continue;
         const tg = cur.g + 1;
@@ -12017,6 +12018,7 @@
       blockedFor: 0,
       collisionBrake: false,
       trafficRerouteCooldown: 0,
+      activityDwellRemaining: 0,
       remove: false,
     };
 
@@ -12256,6 +12258,7 @@
       blockedFor: state.blockedFor,
       collisionBrake: state.collisionBrake,
       trafficRerouteCooldown: state.trafficRerouteCooldown,
+      activityDwellRemaining: state.activityDwellRemaining || 0,
       visualScale: state.visualScale,
       gridSize: GRID,
       visible: !!(state.mesh && state.mesh.visible),
@@ -12316,6 +12319,7 @@
             state.pathGoal = null;
             state.mode = 'manual';
             state.speed = 0;
+            beginActivityVehicleDwell(state);
           }
         } else if (state.pathIndex < state.path.length) {
           const desired = Math.atan2(dx, dz);
@@ -12350,7 +12354,16 @@
     const nextZ = state.z + dz;
 
     const nextCell = vehicleCellFromWorld(nextX, nextZ);
-    if (!nextCell.inside || !isVehicleRoadCell(nextCell.cellX, nextCell.cellZ)) {
+    const crossesTerrainHeight = currentCell.inside && nextCell.inside
+      && (currentCell.cellX !== nextCell.cellX || currentCell.cellZ !== nextCell.cellZ);
+    if (!nextCell.inside
+      || !isVehicleTraversableCell(nextCell.cellX, nextCell.cellZ)
+      || (crossesTerrainHeight && !canVehicleTraverseBetweenCells(
+        currentCell.cellX,
+        currentCell.cellZ,
+        nextCell.cellX,
+        nextCell.cellZ,
+      ))) {
       state.speed *= 0.15;
       if (state.path.length && state.pathGoal) {
         updateVehicleGoal(state.id, state.pathGoal.x, state.pathGoal.z);
@@ -13059,6 +13072,8 @@
   let crowdShowArrows = localStorage.getItem(RENDER_LS.crowdShowArrows) !== '0';
   const ACTIVITY_VEHICLE_PREFIX = 'activity-vehicle-';
   const ACTIVITY_VEHICLE_MAX = 8;
+  const ACTIVITY_VEHICLE_DWELL_MIN = 5;
+  const ACTIVITY_VEHICLE_DWELL_MAX = 10;
   let activityVehicleRetargetTimer = 0;
 
   function persistCrowdSettings() {
@@ -13113,6 +13128,12 @@
     return !!(state && typeof state.id === 'string' && state.id.startsWith(ACTIVITY_VEHICLE_PREFIX));
   }
 
+  function beginActivityVehicleDwell(state) {
+    if (!isActivityVehicle(state)) return;
+    state.activityDwellRemaining = ACTIVITY_VEHICLE_DWELL_MIN
+      + Math.random() * (ACTIVITY_VEHICLE_DWELL_MAX - ACTIVITY_VEHICLE_DWELL_MIN);
+  }
+
   function activityVehiclesAllowed() {
     return !(vehicleDemoInterval || vehicleDemoTimers.length || (document.body && document.body.classList.contains('vehicle-demo-active')));
   }
@@ -13126,18 +13147,77 @@
   }
 
   function activityVehiclePathCells() {
-    return collectCrowdPathCells().filter(cell => isVehicleRoadCell(cell.x, cell.z));
+    const cells = [];
+    for (let x = 0; x < GRID; x++) {
+      for (let z = 0; z < GRID; z++) {
+        if (isVehicleTraversableCell(x, z)) cells.push({ x, z });
+      }
+    }
+    return cells;
   }
 
-  function assignActivityVehicleGoal(state, pathCells) {
-    if (!state || !pathCells || pathCells.length < 2) return false;
+  function activityVehicleObjectStops() {
+    const stops = [];
+    const offsets = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let x = 0; x < GRID; x++) {
+      for (let z = 0; z < GRID; z++) {
+        const cell = getWorldCell(x, z);
+        if (!cell || !cell.kind) continue;
+        const approaches = [];
+        for (const [dx, dz] of offsets) {
+          const ax = x + dx;
+          const az = z + dz;
+          if (isVehicleTraversableCell(ax, az)) approaches.push({ x: ax, z: az });
+        }
+        if (approaches.length) stops.push({ key: x + ',' + z, x, z, approaches });
+      }
+    }
+    return stops;
+  }
+
+  function shuffledActivityOptions(values) {
+    const shuffled = values.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const swap = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = swap;
+    }
+    return shuffled;
+  }
+
+  function tryActivityVehicleTarget(state, target) {
+    if (!state || !target) return false;
     const current = vehicleCellFromWorld(state.x, state.z);
-    const options = pathCells.filter(cell => !current.inside || cell.x !== current.cellX || cell.z !== current.cellZ);
-    if (!options.length) return false;
-    const index = parseInt(state.id.slice(ACTIVITY_VEHICLE_PREFIX.length), 10) || 0;
-    state.activityGoalCycle = (state.activityGoalCycle || 0) + 1;
-    const target = options[(index * 7 + state.activityGoalCycle * 5) % options.length];
-    return updateVehicleGoal(state.id, target.x, target.z);
+    if (current.inside && current.cellX === target.x && current.cellZ === target.z) return false;
+    if (!updateVehicleGoal(state.id, target.x, target.z) || !state.path.length) return false;
+    return true;
+  }
+
+  function assignActivityVehicleGoal(state, pathCells, objectStops = activityVehicleObjectStops()) {
+    if (!state || !pathCells || pathCells.length < 2) return false;
+    const differentStops = objectStops.filter(stop => stop.key !== state.activityTargetObjectKey);
+    const candidateStops = differentStops.length ? differentStops : objectStops;
+    for (const stop of shuffledActivityOptions(candidateStops)) {
+      for (const target of shuffledActivityOptions(stop.approaches)) {
+        if (!tryActivityVehicleTarget(state, target)) continue;
+        state.activityTargetObjectKey = stop.key;
+        return true;
+      }
+    }
+
+    // Worlds with too few reachable objects still get ambient movement.
+    // Randomized attempts avoid the old deterministic back-and-forth cycle.
+    const fallbackTargets = shuffledActivityOptions(pathCells);
+    const attemptCount = Math.min(24, fallbackTargets.length);
+    for (let i = 0; i < attemptCount; i++) {
+      if (tryActivityVehicleTarget(state, fallbackTargets[i])) return true;
+    }
+    state.path = [];
+    state.pathIndex = 0;
+    state.pathGoal = null;
+    state.mode = 'manual';
+    return false;
   }
 
   function syncActivityVehicles({ reseed = false } = {}) {
@@ -13147,6 +13227,7 @@
       return;
     }
     const pathCells = activityVehiclePathCells();
+    const objectStops = activityVehicleObjectStops();
     const desired = Math.min(activityVehicleCountForPopulation(crowdCount), pathCells.length);
     if (reseed || !desired) removeActivityVehicles();
     if (!desired || !pathCells.length) return;
@@ -13172,27 +13253,40 @@
         });
       }
       if (!state) continue;
-      state.activityGoalCycle = state.activityGoalCycle || 0;
-      if (!state.path.length) assignActivityVehicleGoal(state, pathCells);
+      if (!state.path.length) assignActivityVehicleGoal(state, pathCells, objectStops);
     }
   }
 
   function tickActivityVehicles(dt) {
     activityVehicleRetargetTimer += dt;
-    if (activityVehicleRetargetTimer < 1.5) return;
-    activityVehicleRetargetTimer = 0;
     if (!activityVehiclesAllowed()) return;
     const activityVehicles = Array.from(vehicleFleet.values()).filter(isActivityVehicle);
     if (!activityVehicles.length) {
-      syncActivityVehicles();
+      if (activityVehicleRetargetTimer >= 1.5) {
+        activityVehicleRetargetTimer = 0;
+        syncActivityVehicles();
+      }
       return;
     }
+    const dwellExpired = new Set();
+    for (const state of activityVehicles) {
+      if (!(state.activityDwellRemaining > 0)) continue;
+      state.activityDwellRemaining = Math.max(0, state.activityDwellRemaining - dt);
+      if (state.activityDwellRemaining === 0) dwellExpired.add(state);
+    }
+    const pollDue = activityVehicleRetargetTimer >= 1.5;
+    if (!pollDue && !dwellExpired.size) return;
+    if (pollDue) activityVehicleRetargetTimer = 0;
     const pathCells = activityVehiclePathCells();
+    const objectStops = activityVehicleObjectStops();
     if (pathCells.length < 2) return;
     for (const state of activityVehicles) {
       const idle = !state.path.length && Math.abs(state.speed || 0) < 0.08;
       const stuck = state.blockedFor > 1.6;
-      if (idle || stuck) assignActivityVehicleGoal(state, pathCells);
+      const dwellComplete = !(state.activityDwellRemaining > 0);
+      if ((idle && dwellComplete && (pollDue || dwellExpired.has(state))) || stuck) {
+        assignActivityVehicleGoal(state, pathCells, objectStops);
+      }
     }
   }
 
@@ -31395,9 +31489,10 @@ function neighborStarVector(edge, index) {
       if (typeof requestMinimapRepaint === 'function') requestMinimapRepaint();
     }
 
-    // Capture light defaults the first time we run so we can modulate
-    // around them without losing the baseline. Then every time a tod /
-    // season / weather class is applied we recompute the live values.
+    // Capture light defaults the first time we run so time of day can recolor
+    // the scene without dimming the readable, moonlit baseline. Weather may
+    // still reduce that baseline for clouds, rain, storms, and snow. Then every
+    // time a tod / season / weather class is applied we recompute live values.
     // This intentionally touches only intensity + colour — no positions,
     // no shadow params, no animation state.
     let lightBase = null;
@@ -31502,10 +31597,14 @@ function neighborStarVector(edge, index) {
       const wx  = weatherProfile(weather);
       const seasonGround = seasonHemiGround(season);
       try {
-        sun.intensity = Math.max(0, lightBase.sunI * (tod.sunI / 1.35) * wx.mul);
+        // Keep the neutral render-light intensity at every hour. Previously,
+        // changing a Crowd control temporarily restored this brighter value,
+        // producing a desirable moonlit look that disappeared after refresh
+        // when time-of-day attenuation ran again.
+        sun.intensity = Math.max(0, lightBase.sunI * wx.mul);
         const sc = wx.tint != null ? lerpColor(tod.sunC, wx.tint, 1.35) : tod.sunC;
         sun.color.setHex(sc);
-        hemi.intensity = Math.max(0, lightBase.hemiI * (tod.hemiI / 0.90) * wx.hemiMul);
+        hemi.intensity = Math.max(0, lightBase.hemiI * wx.hemiMul);
         if (hemi.intensity > 0.75) hemi.intensity = 0.75;
         hemi.color.setHex(tod.hemiSky);
         hemi.groundColor.setHex(lerpColor(tod.hemiGround, seasonGround, 0.45));
