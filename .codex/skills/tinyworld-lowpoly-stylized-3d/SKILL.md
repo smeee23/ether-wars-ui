@@ -42,6 +42,7 @@ Use this together with:
   level 3 taller rig; level 4 larger turret; level 5 taller rig; level 6
   larger turret plus taller rig.
 - If visual tracking is requested, keep it set-based in the animation loop, rotate only the named yaw/root group, and treat existing flying scene roots as targets without adding combat state.
+- Ambient hostile flyovers use the existing aircraft route state: Air Command landing routes are always friendly/blue, while non-landing routes may roll hostile/red once per flight. Anti-air tracers and hit smoke are pooled visual effects; they must never mutate health, resources, buildings, persistence, AWS, or contract state.
 - Board-level decorative landforms, such as a floating asteroid underside, should live as standalone `worldGroup` children with `userData.visualOnly`, no `gx/gz` raycast metadata, and no writes to `world`, `cellMeshes`, `setCell`, `tilePos`, or `makeTile`.
 - Curved decorative landforms should reuse the existing terrain-side material palette when possible, and can be split into static low-poly material bands for lit rim, mid rock, and shadow body instead of adding lights or post-processing.
 - Always normalize imported model scale with `Box3` bounds, then apply a target span.

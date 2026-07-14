@@ -47,3 +47,5 @@ getComputedStyle(document.body, '::after').pointerEvents
 ```
 
 For neighbor inspection, verify explicit entry, automatic flight start from a clearly distant outside-board approach, the read-only/latest-finalized banner below the flight instructions, the neighbor name with a red header glow, both Escape and Return restoration, and survival of an unsaved edit across repeated enter/exit cycles.
+
+For ambient anti-air QA, confirm Air Command landing planes remain blue and untargeted, red hostile flyovers alone trigger staggered turret tracking/fire, misses expire, hits create small fading smoke puffs, and every turret/projectile returns to idle after the flight.

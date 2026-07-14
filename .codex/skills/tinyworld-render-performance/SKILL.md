@@ -82,6 +82,7 @@ GPU caches (introduced for low-end GPU + visible-distance scaling):
 - The "cloud" system is visually styled as floating rock fragments.
 - Voxel cloud/ring visual opacity is independent from Cloud shadow. Do not drive visible cloud materials with `alphaTest`; cloud shadow breakup belongs on each fragment's `customDepthMaterial` so lowering the shadow slider never hides the ring pieces themselves.
 - Smoke particles must be capped and must not cast/receive shadows.
+- Ambient anti-air defense must use the registered plasma-turret set plus fixed projectile/smoke pools. Keep firing on delta-time cooldowns in the main animation loop; do not scan the scene graph per frame or create firing intervals.
 - Crop duster planes should remain ambient year-round. Only crop-dusting passes are summer/crop-gated; non-summer or no-crop states should fall back to banner flyovers rather than hiding the plane system.
 
 Validation:

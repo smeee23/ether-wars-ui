@@ -8748,6 +8748,11 @@
     barrels.position.set(0, 0.02, 0.13);
     head.add(barrels);
 
+    const muzzle = new THREE.Object3D();
+    muzzle.name = 'plasmaTurretMuzzle';
+    muzzle.position.set(0, 0, 0.40);
+    barrels.add(muzzle);
+
     for (const x of [-0.07, 0.07]) {
       const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.34, 8), M.habitatTrim);
       barrel.rotation.x = Math.PI / 2;
@@ -8779,6 +8784,7 @@
       visualOnly: true,
       trackingHead: head,
       trackingPitch: barrels,
+      trackingMuzzle: muzzle,
       barrelRoot: barrels,
       rotationRootName: 'plasmaTurretHead',
       barrelRootName: 'plasmaTurretBarrels',
@@ -25423,12 +25429,14 @@ function neighborStarVector(edge, index) {
   cropDusterRoot.visible = false;
   xrWorldRoot.add(cropDusterRoot);
   const cropDusterMaterials = [];
+  const cropDusterEngineGlowMeshes = [];
   const cropDusterSpaceMaterials = {
     body: new THREE.MeshLambertMaterial({ color: 0x6f777b }),
     bodyDark: new THREE.MeshLambertMaterial({ color: 0x3a4248 }),
     bodyLight: new THREE.MeshLambertMaterial({ color: 0x8e9698 }),
     engine: new THREE.MeshLambertMaterial({ color: 0x2d3438 }),
     engineGlow: new THREE.MeshLambertMaterial({ color: 0x67e8ff, emissive: 0x1fcfff, emissiveIntensity: 0.85 }),
+    hostileEngineGlow: new THREE.MeshLambertMaterial({ color: 0xff4148, emissive: 0xff1724, emissiveIntensity: 1.15 }),
     navRed: new THREE.MeshLambertMaterial({ color: 0xff5c5c, emissive: 0xff2424, emissiveIntensity: 0.75 }),
     navCyan: new THREE.MeshLambertMaterial({ color: 0x6eeeff, emissive: 0x1fcfff, emissiveIntensity: 0.75 }),
     cockpit: new THREE.MeshLambertMaterial({ color: 0x7fd8ee, emissive: 0x1f6f86, emissiveIntensity: 0.12, transparent: true, opacity: 0.48, depthWrite: false }),
@@ -25454,6 +25462,7 @@ function neighborStarVector(edge, index) {
   const FLIGHT_REFUEL_MIN = 6.0;
   const FLIGHT_REFUEL_MAX = 14.0;
   const FLIGHT_BANNER_CHANCE = 0.32;
+  const HOSTILE_FLYOVER_CHANCE = 0.75;
   const FLIGHT_GROUND_HOLD_FORWARD_OFFSET = 0.83;
   const FLIGHT_GROUND_SLOW_ALT = FLIGHT_DUST_ALT + 0.72;
   const FLIGHT_GROUND_SLOW_SPEED_MULT = 0.34;
@@ -25487,6 +25496,10 @@ function neighborStarVector(edge, index) {
     holdEligible: false,
     flightDustY: FLIGHT_DUST_ALT,
     flightGroundSlowY: FLIGHT_DUST_ALT + 0.72,
+    willLandAtAirCommand: false,
+    isHostile: false,
+    hitEffectCooldown: 0,
+    velocity: new THREE.Vector3(),
   };
   // Scratch vectors reused per frame to avoid allocations in the hot path.
   const _flightPos = new THREE.Vector3();
@@ -25697,8 +25710,16 @@ function neighborStarVector(edge, index) {
     exhaust.castShadow = false;
     exhaust.receiveShadow = false;
     pod.add(exhaust);
+    cropDusterEngineGlowMeshes.push(exhaust);
 
     return pod;
+  }
+
+  function setPlaneEngineAppearance(isHostile) {
+    const material = isHostile
+      ? cropDusterSpaceMaterials.hostileEngineGlow
+      : cropDusterSpaceMaterials.engineGlow;
+    for (const glowMesh of cropDusterEngineGlowMeshes) glowMesh.material = material;
   }
 
   function addCropDusterSpacecraftConversion(model) {
@@ -25767,7 +25788,8 @@ function neighborStarVector(edge, index) {
       });
       cropDusterRoot.add(cropDusterModel);
       applyCropDusterMaterial(0);
-      addCropDusterSpacecraftConversion(cropDusterModel);
+    addCropDusterSpacecraftConversion(cropDusterModel);
+      setPlaneEngineAppearance(cropDusterState.isHostile);
       cropDusterRoot.visible = true;
     }, undefined, err => {
       console.warn('[crop-duster] failed to load model', err);
@@ -25869,7 +25891,13 @@ function neighborStarVector(edge, index) {
   function startAirCommandRun() {
     cropDusterState.airCommandTarget = null;
     const airCommandCurve = planAirCommandCurve();
+    const willLandAtAirCommand = !!airCommandCurve;
     const curve = airCommandCurve || planFlyoverCurve(0);
+    cropDusterState.willLandAtAirCommand = willLandAtAirCommand;
+    cropDusterState.isHostile = !willLandAtAirCommand && Math.random() < HOSTILE_FLYOVER_CHANCE;
+    cropDusterState.hitEffectCooldown = 0;
+    setPlaneEngineAppearance(cropDusterState.isHostile);
+    resetAntiAirStateForNewFlight();
     cropDusterState.curve = curve;
     cropDusterState.curveLen = curve.getLength();
     cropDusterState.travel = 0;
@@ -25892,6 +25920,11 @@ function neighborStarVector(edge, index) {
   }
 
   function startBannerRun(text) {
+    cropDusterState.willLandAtAirCommand = false;
+    cropDusterState.isHostile = Math.random() < HOSTILE_FLYOVER_CHANCE;
+    cropDusterState.hitEffectCooldown = 0;
+    setPlaneEngineAppearance(cropDusterState.isHostile);
+    resetAntiAirStateForNewFlight();
     cropDusterState.curve = planFlyoverCurve(0.6);
     cropDusterState.curveLen = cropDusterState.curve.getLength();
     cropDusterState.travel = 0;
@@ -25917,6 +25950,11 @@ function neighborStarVector(edge, index) {
     if (bannerMesh) bannerMesh.visible = false;
     if (bannerWire) bannerWire.visible = false;
     cropDusterState.phase = 'refuel-wait';
+    cropDusterState.willLandAtAirCommand = false;
+    cropDusterState.isHostile = false;
+    cropDusterState.velocity.set(0, 0, 0);
+    setPlaneEngineAppearance(false);
+    clearActiveAntiAirProjectiles();
     cropDusterState.refuelTimer = FLIGHT_REFUEL_MIN
       + Math.random() * (FLIGHT_REFUEL_MAX - FLIGHT_REFUEL_MIN);
   }
@@ -26068,6 +26106,7 @@ function neighborStarVector(edge, index) {
     const u = cropDusterState.travel / cropDusterState.curveLen;
     curve.getPointAt(u, _flightPos);
     curve.getTangentAt(u, _flightTan);
+    cropDusterState.velocity.copy(_flightTan).multiplyScalar(frameSpeed);
 
     const yaw = Math.atan2(_flightTan.x, _flightTan.z);
     const horiz = Math.hypot(_flightTan.x, _flightTan.z);
@@ -26138,6 +26177,238 @@ function neighborStarVector(edge, index) {
 
   loadCropDuster();
 
+  // -------- ambient anti-air defense --------
+  const ANTI_AIR_MIN_RANGE = 3;
+  const ANTI_AIR_MAX_RANGE = 42;
+  const ANTI_AIR_MIN_FIRE_DELAY = 0.8;
+  const ANTI_AIR_MAX_FIRE_DELAY = 2.4;
+  const ANTI_AIR_PROJECTILE_SPEED = 55;
+  const ANTI_AIR_HIT_CHANCE = 0.55;
+  const MAX_SIMULTANEOUS_ANTI_AIR_SHOTS = 3;
+  const ANTI_AIR_PROJECTILE_POOL_SIZE = 8;
+  const ANTI_AIR_PROJECTILE_MAX_AGE = 1.35;
+  const ANTI_AIR_HIT_RADIUS = 0.42;
+  const PLANE_HIT_EFFECT_COOLDOWN = 0.4;
+  const PLANE_HIT_SMOKE_POOL_SIZE = 18;
+  const antiAirProjectileGeometry = new THREE.SphereGeometry(0.055, 6, 5);
+  const antiAirProjectileMaterial = new THREE.MeshBasicMaterial({ color: 0x7eeeff });
+  const planeHitSmokeGeometry = new THREE.SphereGeometry(0.075, 6, 5);
+  const antiAirState = {
+    projectiles: [],
+    smokeEffects: [],
+  };
+  const _antiAirPlanePosition = new THREE.Vector3();
+  const _antiAirMuzzlePosition = new THREE.Vector3();
+  const _antiAirDirection = new THREE.Vector3();
+  const _antiAirPredictedTarget = new THREE.Vector3();
+
+  function randomAntiAirFireDelay() {
+    return ANTI_AIR_MIN_FIRE_DELAY
+      + Math.random() * (ANTI_AIR_MAX_FIRE_DELAY - ANTI_AIR_MIN_FIRE_DELAY);
+  }
+
+  function ensureAntiAirPools() {
+    if (!antiAirState.projectiles.length) {
+      for (let i = 0; i < ANTI_AIR_PROJECTILE_POOL_SIZE; i++) {
+        const mesh = new THREE.Mesh(antiAirProjectileGeometry, antiAirProjectileMaterial);
+        mesh.visible = false;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        xrWorldRoot.add(mesh);
+        antiAirState.projectiles.push({
+          mesh,
+          active: false,
+          velocity: new THREE.Vector3(),
+          age: 0,
+          maxAge: ANTI_AIR_PROJECTILE_MAX_AGE,
+          willHit: false,
+        });
+      }
+    }
+    if (!antiAirState.smokeEffects.length) {
+      for (let i = 0; i < PLANE_HIT_SMOKE_POOL_SIZE; i++) {
+        const material = new THREE.MeshBasicMaterial({
+          color: 0xb8b1a7,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(planeHitSmokeGeometry, material);
+        mesh.visible = false;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        xrWorldRoot.add(mesh);
+        antiAirState.smokeEffects.push({
+          mesh,
+          active: false,
+          velocity: new THREE.Vector3(),
+          age: 0,
+          maxAge: 1,
+          baseScale: 1,
+        });
+      }
+    }
+  }
+
+  function collectEligibleAntiAirTurrets() {
+    const turrets = [];
+    for (const turret of plasmaTurretObjects) {
+      if (!turret || !turret.parent || !runtimeRootVisible(turret)) continue;
+      if (!turret.userData || !turret.userData.trackingHead || !turret.userData.trackingMuzzle) continue;
+      turrets.push(turret);
+    }
+    return turrets;
+  }
+
+  function canTurretsEngageActivePlane() {
+    return (cropDusterState.phase === 'flying' || cropDusterState.phase === 'banner')
+      && cropDusterState.isHostile === true
+      && cropDusterState.willLandAtAirCommand === false
+      && cropDusterRoot.visible === true
+      && !!cropDusterModel;
+  }
+
+  function clearActiveAntiAirProjectiles() {
+    for (const projectile of antiAirState.projectiles) {
+      projectile.active = false;
+      projectile.mesh.visible = false;
+    }
+  }
+
+  function resetAntiAirStateForNewFlight() {
+    ensureAntiAirPools();
+    clearActiveAntiAirProjectiles();
+    for (const turret of collectEligibleAntiAirTurrets()) {
+      turret.userData.antiAirFireCooldown = randomAntiAirFireDelay();
+    }
+  }
+
+  function activeAntiAirProjectileCount() {
+    let count = 0;
+    for (const projectile of antiAirState.projectiles) if (projectile.active) count++;
+    return count;
+  }
+
+  function fireAntiAirShot(turret) {
+    if (!canTurretsEngageActivePlane()) return false;
+    const projectile = antiAirState.projectiles.find(item => !item.active);
+    const muzzle = turret.userData && turret.userData.trackingMuzzle;
+    if (!projectile || !muzzle) return false;
+    muzzle.getWorldPosition(_antiAirMuzzlePosition);
+    cropDusterRoot.getWorldPosition(_antiAirPlanePosition);
+    const distance = _antiAirMuzzlePosition.distanceTo(_antiAirPlanePosition);
+    const travelTime = distance / ANTI_AIR_PROJECTILE_SPEED;
+    _antiAirPredictedTarget.copy(_antiAirPlanePosition)
+      .addScaledVector(cropDusterState.velocity, travelTime);
+    projectile.willHit = Math.random() < ANTI_AIR_HIT_CHANCE;
+    if (!projectile.willHit) {
+      _antiAirPredictedTarget.x += (Math.random() - 0.5) * 3.2;
+      _antiAirPredictedTarget.y += (Math.random() - 0.35) * 2.0;
+      _antiAirPredictedTarget.z += (Math.random() - 0.5) * 3.2;
+    }
+    _antiAirDirection.copy(_antiAirPredictedTarget).sub(_antiAirMuzzlePosition).normalize();
+    projectile.mesh.position.copy(_antiAirMuzzlePosition);
+    projectile.velocity.copy(_antiAirDirection).multiplyScalar(ANTI_AIR_PROJECTILE_SPEED);
+    projectile.age = 0;
+    projectile.maxAge = ANTI_AIR_PROJECTILE_MAX_AGE;
+    projectile.active = true;
+    projectile.mesh.visible = true;
+    return true;
+  }
+
+  function spawnPlaneHitSmoke(worldPosition, planeVelocity) {
+    if (cropDusterState.hitEffectCooldown > 0) return;
+    cropDusterState.hitEffectCooldown = PLANE_HIT_EFFECT_COOLDOWN;
+    let spawned = 0;
+    for (const smoke of antiAirState.smokeEffects) {
+      if (smoke.active) continue;
+      smoke.active = true;
+      smoke.age = 0;
+      smoke.maxAge = 0.65 + Math.random() * 0.65;
+      smoke.baseScale = 0.65 + Math.random() * 0.65;
+      smoke.mesh.position.copy(worldPosition);
+      smoke.mesh.position.x += (Math.random() - 0.5) * 0.22;
+      smoke.mesh.position.y += (Math.random() - 0.5) * 0.16;
+      smoke.mesh.position.z += (Math.random() - 0.5) * 0.22;
+      smoke.velocity.copy(planeVelocity).multiplyScalar(-0.08);
+      smoke.velocity.x += (Math.random() - 0.5) * 0.22;
+      smoke.velocity.y += 0.08 + Math.random() * 0.12;
+      smoke.velocity.z += (Math.random() - 0.5) * 0.22;
+      smoke.mesh.scale.setScalar(smoke.baseScale);
+      smoke.mesh.material.opacity = 0.58;
+      smoke.mesh.visible = true;
+      if (++spawned >= 3) break;
+    }
+  }
+
+  function updateAntiAirProjectiles(dt) {
+    cropDusterState.hitEffectCooldown = Math.max(0, cropDusterState.hitEffectCooldown - dt);
+    for (const projectile of antiAirState.projectiles) {
+      if (!projectile.active) continue;
+      projectile.age += dt;
+      if (projectile.willHit && canTurretsEngageActivePlane()) {
+        cropDusterRoot.getWorldPosition(_antiAirPlanePosition);
+        _antiAirDirection.copy(_antiAirPlanePosition).sub(projectile.mesh.position).normalize();
+        projectile.velocity.lerp(_antiAirDirection.multiplyScalar(ANTI_AIR_PROJECTILE_SPEED), Math.min(1, dt * 7));
+        const hitStep = ANTI_AIR_HIT_RADIUS + ANTI_AIR_PROJECTILE_SPEED * dt;
+        if (projectile.mesh.position.distanceToSquared(_antiAirPlanePosition) <= hitStep * hitStep) {
+          spawnPlaneHitSmoke(_antiAirPlanePosition, cropDusterState.velocity);
+          projectile.active = false;
+          projectile.mesh.visible = false;
+          continue;
+        }
+      }
+      projectile.mesh.position.addScaledVector(projectile.velocity, dt);
+      if (projectile.age >= projectile.maxAge || !canTurretsEngageActivePlane()) {
+        projectile.active = false;
+        projectile.mesh.visible = false;
+      }
+    }
+  }
+
+  function updatePlaneHitSmoke(dt) {
+    for (const smoke of antiAirState.smokeEffects) {
+      if (!smoke.active) continue;
+      smoke.age += dt;
+      const u = smoke.age / smoke.maxAge;
+      smoke.mesh.position.addScaledVector(smoke.velocity, dt);
+      smoke.mesh.material.opacity = 0.58 * Math.max(0, 1 - u);
+      smoke.mesh.scale.setScalar(smoke.baseScale * (1 + u * 2.6));
+      if (u >= 1) {
+        smoke.active = false;
+        smoke.mesh.visible = false;
+      }
+    }
+  }
+
+  function updateAntiAirDefense(dt) {
+    updateAntiAirProjectiles(dt);
+    updatePlaneHitSmoke(dt);
+    if (!canTurretsEngageActivePlane()) return;
+    cropDusterRoot.getWorldPosition(_antiAirPlanePosition);
+    const turrets = collectEligibleAntiAirTurrets();
+    turrets.sort((a, b) => {
+      a.getWorldPosition(_turretWorldPos);
+      const ad = _turretWorldPos.distanceToSquared(_antiAirPlanePosition);
+      b.getWorldPosition(_turretTargetWorldPos);
+      return ad - _turretTargetWorldPos.distanceToSquared(_antiAirPlanePosition);
+    });
+    for (const turret of turrets) {
+      turret.getWorldPosition(_turretWorldPos);
+      const distance = _turretWorldPos.distanceTo(_antiAirPlanePosition);
+      if (distance < ANTI_AIR_MIN_RANGE || distance > ANTI_AIR_MAX_RANGE) continue;
+      if (!Number.isFinite(turret.userData.antiAirFireCooldown)) {
+        turret.userData.antiAirFireCooldown = randomAntiAirFireDelay();
+      }
+      turret.userData.antiAirFireCooldown -= dt;
+      if (turret.userData.antiAirFireCooldown <= 0
+        && activeAntiAirProjectileCount() < MAX_SIMULTANEOUS_ANTI_AIR_SHOTS) {
+        fireAntiAirShot(turret);
+        turret.userData.antiAirFireCooldown = randomAntiAirFireDelay();
+      }
+    }
+  }
+
   // -------- plasma turret tracking --------
   const PLASMA_TURRET_TRACK_SPEED = 5.2;
   const PLASMA_TURRET_RETURN_SPEED = 1.7;
@@ -26155,6 +26426,7 @@ function neighborStarVector(edge, index) {
   }
 
   function nearestFlyingTargetForTurret(turret) {
+    if (!canTurretsEngageActivePlane()) return null;
     let best = null;
     let bestDistSq = Infinity;
     turret.getWorldPosition(_turretWorldPos);
@@ -26165,6 +26437,8 @@ function neighborStarVector(edge, index) {
       candidate.getWorldPosition(_turretTargetWorldPos);
       if (_turretTargetWorldPos.y < 0.9) continue;
       const distSq = _turretWorldPos.distanceToSquared(_turretTargetWorldPos);
+      if (distSq < ANTI_AIR_MIN_RANGE * ANTI_AIR_MIN_RANGE
+        || distSq > ANTI_AIR_MAX_RANGE * ANTI_AIR_MAX_RANGE) continue;
       if (distSq < bestDistSq) {
         bestDistSq = distSq;
         best = candidate;
@@ -26255,6 +26529,7 @@ function neighborStarVector(edge, index) {
     if (crowdLayer) crowdLayer.update(dt, camera);
     updateCropDuster(dt);
     updatePlasmaTurrets(dt);
+    updateAntiAirDefense(dt);
     if (useWindowedHomeRendering()) {
       requestHomeRenderWindowSync();
       if (homeRenderQueue.length) processHomeRenderQueue(5);
